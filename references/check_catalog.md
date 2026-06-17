@@ -9,9 +9,10 @@ Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 
 ## Confidence Levels
 
-- `Defect`: very likely wrong.
-- `Likely defect`: probably wrong or fragile.
-- `Review`: suspicious, needs confirmation.
+- `Defect`: very likely wrong (Confirmed bucket in the report).
+- `Likely defect`: probably wrong or fragile (Likely bucket).
+- `Review`: suspicious, needs confirmation (Review bucket).
+- `Info`: informational notes (Info bucket; opt-in checks).
 
 ## Formula Integrity
 
@@ -57,3 +58,15 @@ Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 | WHITESPACE_KEY | DET | Medium | Labels or keys have leading/trailing whitespace. |
 | DUPLICATE_KEY | DET | Medium | Duplicate normalized labels or keys may break lookups. |
 | MERGED_CELL_IN_DATA_RANGE | DET | Medium | Merged cells intersect a used data range. |
+
+## Finance-Specific (opt-in)
+
+These checks are off by default. Enable them by setting `finance.enabled: true`
+in your config; they are intentionally label-driven heuristics and report
+`Review`-confidence findings only.
+
+| Rule ID | Mode | Default severity | Description |
+|---|---:|---:|---|
+| BALANCE_SHEET_BALANCE | HEUR | Medium | "Total Assets" disagrees with "Total Liabilities + Equity" on the same sheet. |
+| SIGN_CONVENTION | HEUR | Medium | Row labelled as expense/cost has a positive value (or vice versa for revenue). |
+| PERIOD_MISMATCH | HEUR | Medium | Quarterly column headers (e.g. `Q1 2024 -> Q3 2024`) skip a period. |

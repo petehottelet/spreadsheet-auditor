@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from openpyxl.utils.cell import get_column_letter, range_boundaries
 
-from finding import Finding
-from formula_parser import extract_functions, is_formula
-from range_checks import AGG_FUNCS, aggregate_ranges
+from .finding import Finding
+from .formula_parser import extract_functions, is_formula
+from .range_checks import AGG_FUNCS, aggregate_ranges
 
 
 def _numeric(value) -> float | None:

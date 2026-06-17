@@ -6,9 +6,9 @@ from typing import Iterable
 
 from openpyxl.utils.cell import get_column_letter, range_boundaries
 
-from finding import Finding
-from formula_parser import extract_functions, extract_references, is_formula
-from workbook_inventory import location
+from .finding import Finding
+from .formula_parser import extract_functions, extract_references, is_formula
+from .workbook_inventory import location
 
 
 AGG_FUNCS = {"SUM", "AVERAGE", "COUNT", "COUNTA"}
@@ -240,7 +240,7 @@ def _detect_hidden_intersections(ws, formula_cell: dict, ref_text: str, min_col:
 
 
 def detect_literal_constants(formula_cells: list[dict]) -> list[Finding]:
-    from formula_parser import extract_numeric_literals
+    from .formula_parser import extract_numeric_literals
 
     findings: list[Finding] = []
     for cell in formula_cells:

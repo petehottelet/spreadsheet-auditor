@@ -1,0 +1,41 @@
+{
+  "$schema_version": 1,
+  "description": "Authoritative seeded-defect catalog. Each entry pairs a workbook + cell with the rule that should fire, the mode (DET vs HEUR), whether the check is value-dependent (requires recalc), and any notes about known false-positive sources.",
+  "workbooks": [
+    {
+      "path": "assets/test_corpus/seeded_defects/seeded-defects.xlsx",
+      "seeded": [
+        {"rule_id": "LIVE_ERROR", "location": "Model!B44", "mode": "DET", "requires_recalc": false, "notes": "#VALUE! literal in cell."},
+        {"rule_id": "BROKEN_REFERENCE", "location": "Model!B28", "mode": "DET", "requires_recalc": false, "notes": "Contains #REF! in the formula text."},
+        {"rule_id": "FORMULA_DRIFT", "location": "Model!E5", "mode": "DET", "requires_recalc": false, "notes": "Margin row breaks the relative pattern of its peers."},
+        {"rule_id": "RANGE_EXCLUSION", "location": "Model!B11", "mode": "DET", "requires_recalc": false, "notes": "SUM(B8:B9) excludes adjacent Item C in B10."},
+        {"rule_id": "RANGE_EXCLUSION", "location": "Model!B16", "mode": "DET", "requires_recalc": false, "notes": "Subtotal SUM(B15:B15) excludes adjacent component."},
+        {"rule_id": "RANGE_INCLUDES_SUBTOTAL", "location": "Model!B18", "mode": "DET", "requires_recalc": false, "notes": "Grand total SUM straddles a subtotal row."},
+        {"rule_id": "RANGE_LENGTH_MISMATCH", "location": "Model!F63", "mode": "DET", "requires_recalc": false, "notes": "F63 sums two columns while peers sum three."},
+        {"rule_id": "HARDCODE_IN_FORMULA_BLOCK", "location": "Model!C22", "mode": "DET", "requires_recalc": false, "notes": "Numeric literal sitting in a row of formulas."},
+        {"rule_id": "LITERAL_CONSTANT", "location": "Model!B25", "mode": "HEUR", "requires_recalc": false, "notes": "Embedded growth-rate literal 1.05 inside a formula."},
+        {"rule_id": "IFERROR_MASK", "location": "Model!B27", "mode": "HEUR", "requires_recalc": false, "notes": "IFERROR wrapper that may hide a real error."},
+        {"rule_id": "HIDDEN_STRUCTURE_IN_TOTAL", "location": "Model!B32", "mode": "DET", "requires_recalc": false, "notes": "Hidden row 31 still feeds B32 total."},
+        {"rule_id": "NUMBERS_STORED_AS_TEXT", "location": "Model!B35", "mode": "DET", "requires_recalc": false, "notes": "'1,234' typed as string."},
+        {"rule_id": "WHITESPACE_KEY", "location": "Model!A36", "mode": "DET", "requires_recalc": false, "notes": "Leading/trailing whitespace on a key."},
+        {"rule_id": "DUPLICATE_KEY", "location": "Model!A37, Model!A38", "mode": "DET", "requires_recalc": false, "notes": "Duplicate key with whitespace + case differences."},
+        {"rule_id": "MERGED_CELL_IN_DATA_RANGE", "location": "Model!A42:B42", "mode": "DET", "requires_recalc": false, "notes": "Merged cell inside a data range."},
+        {"rule_id": "CROSS_FOOT_FAILURE", "location": "Model!E70", "mode": "DET", "requires_recalc": true, "notes": "Row total vs column total disagreement; requires recalc to materialize cached values."}
+      ]
+    },
+    {
+      "path": "examples/demo_bad_budget.xlsx",
+      "seeded": [
+        {"rule_id": "BROKEN_REFERENCE", "location": "Budget!B14", "mode": "DET", "requires_recalc": false, "notes": "=SUM(#REF!)."},
+        {"rule_id": "LIVE_ERROR", "location": "Budget!B14", "mode": "DET", "requires_recalc": false, "notes": "Cached #REF! error in B14."},
+        {"rule_id": "RANGE_EXCLUSION", "location": "Budget!B11", "mode": "DET", "requires_recalc": false, "notes": "Off-by-one grand total."},
+        {"rule_id": "FORMULA_DRIFT", "location": "Budget!F6", "mode": "DET", "requires_recalc": false, "notes": "Drift in revenue total column."},
+        {"rule_id": "HARDCODE_IN_FORMULA_BLOCK", "location": "Budget!E9", "mode": "DET", "requires_recalc": false, "notes": "Literal 999 in a formula column."},
+        {"rule_id": "HIDDEN_STRUCTURE_IN_TOTAL", "location": "Budget!B13", "mode": "DET", "requires_recalc": false, "notes": "Hidden row 12 feeds B13."},
+        {"rule_id": "NUMBERS_STORED_AS_TEXT", "location": "Budget!B20", "mode": "DET", "requires_recalc": false, "notes": "'1,250' string in a numeric column."},
+        {"rule_id": "DUPLICATE_KEY", "location": "Budget!A17, Budget!A18", "mode": "DET", "requires_recalc": false, "notes": "North / ' North '."},
+        {"rule_id": "WHITESPACE_KEY", "location": "Budget!A18", "mode": "DET", "requires_recalc": false, "notes": "' North '."}
+      ]
+    }
+  ]
+}

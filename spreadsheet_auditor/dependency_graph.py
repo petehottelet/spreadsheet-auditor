@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from formula_parser import extract_references
-from reference_resolver import expand_reference
+from .formula_parser import extract_references
+from .reference_resolver import expand_reference
 
 
 def build_dependency_graph(formulas: list[dict], expansion_limit: int = 500) -> dict[str, set[str]]:

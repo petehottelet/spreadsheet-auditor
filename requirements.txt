@@ -1,5 +1,10 @@
 # Runtime dependencies for spreadsheet-auditor.
 #
+# NOTE: pyproject.toml is the canonical source of dependencies. This file is a
+# convenience mirror for `pip install -r requirements.txt` workflows; keep the
+# core pin below in sync with [project].dependencies in pyproject.toml. For the
+# optional extras prefer `pip install "spreadsheet-auditor[all]"`.
+#
 # Required for .xlsx / .xlsm auditing:
 openpyxl>=3.1
 

@@ -1,4 +1,8 @@
 # Development and CI dependencies.
+#
+# NOTE: pyproject.toml's [project.optional-dependencies].dev is the canonical
+# dev dependency set (`pip install -e .[dev]`). This file mirrors it for
+# `pip install -r` workflows; keep the two in sync.
 -r requirements.txt
 
 pytest>=8.0

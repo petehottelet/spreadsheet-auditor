@@ -1,0 +1,96 @@
+# Audit every Excel workbook in this repo on every push and PR.
+#
+# Drop this file into `.github/workflows/audit-spreadsheets.yml` in your
+# repository. It installs spreadsheet-auditor, runs `--healthcheck`, audits
+# each `.xlsx`/`.xlsm` workbook, uploads the report bundle, and fails the run
+# only when High-or-worse findings appear.
+#
+# Exit codes the workflow distinguishes between:
+#
+#   0  No findings at or above --fail-on (default Critical). Workflow succeeds.
+#   1  Findings at or above --fail-on. Workflow fails.
+#   2  --strict and coverage limitations were present (e.g. recalculation
+#      unavailable). Treated as a warning here by skipping --strict.
+#   3  Healthcheck failed: a required dependency is missing.
+#   4  Preflight error (unreadable workbook, wrong extension).
+#   5  Internal auditor error.
+name: Audit Spreadsheets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.xlsx"
+      - "**/*.xlsm"
+  pull_request:
+    paths:
+      - "**/*.xlsx"
+      - "**/*.xlsm"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install LibreOffice for recalculation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc
+
+      - name: Install spreadsheet-auditor
+        run: |
+          python -m pip install --upgrade pip
+          # Pin to a released version; replace 0.1.0 with the version you trust.
+          pip install "spreadsheet-auditor[all]==0.1.0"
+
+      - name: Healthcheck
+        run: spreadsheet-auditor --healthcheck
+
+      - name: Audit each workbook
+        shell: bash
+        run: |
+          mkdir -p audit-reports
+          fail=0
+          shopt -s nullglob globstar
+          for wb in **/*.xlsx **/*.xlsm; do
+            [ -e "$wb" ] || continue
+            base="$(basename "$wb" | tr ' ' '_')"
+            echo "::group::Auditing $wb"
+            set +e
+            spreadsheet-auditor "$wb" \
+              --out "audit-reports/${base%.*}.report.md" \
+              --json "audit-reports/${base%.*}.findings.json" \
+              --format markdown \
+              --fail-on High
+            code=$?
+            set -e
+            echo "Exit code: $code"
+            echo "::endgroup::"
+            if [ "$code" -ge 1 ] && [ "$code" -le 1 ]; then
+              fail=1
+            elif [ "$code" -ge 3 ]; then
+              # Internal/preflight errors should also fail the run.
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more workbooks had High-or-worse findings, or the auditor failed to run."
+            exit 1
+          fi
+
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spreadsheet-audit-reports
+          path: audit-reports/
+          if-no-files-found: ignore

@@ -4,7 +4,7 @@ from collections.abc import Iterable
 
 from openpyxl.utils.cell import get_column_letter, range_boundaries
 
-from formula_parser import ParsedReference
+from .formula_parser import ParsedReference
 
 EXCEL_MAX_ROW = 1048576
 EXCEL_MAX_COL = 16384

@@ -1,0 +1,70 @@
+# Upload spreadsheet audit findings as a SARIF report to GitHub code scanning.
+#
+# Drop into `.github/workflows/code-scanning.yml`. Requires
+# `security-events: write` permission and the repository must have
+# code scanning enabled (Settings -> Code security and analysis).
+name: Spreadsheet Audit (SARIF)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "13 4 * * 1"
+
+jobs:
+  audit-sarif:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install LibreOffice
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc
+
+      - name: Install spreadsheet-auditor
+        run: |
+          python -m pip install --upgrade pip
+          pip install "spreadsheet-auditor[all]==0.1.0"
+
+      - name: Audit workbooks and emit SARIF
+        shell: bash
+        run: |
+          mkdir -p audit-sarif
+          shopt -s nullglob globstar
+          for wb in **/*.xlsx **/*.xlsm; do
+            [ -e "$wb" ] || continue
+            name="$(basename "$wb" | tr ' ' '_')"
+            # --fail-on None so SARIF upload succeeds even when findings exist;
+            # GitHub Code Scanning will display them.
+            spreadsheet-auditor "$wb" \
+              --out "audit-sarif/${name%.*}.sarif" \
+              --format sarif \
+              --fail-on None || true
+          done
+          # Merge per-workbook SARIF files into a single run for upload.
+          python - <<'PY'
+          import json, glob
+          merged = {"version": "2.1.0", "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json", "runs": []}
+          for path in glob.glob("audit-sarif/*.sarif"):
+              with open(path, encoding="utf-8") as fh:
+                  doc = json.load(fh)
+              merged["runs"].extend(doc.get("runs", []))
+          with open("audit-sarif/spreadsheet-auditor.sarif", "w", encoding="utf-8") as fh:
+              json.dump(merged, fh, indent=2)
+          PY
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: audit-sarif/spreadsheet-auditor.sarif
+          category: spreadsheet-auditor
