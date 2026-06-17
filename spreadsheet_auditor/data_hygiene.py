@@ -3,8 +3,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
-from finding import Finding
-from workbook_inventory import location
+from .finding import Finding
+from .workbook_inventory import location
 
 
 NUMERIC_TEXT_RE = re.compile(r"^\s*[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*$|^\s*[-+]?\d+(?:\.\d+)?\s*$")

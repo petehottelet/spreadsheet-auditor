@@ -6,7 +6,7 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.utils.cell import get_column_letter
 
-from formula_parser import is_formula
+from .formula_parser import is_formula
 
 
 ERROR_VALUES = {"#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"}

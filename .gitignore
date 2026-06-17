@@ -8,5 +8,14 @@ findings.json
 *.recalculated.xlsx
 *_audit_annotated.xlsx
 dist/
-.pytest_cache/
+build/
+_tmp/
 _tmp*.json
+_tmp_wheel_review/
+.pytest_cache/
+*.egg-info/
+.spreadsheet_auditor.egg-info/
+release-notes.md
+report.html
+report.sarif
+

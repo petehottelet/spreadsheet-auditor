@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from finding import Finding
-from formula_parser import is_formula, normalize_formula
-from workbook_inventory import location
+from .finding import Finding
+from .formula_parser import is_formula, normalize_formula
+from .workbook_inventory import location
 
 
 def detect_formula_drift(formula_cells: list[dict]) -> list[Finding]:
@@ -30,10 +30,18 @@ def detect_formula_drift(formula_cells: list[dict]) -> list[Finding]:
             majority, count = counts.most_common(1)[0]
             if count < len(segment) - 1:
                 continue
-            for cell, pattern in zip(segment, patterns):
+            for idx, (cell, pattern) in enumerate(zip(segment, patterns)):
                 if pattern == majority or cell["location"] in seen:
                     continue
                 seen.add(cell["location"])
+                neighbors = _drift_neighbors(segment, idx)
+                evidence = [
+                    f"Formula differs from the dominant relative pattern in this {axis}.",
+                    f"Dominant pattern (n={count}): {majority}",
+                    f"This cell: {pattern}",
+                ]
+                if neighbors:
+                    evidence.append("Neighboring formulas: " + "; ".join(neighbors))
                 findings.append(
                     Finding(
                         rule_id="FORMULA_DRIFT",
@@ -43,11 +51,24 @@ def detect_formula_drift(formula_cells: list[dict]) -> list[Finding]:
                         location=cell["location"],
                         title="Formula breaks neighboring pattern",
                         formula=cell["formula"],
-                        evidence=[f"Formula differs from the dominant relative pattern in this {axis}."],
+                        evidence=evidence,
                         suggested_fix="Compare this formula to adjacent formulas and restore the intended relative references.",
                     )
                 )
     return findings
+
+
+def _drift_neighbors(segment: list[dict], idx: int, radius: int = 1) -> list[str]:
+    """Return up to 2*radius adjacent formulas (with their locations) for evidence."""
+    neighbors: list[str] = []
+    start = max(0, idx - radius)
+    end = min(len(segment), idx + radius + 1)
+    for j in range(start, end):
+        if j == idx:
+            continue
+        cell = segment[j]
+        neighbors.append(f"{cell['location']}={cell['formula']}")
+    return neighbors
 
 
 def detect_hardcode_breaks(formula_wb, allowed_sheet_names: set[str] | None = None) -> list[Finding]:

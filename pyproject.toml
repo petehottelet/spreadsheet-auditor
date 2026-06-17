@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spreadsheet-auditor"
+dynamic = ["version"]
+description = "Audit existing Excel spreadsheets and financial models for correctness defects: formula errors, broken references, off-by-one ranges, reconciliation failures, circular references, hidden structure, and data-quality risks. Audit-only Agent Skill plus CLI."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "petehottelet" }]
+keywords = [
+    "spreadsheet",
+    "excel",
+    "xlsx",
+    "xlsm",
+    "audit",
+    "auditing",
+    "financial-modeling",
+    "fpna",
+    "reconciliation",
+    "formula",
+    "data-quality",
+    "static-analysis",
+    "openpyxl",
+    "cli",
+    "agent-skill",
+    "claude",
+    "codex",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Spreadsheet",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+dependencies = [
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+xml = ["defusedxml>=0.7"]
+graph = ["networkx>=3.0"]
+yaml = ["PyYAML>=6.0"]
+all = [
+    "defusedxml>=0.7",
+    "networkx>=3.0",
+    "PyYAML>=6.0",
+]
+dev = [
+    "pytest>=8.0",
+    "jsonschema>=4.0",
+    "defusedxml>=0.7",
+    "networkx>=3.0",
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+spreadsheet-auditor = "spreadsheet_auditor.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/petehottelet/spreadsheet-auditor"
+Repository = "https://github.com/petehottelet/spreadsheet-auditor"
+Issues = "https://github.com/petehottelet/spreadsheet-auditor/issues"
+Changelog = "https://github.com/petehottelet/spreadsheet-auditor/blob/main/CHANGELOG.md"
+
+[tool.setuptools.dynamic]
+version = { attr = "spreadsheet_auditor.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["spreadsheet_auditor*"]
+exclude = ["tests*", "scripts*", "examples*", "benchmarks*", "00_project_files*", "dist*"]
+
+[tool.setuptools.package-data]
+spreadsheet_auditor = ["py.typed"]
+"spreadsheet_auditor.demo" = ["*.xlsx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

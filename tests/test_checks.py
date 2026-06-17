@@ -2,11 +2,11 @@
 
 from openpyxl import Workbook
 
-from config_loader import check_setting
-from formula_parser import ParsedReference, extract_numeric_literals
-from range_checks import detect_range_length_mismatch
-from reconcile import detect_cross_foot_failures
-from reference_resolver import reference_in_bounds
+from spreadsheet_auditor.config_loader import check_setting
+from spreadsheet_auditor.formula_parser import ParsedReference, extract_numeric_literals
+from spreadsheet_auditor.range_checks import detect_range_length_mismatch
+from spreadsheet_auditor.reconcile import detect_cross_foot_failures
+from spreadsheet_auditor.reference_resolver import reference_in_bounds
 
 
 def _wb(values: dict) -> Workbook:

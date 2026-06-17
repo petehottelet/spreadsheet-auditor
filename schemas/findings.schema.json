@@ -5,6 +5,19 @@
   "required": ["audit_version", "workbook", "coverage", "findings"],
   "properties": {
     "audit_version": { "type": "string" },
+    "tool_version": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "python": { "type": ["string", "null"] },
+        "platform": { "type": ["string", "null"] },
+        "openpyxl": { "type": ["string", "null"] },
+        "defusedxml": { "type": ["string", "null"] },
+        "networkx": { "type": ["string", "null"] },
+        "libreoffice": { "type": ["string", "null"] }
+      }
+    },
     "workbook": {
       "type": "object",
       "required": ["path", "sha256", "sheets_analyzed", "formulas_scanned", "recalc_status"],
@@ -23,7 +36,36 @@
         "macros_executed": { "const": false },
         "external_links_present": { "type": "boolean" },
         "unsupported_features": { "type": "array", "items": { "type": "string" } },
-        "limitations": { "type": "array", "items": { "type": "string" } }
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "recalculation": {
+          "type": "object",
+          "properties": {
+            "status": { "type": ["string", "null"] },
+            "limitations": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "macros": {
+          "type": "object",
+          "properties": {
+            "present": { "type": "boolean" },
+            "executed": { "const": false }
+          }
+        },
+        "external_links": {
+          "type": "object",
+          "properties": {
+            "present": { "type": "boolean" },
+            "followed": { "const": false }
+          }
+        },
+        "truncated": {
+          "type": "object",
+          "properties": {
+            "formulas": { "type": "boolean" },
+            "findings": { "type": "boolean" },
+            "cells": { "type": "boolean" }
+          }
+        }
       }
     },
     "findings": {
@@ -33,14 +75,21 @@
         "required": ["id", "rule_id", "severity", "error_confidence", "detection_mode", "location", "evidence", "suggested_fix", "suppressed"],
         "properties": {
           "id": { "type": "string" },
+          "fingerprint": { "type": "string" },
           "rule_id": { "type": "string" },
-          "severity": { "enum": ["Critical", "High", "Medium", "Low"] },
-          "error_confidence": { "enum": ["Defect", "Likely defect", "Review"] },
+          "severity": { "enum": ["Critical", "High", "Medium", "Low", "Info"] },
+          "error_confidence": { "enum": ["Defect", "Likely defect", "Review", "Info"] },
+          "confidence": { "type": "string" },
           "detection_mode": { "enum": ["DET", "HEUR"] },
+          "mode": { "type": "string" },
           "location": { "type": "string" },
+          "sheet": { "type": ["string", "null"] },
+          "cell": { "type": ["string", "null"] },
+          "range": { "type": ["string", "null"] },
           "formula": { "type": ["string", "null"] },
           "evidence": { "type": "array", "items": { "type": "string" } },
           "impact": { "type": "object" },
+          "limitations": { "type": "array", "items": { "type": "string" } },
           "suggested_fix": { "type": "string" },
           "suppressed": { "type": "boolean" }
         }
