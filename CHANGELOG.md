@@ -7,33 +7,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-### Added
-
-- **PyPI publishing** - tagged releases publish the wheel and sdist to PyPI via
-  trusted publishing (`release.yml` `pypi-publish` job).
-- **Bundled demo workbook** - the demo ships inside the wheel and skill packages
-  (`spreadsheet_auditor/demo/`), so `--demo` works from an installed package or
-  an unpacked skill, not only from a repo checkout.
-- **Bundled SARIF schema** - `schemas/sarif-2.1.0.schema.json`; SARIF output is
-  validated against it (with date-time format checking) in the test suite.
-
-### Changed
-
-- **Single-sourced version** - `pyproject.toml` reads the version dynamically
-  from `spreadsheet_auditor.__version__`; the release workflow asserts the tag
-  matches it.
-- **Hardened CI/release** - Python 3.11/3.12 test matrix, a generated-artifact
-  drift gate, and validation of the installed wheel and unpacked skills from a
-  neutral working directory before publishing.
-- **Suppression warnings** - malformed suppressions (missing reason or
-  unparseable line) are now surfaced as a coverage limitation instead of being
-  dropped silently.
-
-### Fixed
-
-- **Strict SARIF output** - `--format sarif` no longer silently falls back to
-  generic JSON when rendering fails; the CLI exits with code 5 instead.
-
 ## [0.1.0] - 2026-06-16
 
 First public release. Establishes the audit-only contract, the deterministic
@@ -84,6 +57,27 @@ benchmark- and demo-backed evidence story.
   them, and uploads artifacts. `release.yml` produces tagged releases.
 - **Docs** - rewritten `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
   `references/limitations.md`, `references/benchmark_methodology.md`.
+
+### Packaging, distribution, and CI
+
+- **PyPI publishing** - tagged releases publish the wheel and sdist to PyPI via
+  trusted publishing (`release.yml` `pypi-publish` job).
+- **Single-sourced version** - `pyproject.toml` reads the version dynamically
+  from `spreadsheet_auditor.__version__`; the release workflow asserts the tag
+  matches it.
+- **Bundled demo workbook** - the demo ships inside the wheel and skill packages
+  (`spreadsheet_auditor/demo/`), so `--demo` works from an installed package or
+  an unpacked skill, not only from a repo checkout.
+- **Bundled SARIF schema** - `schemas/sarif-2.1.0.schema.json`; SARIF output is
+  validated against it (with date-time format checking) in the test suite.
+- **Strict SARIF output** - `--format sarif` never silently falls back to
+  generic JSON; on a rendering failure the CLI exits with code 5.
+- **Suppression warnings** - malformed suppressions (missing reason or
+  unparseable line) are surfaced as a coverage limitation instead of being
+  dropped silently.
+- **Hardened CI/release** - Python 3.11/3.12 test matrix, generator smoke
+  tests, and validation of the installed wheel and unpacked Claude/Codex skills
+  from a neutral working directory before publishing.
 
 ### Safety
 
