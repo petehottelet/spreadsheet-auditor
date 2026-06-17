@@ -11,13 +11,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
   <img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python 3.11+">
-  <img src="https://img.shields.io/badge/type-Agent%20Skill%20%2B%20CLI-orange.svg" alt="Agent Skill + CLI">
+  <img src="https://img.shields.io/badge/Claude%20%2B%20Codex-Agent%20Skill-orange.svg" alt="Claude + Codex Agent Skill">
   <img src="https://img.shields.io/badge/formats-.xlsx%20%7C%20.xlsm%20%7C%20.csv-lightgrey.svg" alt="Supported formats">
 </p>
 
 ---
 
-`spreadsheet-auditor` is a portable [Agent Skill](https://agentskills.io/specification) and command-line toolkit that answers one question: **"Can I trust this spreadsheet?"**
+`spreadsheet-auditor` is a portable [Agent Skill](https://agentskills.io/specification) for **Claude and Codex** (plus a standalone command-line toolkit) that answers one question: **"Can I trust this spreadsheet?"**
 
 Most spreadsheet tooling helps you *build* workbooks. This one *audits* a workbook you already have &mdash; often one you inherited &mdash; and returns a severity-ranked report of where it is likely wrong, fragile, or inconsistent. It is deterministic-first: bundled Python scripts produce candidate findings with exact cell locations and evidence, so you are not eyeballing cells and guessing.
 
