@@ -76,7 +76,7 @@ jobs:
           workdir="$(mktemp -d)"
           cd "${workdir}"
           "/tmp/wheel-env/bin/spreadsheet-auditor" --version
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --summary
+          "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --summary --fail-on None
           "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --format sarif --out report.sarif --fail-on None
           python -c "import json; d=json.load(open('report.sarif')); assert d['version']=='2.1.0'; assert d['runs'][0]['results']"
 
@@ -88,7 +88,7 @@ jobs:
             workdir="$(mktemp -d)"
             cp -r "${repo}/dist/${variant}/spreadsheet-auditor" "${workdir}/skill"
             cd "${workdir}"
-            python "skill/scripts/audit.py" --demo --summary
+            python "skill/scripts/audit.py" --demo --summary --fail-on None
           done
 
       - name: Extract changelog entry for this tag
