@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spreadsheet Auditor Config",
+  "type": "object",
+  "properties": {
+    "mode": { "type": "string" },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "include_sheets": { "type": "array", "items": { "type": "string" } },
+        "exclude_sheets": { "type": "array", "items": { "type": "string" } },
+        "headline_outputs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "materiality": {
+      "type": "object",
+      "properties": {
+        "absolute": { "type": "number" },
+        "relative": { "type": "number" },
+        "percent_points": { "type": "number" }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "max_formulas": { "type": "integer" },
+        "max_range_expansion_cells": { "type": "integer" },
+        "max_reported_findings": { "type": "integer" }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "enum": ["error", "warn", "review", "off"] },
+          { "type": "boolean" }
+        ]
+      }
+    },
+    "recalc": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "timeout_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "suppressions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule_id", "range", "reason"],
+        "properties": {
+          "rule_id": { "type": "string" },
+          "range": { "type": "string" },
+          "reason": { "type": "string" },
+          "expiry": { "type": "string" },
+          "owner": { "type": "string" }
+        }
+      }
+    }
+  }
+}

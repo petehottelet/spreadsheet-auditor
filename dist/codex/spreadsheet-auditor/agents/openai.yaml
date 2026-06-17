@@ -1,0 +1,7 @@
+interface:
+  display_name: "Spreadsheet Auditor"
+  short_description: "Audit existing spreadsheets for formula, range, reconciliation, and data-quality defects."
+  default_prompt: "Audit the attached workbook and return a severity-ranked findings report."
+
+policy:
+  allow_implicit_invocation: true

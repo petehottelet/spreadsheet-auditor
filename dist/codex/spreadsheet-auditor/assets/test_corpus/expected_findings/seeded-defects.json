@@ -1,0 +1,18 @@
+{
+  "workbook": "seeded-defects.xlsx",
+  "expected_rule_ids": [
+    "LIVE_ERROR",
+    "BROKEN_REFERENCE",
+    "FORMULA_DRIFT",
+    "RANGE_EXCLUSION",
+    "RANGE_INCLUDES_SUBTOTAL",
+    "HARDCODE_IN_FORMULA_BLOCK",
+    "LITERAL_CONSTANT",
+    "IFERROR_MASK",
+    "HIDDEN_STRUCTURE_IN_TOTAL",
+    "NUMBERS_STORED_AS_TEXT",
+    "WHITESPACE_KEY",
+    "DUPLICATE_KEY",
+    "MERGED_CELL_IN_DATA_RANGE"
+  ]
+}

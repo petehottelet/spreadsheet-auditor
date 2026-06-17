@@ -1,0 +1,9 @@
+00_project_files/
+__pycache__/
+*.pyc
+.spreadsheet-auditor-cache/
+.venv/
+audit_report.md
+findings.json
+*.recalculated.xlsx
+*_audit_annotated.xlsx
