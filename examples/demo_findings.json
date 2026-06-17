@@ -1,7 +1,7 @@
 {
   "audit_version": "0.1.0",
   "tool_version": "0.1.0",
-  "timestamp": "2026-06-17T03:25:07+00:00",
+  "timestamp": "2026-06-17T04:10:41+00:00",
   "runtime": {
     "python": "3.11.9",
     "platform": "Windows-10-10.0.26200-SP0",
@@ -12,10 +12,10 @@
   },
   "workbook": {
     "path": "C:\\Users\\PeteHottelet\\Projects\\skills\\spreadsheet-auditor\\examples\\demo_bad_budget.xlsx",
-    "sha256": "50ff284afb0c00b1aaf7b579a704fedbf0ef8ffb123bff1bd6d2dc6ee138b95f",
+    "sha256": "3d9e77727a2216071b068f468f54580b4aa3653c71ca196bde7360c0565c5062",
     "sheets_analyzed": 2,
     "formulas_scanned": 28,
-    "recalc_status": "unavailable"
+    "recalc_status": "completed"
   },
   "coverage": {
     "macros_present": false,
@@ -23,9 +23,7 @@
     "external_links_present": false,
     "unsupported_features": [],
     "limitations": [
-      "LibreOffice/soffice not available; using static analysis and cached values only.",
-      "defusedxml is not available; XML parsing relies on workbook library defaults in this runtime.",
-      "Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) rely on cached values and may be incomplete."
+      "defusedxml is not available; XML parsing relies on workbook library defaults in this runtime."
     ],
     "truncated": {
       "formulas": false,
@@ -33,13 +31,10 @@
       "cells": false,
       "timeout": false
     },
-    "elapsed_seconds": 0.25,
+    "elapsed_seconds": 7.015,
     "recalculation": {
-      "status": "unavailable",
-      "limitations": [
-        "LibreOffice/soffice not available; using static analysis and cached values only.",
-        "Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) rely on cached values and may be incomplete."
-      ]
+      "status": "completed",
+      "limitations": []
     },
     "macros": {
       "present": false,
@@ -51,6 +46,54 @@
     }
   },
   "findings": [
+    {
+      "id": "CROSS_FOOT_FAILURE-001",
+      "fingerprint": "c527c01a793890df",
+      "rule_id": "CROSS_FOOT_FAILURE",
+      "severity": "Critical",
+      "error_confidence": "Defect",
+      "confidence": "Defect",
+      "detection_mode": "DET",
+      "mode": "DET",
+      "location": "Budget!E6",
+      "sheet": "Budget",
+      "cell": "E6",
+      "range": null,
+      "title": "Row totals and column totals disagree",
+      "formula": null,
+      "evidence": [
+        "Sum of row totals down column E is 13505.0; sum of column totals across row 6 is 13655.0."
+      ],
+      "impact": {
+        "estimated_delta": -150.0
+      },
+      "limitations": [],
+      "suggested_fix": "Reconcile the totals row and totals column; one of the contributing aggregates is likely wrong.",
+      "suppressed": false
+    },
+    {
+      "id": "LIVE_ERROR-001",
+      "fingerprint": "fbb6e5d7357bd57a",
+      "rule_id": "LIVE_ERROR",
+      "severity": "Critical",
+      "error_confidence": "Defect",
+      "confidence": "Defect",
+      "detection_mode": "DET",
+      "mode": "DET",
+      "location": "Budget!B14",
+      "sheet": "Budget",
+      "cell": "B14",
+      "range": null,
+      "title": "Cell contains live spreadsheet error",
+      "formula": null,
+      "evidence": [
+        "Cell contains #NAME?."
+      ],
+      "impact": {},
+      "limitations": [],
+      "suggested_fix": "Trace the formula precedent chain and resolve the underlying spreadsheet error.",
+      "suppressed": false
+    },
     {
       "id": "RANGE_EXCLUSION-001",
       "fingerprint": "cdfade8364049f80",
@@ -558,6 +601,31 @@
       "suppressed": false
     },
     {
+      "id": "TOTAL_MISMATCH-001",
+      "fingerprint": "c90b735842dd2987",
+      "rule_id": "TOTAL_MISMATCH",
+      "severity": "Critical",
+      "error_confidence": "Defect",
+      "confidence": "Defect",
+      "detection_mode": "DET",
+      "mode": "DET",
+      "location": "Budget!B6",
+      "sheet": "Budget",
+      "cell": "B6",
+      "range": null,
+      "title": "Stated total differs from referenced components",
+      "formula": "=SUM(B2:B5)+B5",
+      "evidence": [
+        "Cached value is 4300.0; recomputed referenced components sum to 4150.0."
+      ],
+      "impact": {
+        "estimated_delta": 150.0
+      },
+      "limitations": [],
+      "suggested_fix": "Recalculate the workbook and review the aggregate formula and referenced component range.",
+      "suppressed": false
+    },
+    {
       "id": "BROKEN_REFERENCE-001",
       "fingerprint": "e878c158e60890e5",
       "rule_id": "BROKEN_REFERENCE",
@@ -571,7 +639,7 @@
       "cell": "B14",
       "range": null,
       "title": "Formula contains deleted reference",
-      "formula": "=SUM(#REF!)",
+      "formula": "=SUM(#ref!)",
       "evidence": [
         "Formula text contains #REF!."
       ],
