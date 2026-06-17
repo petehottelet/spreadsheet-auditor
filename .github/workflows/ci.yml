@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install LibreOffice (enables recalculation + value-dependent checks)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Healthcheck
+        run: python scripts/audit.py --healthcheck
+
+      - name: Run tests
+        run: python -m pytest tests -q
+
+      - name: Build distributable packages
+        run: python scripts/build_dist.py
+
+      - name: Validate built skill packages
+        run: |
+          python scripts/quick_validate.py dist/claude/spreadsheet-auditor
+          python scripts/quick_validate.py dist/codex/spreadsheet-auditor
+          python scripts/quick_validate.py dist/claude/spreadsheet-auditor.zip
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: spreadsheet-auditor-dist
+          path: |
+            dist/claude/spreadsheet-auditor.zip
+            dist/claude/spreadsheet-auditor/**
+            dist/codex/spreadsheet-auditor/**
+          if-no-files-found: error

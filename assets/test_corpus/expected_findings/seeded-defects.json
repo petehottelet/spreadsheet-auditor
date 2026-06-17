@@ -1,18 +1,53 @@
 {
   "workbook": "seeded-defects.xlsx",
-  "expected_rule_ids": [
-    "LIVE_ERROR",
-    "BROKEN_REFERENCE",
-    "FORMULA_DRIFT",
-    "RANGE_EXCLUSION",
-    "RANGE_INCLUDES_SUBTOTAL",
-    "HARDCODE_IN_FORMULA_BLOCK",
-    "LITERAL_CONSTANT",
-    "IFERROR_MASK",
-    "HIDDEN_STRUCTURE_IN_TOTAL",
-    "NUMBERS_STORED_AS_TEXT",
-    "WHITESPACE_KEY",
-    "DUPLICATE_KEY",
-    "MERGED_CELL_IN_DATA_RANGE"
-  ]
+  "static_expected": {
+    "LIVE_ERROR": [
+      "Model!B44"
+    ],
+    "BROKEN_REFERENCE": [
+      "Model!B28"
+    ],
+    "FORMULA_DRIFT": [
+      "Model!E5"
+    ],
+    "RANGE_EXCLUSION": [
+      "Model!B11",
+      "Model!B16"
+    ],
+    "RANGE_INCLUDES_SUBTOTAL": [
+      "Model!B18"
+    ],
+    "RANGE_LENGTH_MISMATCH": [
+      "Model!F63"
+    ],
+    "HARDCODE_IN_FORMULA_BLOCK": [
+      "Model!C22"
+    ],
+    "LITERAL_CONSTANT": [
+      "Model!B25"
+    ],
+    "IFERROR_MASK": [
+      "Model!B27"
+    ],
+    "HIDDEN_STRUCTURE_IN_TOTAL": [
+      "Model!B32"
+    ],
+    "NUMBERS_STORED_AS_TEXT": [
+      "Model!B35"
+    ],
+    "WHITESPACE_KEY": [
+      "Model!A36"
+    ],
+    "DUPLICATE_KEY": [
+      "Model!A37, Model!A38"
+    ],
+    "MERGED_CELL_IN_DATA_RANGE": [
+      "Model!A42:B42"
+    ]
+  },
+  "value_dependent_expected": {
+    "CROSS_FOOT_FAILURE": [
+      "Model!E70"
+    ]
+  }
 }

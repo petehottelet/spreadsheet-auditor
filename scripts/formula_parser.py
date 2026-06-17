@@ -15,6 +15,7 @@ FUNCTION_RE = re.compile(r"\b([A-Z][A-Z0-9_.]*)\s*\(", re.IGNORECASE)
 NUMERIC_RE = re.compile(r"(?<![A-Za-z0-9_.$])[-+]?\d+(?:\.\d+)?(?:[Ee][-+]?\d+)?(?![A-Za-z0-9_.%])")
 STRING_RE = re.compile(r'"(?:[^"]|"")*"')
 TRIVIAL_CONSTANTS = {0, 1, -1, 2, 4, 7, 12, 13, 24, 30, 31, 52, 100, 365, 1000}
+YEAR_RANGE = range(1900, 2101)
 
 
 @dataclass(frozen=True)
@@ -64,8 +65,14 @@ def extract_numeric_literals(formula: str) -> list[str]:
             value = float(text)
         except ValueError:
             continue
-        if value.is_integer() and int(value) in TRIVIAL_CONSTANTS:
-            continue
+        if value.is_integer():
+            integer_value = int(value)
+            if integer_value in TRIVIAL_CONSTANTS:
+                continue
+            # Bare integers that look like calendar years are usually period
+            # labels, not embedded assumptions; skip to reduce noise.
+            if integer_value in YEAR_RANGE:
+                continue
         literals.append(text)
     return literals
 

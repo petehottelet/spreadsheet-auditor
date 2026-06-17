@@ -68,26 +68,53 @@ def build_seeded_defects() -> None:
     ws["A42"] = "Merged note"
     ws["A44"], ws["B44"] = "Live error value", "#VALUE!"
 
+    # Range-length mismatch block. Two distinct relative patterns prevent
+    # FORMULA_DRIFT from claiming a majority, so RANGE_LENGTH_MISMATCH survives
+    # the drift dedupe and is exercised on its own. Left/right neighbors are kept
+    # empty to avoid RANGE_EXCLUSION noise on these rows.
+    ws["A59"] = "Range length mismatch block"
+    ws["F60"] = "=SUM(B60:D60)"
+    ws["F61"] = "=SUM(C61:E61)"
+    ws["F62"] = "=SUM(B62:D62)"
+    ws["F63"] = "=SUM(B63:C63)"
+
+    # Cross-foot block (value-dependent: only fires after recalculation populates
+    # cached values). B70 omits B69, so the totals row disagrees with the totals
+    # column at the grand-total corner E70.
+    ws["A66"] = "Cross-foot block"
+    ws["B67"], ws["C67"], ws["D67"], ws["E67"] = "Q1", "Q2", "Q3", "Total"
+    ws["A68"], ws["B68"], ws["C68"], ws["D68"], ws["E68"] = "North", 10, 20, 30, "=SUM(B68:D68)"
+    ws["A69"], ws["B69"], ws["C69"], ws["D69"], ws["E69"] = "South", 5, 15, 25, "=SUM(B69:D69)"
+    ws["A70"] = "Total"
+    ws["B70"] = "=SUM(B68:B68)"
+    ws["C70"] = "=SUM(C68:C69)"
+    ws["D70"] = "=SUM(D68:D69)"
+    ws["E70"] = "=SUM(E68:E69)"
+
     out_file = out_dir / "seeded-defects.xlsx"
     wb.save(out_file)
 
     expected = {
         "workbook": "seeded-defects.xlsx",
-        "expected_rule_ids": [
-            "LIVE_ERROR",
-            "BROKEN_REFERENCE",
-            "FORMULA_DRIFT",
-            "RANGE_EXCLUSION",
-            "RANGE_INCLUDES_SUBTOTAL",
-            "HARDCODE_IN_FORMULA_BLOCK",
-            "LITERAL_CONSTANT",
-            "IFERROR_MASK",
-            "HIDDEN_STRUCTURE_IN_TOTAL",
-            "NUMBERS_STORED_AS_TEXT",
-            "WHITESPACE_KEY",
-            "DUPLICATE_KEY",
-            "MERGED_CELL_IN_DATA_RANGE"
-        ]
+        "static_expected": {
+            "LIVE_ERROR": ["Model!B44"],
+            "BROKEN_REFERENCE": ["Model!B28"],
+            "FORMULA_DRIFT": ["Model!E5"],
+            "RANGE_EXCLUSION": ["Model!B11", "Model!B16"],
+            "RANGE_INCLUDES_SUBTOTAL": ["Model!B18"],
+            "RANGE_LENGTH_MISMATCH": ["Model!F63"],
+            "HARDCODE_IN_FORMULA_BLOCK": ["Model!C22"],
+            "LITERAL_CONSTANT": ["Model!B25"],
+            "IFERROR_MASK": ["Model!B27"],
+            "HIDDEN_STRUCTURE_IN_TOTAL": ["Model!B32"],
+            "NUMBERS_STORED_AS_TEXT": ["Model!B35"],
+            "WHITESPACE_KEY": ["Model!A36"],
+            "DUPLICATE_KEY": ["Model!A37, Model!A38"],
+            "MERGED_CELL_IN_DATA_RANGE": ["Model!A42:B42"],
+        },
+        "value_dependent_expected": {
+            "CROSS_FOOT_FAILURE": ["Model!E70"],
+        },
     }
     (expected_dir / "seeded-defects.json").write_text(json.dumps(expected, indent=2), encoding="utf-8")
     print(out_file)

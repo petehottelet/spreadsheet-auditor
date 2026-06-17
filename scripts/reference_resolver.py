@@ -6,6 +6,9 @@ from openpyxl.utils.cell import get_column_letter, range_boundaries
 
 from formula_parser import ParsedReference
 
+EXCEL_MAX_ROW = 1048576
+EXCEL_MAX_COL = 16384
+
 
 def ref_location(sheet: str, row: int, col: int) -> str:
     return f"{sheet}!{get_column_letter(col)}{row}"
@@ -35,13 +38,17 @@ def reference_in_bounds(ref: ParsedReference, default_sheet: str, workbook) -> t
     sheet = ref.sheet or default_sheet
     if sheet not in workbook.sheetnames:
         return False, f"Missing sheet '{sheet}'"
-    ws = workbook[sheet]
     try:
         min_col, min_row, max_col, max_row = range_boundaries(ref.ref)
     except ValueError:
         return False, "Unsupported reference syntax"
-    if max_row > ws.max_row or max_col > ws.max_column:
-        return False, f"{sheet}!{ref.ref} is outside the used range {ws.max_row}x{ws.max_column}"
+    # Referencing cells beyond the populated/used range is normal Excel usage
+    # (intentionally oversized ranges, future inputs). Only flag references that
+    # fall outside Excel's absolute grid.
+    if max_row is not None and max_row > EXCEL_MAX_ROW:
+        return False, f"{sheet}!{ref.ref} row exceeds Excel's maximum of {EXCEL_MAX_ROW}"
+    if max_col is not None and max_col > EXCEL_MAX_COL:
+        return False, f"{sheet}!{ref.ref} column exceeds Excel's maximum of {EXCEL_MAX_COL}"
     return True, None
 
 

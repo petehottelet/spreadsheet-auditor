@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter, defaultdict
 from typing import Iterable
 
 from openpyxl.utils.cell import get_column_letter, range_boundaries
@@ -19,6 +20,80 @@ def aggregate_ranges(formula: str):
     if not funcs.intersection(AGG_FUNCS):
         return []
     return [ref for ref in extract_references(formula) if ref.is_range]
+
+
+def _single_aggregate_range_size(formula: str) -> int | None:
+    ranges = aggregate_ranges(formula)
+    if len(ranges) != 1:
+        return None
+    try:
+        min_col, min_row, max_col, max_row = range_boundaries(ranges[0].ref)
+    except ValueError:
+        return None
+    return (max_col - min_col + 1) * (max_row - min_row + 1)
+
+
+def _contiguous_by(items: list[tuple[dict, int]], key: str) -> list[list[tuple[dict, int]]]:
+    if not items:
+        return []
+    ordered = sorted(items, key=lambda it: it[0][key])
+    segments = [[ordered[0]]]
+    for item in ordered[1:]:
+        if item[0][key] == segments[-1][-1][0][key] + 1:
+            segments[-1].append(item)
+        else:
+            segments.append([item])
+    return segments
+
+
+def detect_range_length_mismatch(formula_cells: list[dict]) -> list[Finding]:
+    findings: list[Finding] = []
+    seen: set[str] = set()
+
+    sized: list[tuple[dict, int]] = []
+    for cell in formula_cells:
+        size = _single_aggregate_range_size(cell["formula"])
+        if size is not None:
+            sized.append((cell, size))
+
+    by_row: dict[tuple[str, int], list[tuple[dict, int]]] = defaultdict(list)
+    by_col: dict[tuple[str, int], list[tuple[dict, int]]] = defaultdict(list)
+    for cell, size in sized:
+        by_row[(cell["sheet"], cell["row"])].append((cell, size))
+        by_col[(cell["sheet"], cell["col"])].append((cell, size))
+
+    groups = [(items, "col", "row") for items in by_row.values()]
+    groups += [(items, "row", "column") for items in by_col.values()]
+
+    for items, sort_key, axis_name in groups:
+        for segment in _contiguous_by(items, sort_key):
+            if len(segment) < 3:
+                continue
+            sizes = [size for _, size in segment]
+            counts = Counter(sizes)
+            majority, count = counts.most_common(1)[0]
+            if count < len(segment) - 1:
+                continue
+            for cell, size in segment:
+                if size == majority or cell["location"] in seen:
+                    continue
+                seen.add(cell["location"])
+                findings.append(
+                    Finding(
+                        rule_id="RANGE_LENGTH_MISMATCH",
+                        severity="High",
+                        error_confidence="Likely defect",
+                        detection_mode="DET",
+                        location=cell["location"],
+                        title="Aggregate range length differs from peer formulas",
+                        formula=cell["formula"],
+                        evidence=[
+                            f"This aggregate spans {size} cell(s) while peer formulas in this {axis_name} span {majority}."
+                        ],
+                        suggested_fix="Compare this aggregate range to adjacent peers and align the range boundaries unless the difference is intentional.",
+                    )
+                )
+    return findings
 
 
 def detect_range_issues(formula_wb, value_wb, formula_cells: list[dict]) -> list[Finding]:

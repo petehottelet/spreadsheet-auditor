@@ -24,19 +24,25 @@ CHECK_KEY_TO_RULE_ID = {
     "formula_drift": "FORMULA_DRIFT",
     "range_exclusion": "RANGE_EXCLUSION",
     "range_includes_subtotal": "RANGE_INCLUDES_SUBTOTAL",
+    "range_length_mismatch": "RANGE_LENGTH_MISMATCH",
     "literal_constants": "LITERAL_CONSTANT",
     "hidden_rows_in_totals": "HIDDEN_STRUCTURE_IN_TOTAL",
     "hidden_structure_in_total": "HIDDEN_STRUCTURE_IN_TOTAL",
-    "color_conventions": "COLOR_CONVENTION",
     "hardcode_in_formula_block": "HARDCODE_IN_FORMULA_BLOCK",
     "numbers_stored_as_text": "NUMBERS_STORED_AS_TEXT",
     "whitespace_key": "WHITESPACE_KEY",
+    "duplicate_key": "DUPLICATE_KEY",
+    "merged_cell": "MERGED_CELL_IN_DATA_RANGE",
+    "merged_cell_in_data_range": "MERGED_CELL_IN_DATA_RANGE",
     "iferror_mask": "IFERROR_MASK",
     "broken_reference": "BROKEN_REFERENCE",
     "blank_precedent": "BLANK_PRECEDENT",
     "total_mismatch": "TOTAL_MISMATCH",
+    "cross_foot_failure": "CROSS_FOOT_FAILURE",
     "circular_reference": "CIRCULAR_REFERENCE",
-    "fragile_function": "FRAGILE_FUNCTION",
+    "fragile_function": "VOLATILE_FUNCTION",
+    "volatile_function": "VOLATILE_FUNCTION",
+    "whole_column_reference": "WHOLE_COLUMN_REFERENCE",
 }
 
 
@@ -98,9 +104,16 @@ def sheet_is_allowed(sheet_name: str, include: set[str] | None, exclude: set[str
 
 def check_setting(config: dict[str, Any], rule_id: str) -> str:
     checks = config.get("checks") or {}
-    reverse = {rule: key for key, rule in CHECK_KEY_TO_RULE_ID.items()}
-    key = reverse.get(rule_id, rule_id.lower())
-    value = checks.get(key, checks.get(rule_id, "error"))
+    value: Any = "error"
+    if rule_id in checks:
+        value = checks[rule_id]
+    elif rule_id.lower() in checks:
+        value = checks[rule_id.lower()]
+    else:
+        for key, rule in CHECK_KEY_TO_RULE_ID.items():
+            if rule == rule_id and key in checks:
+                value = checks[key]
+                break
     if isinstance(value, bool):
         return "error" if value else "off"
     return str(value).lower()

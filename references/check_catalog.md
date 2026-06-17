@@ -30,7 +30,6 @@ Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 |---|---:|---:|---|
 | LITERAL_CONSTANT | DET | Medium | A non-trivial numeric literal is embedded in a formula instead of referenced from an input cell. |
 | HARDCODE_IN_FORMULA_BLOCK | DET | High | A constant appears inside a row or column that otherwise contains formulas. |
-| UNDOCUMENTED_INPUT | HEUR | Medium | Input-like hardcode lacks a source note or comment. |
 
 ## Reference And Range Errors
 
@@ -38,7 +37,7 @@ Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 |---|---:|---:|---|
 | RANGE_EXCLUSION | DET | Critical | An aggregate range appears to omit adjacent data. |
 | RANGE_INCLUDES_SUBTOTAL | DET | High | An aggregate range appears to include a subtotal, total, or header row. |
-| RANGE_LENGTH_MISMATCH | DET | High | Peer formulas use inconsistent range lengths. |
+| RANGE_LENGTH_MISMATCH | DET | High | Peer aggregate formulas use inconsistent range lengths. |
 | HIDDEN_STRUCTURE_IN_TOTAL | DET | Medium | Hidden rows, columns, or sheets intersect formula inputs. |
 
 ## Reconciliation And Consistency
@@ -46,10 +45,7 @@ Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 | Rule ID | Mode | Default severity | Description |
 |---|---:|---:|---|
 | TOTAL_MISMATCH | DET | Critical | A cached/recalculated total differs from the sum of referenced components. |
-| CROSS_FOOT_FAILURE | DET | Critical | Row totals and column totals disagree. |
-| IDENTITY_MISMATCH | HEUR | Critical | A detectable business identity appears out of balance. |
-| SIGN_RISK | HEUR | High | Formula signs appear inconsistent with labels such as expense, cost, tax, or depreciation. |
-| UNIT_RISK | HEUR | High | Linked values have suspicious magnitude or format differences. |
+| CROSS_FOOT_FAILURE | DET | Critical | Row totals and column totals disagree in an explicit rectangular table. Value-dependent; requires cached or recalculated values. |
 
 ## Logic, Structure, And Data Hygiene
 

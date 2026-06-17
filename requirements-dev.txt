@@ -1,0 +1,10 @@
+# Development and CI dependencies.
+-r requirements.txt
+
+pytest>=8.0
+jsonschema>=4.0
+
+# Optional runtime extras exercised by CI:
+defusedxml>=0.7
+networkx>=3.0
+PyYAML>=6.0

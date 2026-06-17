@@ -15,13 +15,13 @@ from preflight import PreflightError, preflight
 from recalc import recalc_if_available, soffice_path
 from report import build_payload, render_markdown, write_json, write_markdown
 
-AUDIT_VERSION = "0.1.0"
+AUDIT_VERSION = "0.2.0"
 FAIL_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "None": 99}
 
 
 def healthcheck() -> int:
     packages = {}
-    for package in ["openpyxl", "pandas", "defusedxml", "networkx"]:
+    for package in ["openpyxl", "defusedxml", "networkx", "yaml"]:
         try:
             module = __import__(package)
             packages[package] = getattr(module, "__version__", "installed")
@@ -53,8 +53,13 @@ def _package_available(package: str) -> bool:
 def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
     from data_hygiene import detect_data_hygiene
     from formula_drift import detect_formula_drift, detect_hardcode_breaks
-    from range_checks import detect_fragile_functions, detect_literal_constants, detect_range_issues
-    from reconcile import detect_total_mismatches
+    from range_checks import (
+        detect_fragile_functions,
+        detect_literal_constants,
+        detect_range_issues,
+        detect_range_length_mismatch,
+    )
+    from reconcile import detect_cross_foot_failures, detect_total_mismatches
     from suppressions import apply_suppressions, load_suppressions
     from workbook_inventory import formula_cells, inventory, load_workbooks, scan_live_errors
 
@@ -67,7 +72,9 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
 
     if preflight_info["extension"] == ".csv":
         payload = audit_csv(input_path, preflight_info, config, args.ignore)
-        return payload, exit_code(payload["findings"], args.fail_on, payload["coverage"]["limitations"])
+        return payload, exit_code(
+            payload["findings"], args.fail_on, payload["coverage"]["limitations"], strict=args.strict
+        )
 
     with tempfile.TemporaryDirectory(prefix="spreadsheet-auditor-audit-") as temp_dir:
         recalc_config = config.get("recalc") or {}
@@ -123,10 +130,21 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         findings.extend(detect_literal_constants(formulas))
         findings.extend(detect_fragile_functions(formulas))
         findings.extend(detect_range_issues(formula_wb, value_wb, formulas))
+        findings.extend(detect_range_length_mismatch(formulas))
         findings.extend(detect_total_mismatches(formula_wb, value_wb, formulas))
+        findings.extend(detect_cross_foot_failures(formula_wb, value_wb, allowed_sheet_names))
         findings.extend(detect_data_hygiene(formula_wb, allowed_sheet_names))
-        findings.extend(detect_cycles(formulas))
+        expansion_limit = int((config.get("limits") or {}).get("max_range_expansion_cells", 500))
+        findings.extend(detect_cycles(formulas, expansion_limit=expansion_limit))
 
+        findings = _dedupe_range_length_with_drift(findings)
+        if recalc_status != "completed":
+            limitations.append(
+                "Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) "
+                "rely on cached values and may be incomplete."
+            )
+
+        findings = apply_impact_escalation(findings, config)
         findings = apply_check_settings(findings, config)
         suppressions = load_suppressions(config, args.ignore)
         findings = apply_suppressions(findings, suppressions)
@@ -152,7 +170,7 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             "recalc_status": recalc_status,
         }
         payload = build_payload(AUDIT_VERSION, workbook_meta, coverage, findings)
-        return payload, exit_code(payload["findings"], args.fail_on, limitations)
+        return payload, exit_code(payload["findings"], args.fail_on, limitations, strict=args.strict)
 
 
 def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, ignore_path: str | None = None) -> dict:
@@ -293,15 +311,60 @@ def detect_reference_issues(formula_wb, value_wb, formulas: list[dict], unsuppor
     return findings
 
 
+def _dedupe_range_length_with_drift(findings: list[Finding]) -> list[Finding]:
+    drift_locations = {f.location for f in findings if f.rule_id == "FORMULA_DRIFT"}
+    return [
+        f
+        for f in findings
+        if not (f.rule_id == "RANGE_LENGTH_MISMATCH" and f.location in drift_locations)
+    ]
+
+
+def _location_matches(location: str, target: str) -> bool:
+    return bool(target) and (location == target or location.startswith(target) or target in location)
+
+
+def apply_impact_escalation(findings: list[Finding], config: dict) -> list[Finding]:
+    """Escalate findings that feed configured headline outputs or exceed materiality.
+
+    Activates scope.headline_outputs and materiality config and records impact
+    flags on each affected finding.
+    """
+    from materiality import escalate, exceeds_materiality
+
+    scope = config.get("scope") or {}
+    headline_outputs = list(scope.get("headline_outputs") or [])
+    materiality = config.get("materiality") or {}
+    absolute = float(materiality.get("absolute", 1000.0))
+    relative = float(materiality.get("relative", 0.001))
+
+    for finding in findings:
+        should_escalate = False
+
+        if any(_location_matches(finding.location, target) for target in headline_outputs):
+            finding.impact["feeds_headline_output"] = True
+            should_escalate = True
+
+        delta = finding.impact.get("estimated_delta") if isinstance(finding.impact, dict) else None
+        if delta is not None and exceeds_materiality(delta, absolute=absolute, relative=relative):
+            finding.impact["materiality_exceeded"] = True
+            should_escalate = True
+
+        if should_escalate:
+            finding.severity = escalate(finding.severity)
+
+    return findings
+
+
 def reuses_structured_reference(formula: str) -> bool:
     text = formula.upper()
     return "[" in text and "]" in text and "!" not in text
 
 
-def detect_cycles(formulas: list[dict]) -> list[Finding]:
+def detect_cycles(formulas: list[dict], expansion_limit: int = 500) -> list[Finding]:
     from dependency_graph import build_dependency_graph, find_cycles
 
-    graph = build_dependency_graph(formulas)
+    graph = build_dependency_graph(formulas, expansion_limit=expansion_limit)
     cycles = find_cycles(graph)
     findings: list[Finding] = []
     for cycle in cycles:
@@ -322,13 +385,17 @@ def detect_cycles(formulas: list[dict]) -> list[Finding]:
     return findings
 
 
-def exit_code(findings: list[dict], fail_on: str, limitations: list[str]) -> int:
-    if fail_on == "None":
-        return 2 if limitations else 0
+def exit_code(findings: list[dict], fail_on: str, limitations: list[str], strict: bool = False) -> int:
     threshold = FAIL_ORDER.get(fail_on, 99)
-    if any(FAIL_ORDER.get(finding["severity"], 99) <= threshold and not finding.get("suppressed") for finding in findings):
+    if fail_on != "None" and any(
+        FAIL_ORDER.get(finding["severity"], 99) <= threshold and not finding.get("suppressed")
+        for finding in findings
+    ):
         return 1
-    if limitations:
+    # Benign limitations (no recalc, missing optional packages) are expected on a
+    # clean run and must not fail CI. Only surface them as exit code 2 when the
+    # caller explicitly opts in via --strict or --fail-on None.
+    if (strict or fail_on == "None") and limitations:
         return 2
     return 0
 
@@ -342,6 +409,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", help="Optional JSON, YAML, or YML config path")
     parser.add_argument("--ignore", default=".audit-ignore", help="Optional suppression file path")
     parser.add_argument("--fail-on", default="Critical", choices=["Critical", "High", "Medium", "Low", "None"])
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Return exit code 2 when coverage limitations are present (e.g. recalculation unavailable).",
+    )
     parser.add_argument("--recalc-timeout", type=int, default=None)
     parser.add_argument("--healthcheck", action="store_true")
     args = parser.parse_args(argv)

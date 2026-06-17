@@ -1,6 +1,6 @@
 ---
 name: spreadsheet-auditor
-description: Audit an existing spreadsheet or financial model for correctness defects: formula errors, broken references, hardcoded values inside formulas, off-by-one ranges, totals that do not reconcile, circular references, hidden rows/columns affecting outputs, sign/unit/grain mistakes, and data-hygiene risks. Use when the user asks to review, check, validate, audit, debug, or find errors in an .xlsx, .xlsm, or .csv they already have. Produces a severity-ranked findings report and optional annotated copy. Do not use when the user wants to create, build, format, or rewrite a spreadsheet.
+description: Audit an existing spreadsheet or financial model for correctness defects: live formula errors, broken or deleted references, hardcoded values inside formulas, off-by-one and inconsistent aggregate ranges, totals that do not reconcile or cross-foot, circular references, hidden rows/columns/sheets affecting outputs, and data-hygiene risks like numbers stored as text. Use when the user asks to review, check, validate, audit, debug, or find errors in an .xlsx, .xlsm, or .csv they already have. Produces a severity-ranked findings report and optional annotated copy. Do not use when the user wants to create, build, format, or rewrite a spreadsheet.
 ---
 
 # Spreadsheet Auditor
@@ -34,6 +34,8 @@ Audit an existing workbook before making claims about its correctness. Do not bu
 - Optional annotated workbook copy with comments at finding cells.
 
 Use `python scripts/audit.py --healthcheck` to inspect runtime dependencies and fallback mode.
+
+Exit codes: `0` clean, `1` findings at/above `--fail-on`, `2` limitations present only with `--strict` or `--fail-on None`, `4` preflight/security failure, `5` internal error. See `references/limitations.md` for exit codes and security behavior.
 
 ## Runtime Dependencies
 

@@ -1,0 +1,17 @@
+# Runtime dependencies for spreadsheet-auditor.
+#
+# Required for .xlsx / .xlsm auditing:
+openpyxl>=3.1
+
+# Optional, used when available (the audit degrades gracefully without them):
+#   defusedxml  - safer XML parsing of workbook internals
+#   networkx    - graph-based cycle detection (a DFS fallback is built in)
+#   PyYAML      - .yml / .yaml config support (JSON config works without it)
+#
+# Uncomment to install the optional extras:
+# defusedxml>=0.7
+# networkx>=3.0
+# PyYAML>=6.0
+#
+# System (optional): LibreOffice / soffice enables recalculation. Install via
+# your OS package manager; it is not a Python dependency.

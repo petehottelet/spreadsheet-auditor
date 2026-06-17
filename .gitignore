@@ -7,3 +7,6 @@ audit_report.md
 findings.json
 *.recalculated.xlsx
 *_audit_annotated.xlsx
+dist/
+.pytest_cache/
+_tmp*.json

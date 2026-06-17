@@ -1,7 +1,7 @@
 interface:
   display_name: "Spreadsheet Auditor"
-  short_description: "Audit existing spreadsheets for formula, range, reconciliation, and data-quality defects."
-  default_prompt: "Audit the attached workbook and return a severity-ranked findings report."
+  short_description: "Audit existing Excel spreadsheets and financial models for formula errors, broken references, off-by-one ranges, totals that don't reconcile or cross-foot, circular references, and data-quality defects. Audit-only; never rewrites the workbook."
+  default_prompt: "Audit the attached .xlsx/.xlsm/.csv workbook for correctness defects and return a severity-ranked findings report with cell locations, evidence, and suggested fixes."
 
 policy:
   allow_implicit_invocation: true
