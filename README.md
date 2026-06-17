@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="project_logo.png" alt="Spreadsheet Auditor logo" width="180">
+  <img src="project_logo.png" alt="Spreadsheet Auditor logo" width="360">
 </p>
 
 <h1 align="center">Spreadsheet Auditor</h1>
