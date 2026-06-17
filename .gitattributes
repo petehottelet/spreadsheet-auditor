@@ -1,4 +1,12 @@
+# Normalize line endings: text files are stored as LF in the repo and checked
+# out as LF, so artifacts generated on Windows and Linux compare cleanly.
 * text=auto eol=lf
+
+# Binary assets must never be line-ending normalized.
 *.xlsx binary
 *.xlsm binary
-*.zip binary
+*.xls binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary

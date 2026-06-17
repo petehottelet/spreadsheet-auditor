@@ -2,12 +2,12 @@
 
 ## Executive Summary
 
-- Tool version: `0.1.0` (run at 2026-06-17T03:25:07+00:00)
-- Workbook SHA-256: `50ff284afb0c00b1aaf7b579a704fedbf0ef8ffb123bff1bd6d2dc6ee138b95f`
+- Tool version: `0.1.0` (run at 2026-06-17T04:10:41+00:00)
+- Workbook SHA-256: `3d9e77727a2216071b068f468f54580b4aa3653c71ca196bde7360c0565c5062`
 - Sheets analyzed: 2
 - Formulas scanned: 28
-- Recalculation status: unavailable
-- Findings: 22 Critical, 35 High, 3 Medium, 0 Low, 0 Info
+- Recalculation status: completed
+- Findings: 25 Critical, 35 High, 3 Medium, 0 Low, 0 Info
 - Suppressed findings: 0
 
 ## Coverage And Limitations
@@ -15,20 +15,45 @@
 - Macros present: False
 - Macros executed: False
 - External links present: False
-- Limitation: LibreOffice/soffice not available; using static analysis and cached values only.
 - Limitation: defusedxml is not available; XML parsing relies on workbook library defaults in this runtime.
-- Limitation: Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) rely on cached values and may be incomplete.
 
 ## Confirmed Findings
 
 _Hard defects: the auditor is certain this is wrong._
+
+### [CRITICAL] Row totals and column totals disagree - CROSS_FOOT_FAILURE
+
+- ID: `CROSS_FOOT_FAILURE-001`
+- Location: `Budget!E6`
+- Detection: DET; confidence: Defect
+- Evidence: Sum of row totals down column E is 13505.0; sum of column totals across row 6 is 13655.0.
+- Impact: {"estimated_delta": -150.0}
+- Suggested fix: Reconcile the totals row and totals column; one of the contributing aggregates is likely wrong.
+
+### [CRITICAL] Cell contains live spreadsheet error - LIVE_ERROR
+
+- ID: `LIVE_ERROR-001`
+- Location: `Budget!B14`
+- Detection: DET; confidence: Defect
+- Evidence: Cell contains #NAME?.
+- Suggested fix: Trace the formula precedent chain and resolve the underlying spreadsheet error.
+
+### [CRITICAL] Stated total differs from referenced components - TOTAL_MISMATCH
+
+- ID: `TOTAL_MISMATCH-001`
+- Location: `Budget!B6`
+- Detection: DET; confidence: Defect
+- Formula: `=SUM(B2:B5)+B5`
+- Evidence: Cached value is 4300.0; recomputed referenced components sum to 4150.0.
+- Impact: {"estimated_delta": 150.0}
+- Suggested fix: Recalculate the workbook and review the aggregate formula and referenced component range.
 
 ### [HIGH] Formula contains deleted reference - BROKEN_REFERENCE
 
 - ID: `BROKEN_REFERENCE-001`
 - Location: `Budget!B14`
 - Detection: DET; confidence: Defect
-- Formula: `=SUM(#REF!)`
+- Formula: `=SUM(#ref!)`
 - Evidence: Formula text contains #REF!.
 - Suggested fix: Restore the deleted reference or rebuild the formula from intended source cells.
 
