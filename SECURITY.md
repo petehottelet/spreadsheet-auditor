@@ -44,9 +44,14 @@ The auditor's defaults are designed to *never* trigger any of these.
 
 ## Reporting a vulnerability
 
-Email **security@petehottelet.com** with a description and (when safe to
-share) a minimal workbook that demonstrates the issue. We will acknowledge
+Please report privately via GitHub's
+[private vulnerability reporting](https://github.com/petehottelet/spreadsheet-auditor/security/advisories/new)
+(**Security -> Report a vulnerability**). Include a description and, when safe to
+share, a minimal workbook that demonstrates the issue. We will acknowledge
 within 7 days and aim to provide a fix or mitigation within 30 days.
+
+If you cannot use private reporting, you may reach the maintainer at
+`36128338+petehottelet@users.noreply.github.com`.
 
 Please do **not** open a public issue for security reports.
 
