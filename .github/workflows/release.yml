@@ -69,26 +69,31 @@ jobs:
       - name: Validate installed wheel from a neutral directory
         run: |
           set -euo pipefail
+          # Exit codes 1 (findings) and 2 (coverage limitations) are valid demo
+          # outcomes; only > 2 indicates a real error.
+          run_ok() { set +e; "$@"; local c=$?; set -e; if [ "$c" -gt 2 ]; then echo "::error::Command exited $c: $*"; exit 1; fi; }
           wheel="$(ls dist/spreadsheet_auditor-*.whl | head -n1)"
           python -m venv /tmp/wheel-env
           /tmp/wheel-env/bin/pip install --upgrade pip
           /tmp/wheel-env/bin/pip install "${wheel}"
           workdir="$(mktemp -d)"
           cd "${workdir}"
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --version
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --summary --fail-on None
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --format sarif --out report.sarif --fail-on None
+          run_ok "/tmp/wheel-env/bin/spreadsheet-auditor" --version
+          run_ok "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --summary --fail-on None
+          run_ok "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --format sarif --out report.sarif --fail-on None
           python -c "import json; d=json.load(open('report.sarif')); assert d['version']=='2.1.0'; assert d['runs'][0]['results']"
 
       - name: Validate unpacked Claude/Codex skills from a neutral directory
         run: |
           set -euo pipefail
+          run_ok() { set +e; "$@"; local c=$?; set -e; if [ "$c" -gt 2 ]; then echo "::error::Command exited $c: $*"; exit 1; fi; }
           repo="${GITHUB_WORKSPACE}"
           for variant in claude codex; do
             workdir="$(mktemp -d)"
             cp -r "${repo}/dist/${variant}/spreadsheet-auditor" "${workdir}/skill"
             cd "${workdir}"
-            python "skill/scripts/audit.py" --demo --summary --fail-on None
+            run_ok python "skill/scripts/audit.py" --demo --summary --fail-on None
+            cd "${repo}"
           done
 
       - name: Extract changelog entry for this tag

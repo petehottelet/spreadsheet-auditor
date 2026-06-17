@@ -88,28 +88,35 @@ jobs:
       - name: Validate installed wheel from a neutral directory
         run: |
           set -euo pipefail
+          # The demo audit returns 1 (findings present) or 2 (coverage
+          # limitations, e.g. no defusedxml in a clean venv). Those are valid
+          # audit outcomes, not failures; only treat exit codes > 2 (preflight
+          # error 4, internal error 5) as a real failure.
+          run_ok() { set +e; "$@"; local c=$?; set -e; if [ "$c" -gt 2 ]; then echo "::error::Command exited $c: $*"; exit 1; fi; }
           wheel="$(ls dist/spreadsheet_auditor-*.whl | head -n1)"
           python -m venv /tmp/wheel-env
           /tmp/wheel-env/bin/pip install --upgrade pip
           /tmp/wheel-env/bin/pip install "${wheel}"
           workdir="$(mktemp -d)"
           cd "${workdir}"
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --version
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --summary --fail-on None
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --format html --out report.html --fail-on None
-          "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --format sarif --out report.sarif --fail-on None
+          run_ok "/tmp/wheel-env/bin/spreadsheet-auditor" --version
+          run_ok "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --summary --fail-on None
+          run_ok "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --format html --out report.html --fail-on None
+          run_ok "/tmp/wheel-env/bin/spreadsheet-auditor" --demo --format sarif --out report.sarif --fail-on None
           test -s report.html
           python -c "import json,sys; d=json.load(open('report.sarif')); assert d['version']=='2.1.0', d.get('version'); assert d['runs'][0]['results'], 'no results'"
 
       - name: Validate unpacked Claude/Codex skills from a neutral directory
         run: |
           set -euo pipefail
+          run_ok() { set +e; "$@"; local c=$?; set -e; if [ "$c" -gt 2 ]; then echo "::error::Command exited $c: $*"; exit 1; fi; }
           repo="${GITHUB_WORKSPACE}"
           for variant in claude codex; do
             workdir="$(mktemp -d)"
             cp -r "${repo}/dist/${variant}/spreadsheet-auditor" "${workdir}/skill"
             cd "${workdir}"
-            python "skill/scripts/audit.py" --demo --summary --fail-on None
+            run_ok python "skill/scripts/audit.py" --demo --summary --fail-on None
+            cd "${repo}"
           done
 
       - name: Upload package artifacts
