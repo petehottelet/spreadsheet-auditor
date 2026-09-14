@@ -16,7 +16,7 @@ class RangeIssueCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..range_checks import detect_range_issues
 
-        return detect_range_issues(ctx.formula_wb, ctx.value_wb, ctx.formulas)
+        return detect_range_issues(ctx.formula_wb, ctx.value_wb, ctx.formulas, names=ctx.names, budget=ctx.budget)
 
 
 @register
@@ -29,7 +29,7 @@ class RangeLengthMismatchCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..range_checks import detect_range_length_mismatch
 
-        return detect_range_length_mismatch(ctx.formulas)
+        return detect_range_length_mismatch(ctx.formulas, names=ctx.names, budget=ctx.budget)
 
 
 @register
@@ -42,7 +42,7 @@ class LiteralConstantCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..range_checks import detect_literal_constants
 
-        return detect_literal_constants(ctx.formulas)
+        return detect_literal_constants(ctx.formulas, budget=ctx.budget)
 
 
 @register
@@ -55,4 +55,4 @@ class FragileFunctionCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..range_checks import detect_fragile_functions
 
-        return detect_fragile_functions(ctx.formulas)
+        return detect_fragile_functions(ctx.formulas, names=ctx.names, budget=ctx.budget)

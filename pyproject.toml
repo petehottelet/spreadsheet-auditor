@@ -50,18 +50,15 @@ dependencies = [
 
 [project.optional-dependencies]
 xml = ["defusedxml>=0.7"]
-graph = ["networkx>=3.0"]
 yaml = ["PyYAML>=6.0"]
 all = [
     "defusedxml>=0.7",
-    "networkx>=3.0",
     "PyYAML>=6.0",
 ]
 dev = [
     "pytest>=8.0",
     "jsonschema>=4.0",
     "defusedxml>=0.7",
-    "networkx>=3.0",
     "PyYAML>=6.0",
 ]
 

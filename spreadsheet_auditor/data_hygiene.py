@@ -3,80 +3,85 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
+from .budget import tick
 from .finding import Finding
-from .workbook_inventory import location
+from .workbook_inventory import iter_existing_cells, location
 
 
 NUMERIC_TEXT_RE = re.compile(r"^\s*[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*$|^\s*[-+]?\d+(?:\.\d+)?\s*$")
 
 
-def detect_data_hygiene(formula_wb, allowed_sheet_names: set[str] | None = None) -> list[Finding]:
+def _sheets(workbook, allowed_sheet_names: set[str] | None):
+    for ws in workbook.worksheets:
+        if allowed_sheet_names is not None and ws.title not in allowed_sheet_names:
+            continue
+        yield ws
+
+
+def detect_data_hygiene(formula_wb, allowed_sheet_names: set[str] | None = None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
-    findings.extend(_numbers_stored_as_text(formula_wb, allowed_sheet_names))
-    findings.extend(_whitespace_labels(formula_wb, allowed_sheet_names))
-    findings.extend(_duplicate_keys(formula_wb, allowed_sheet_names))
+    findings.extend(_numbers_stored_as_text(formula_wb, allowed_sheet_names, budget))
+    findings.extend(_whitespace_labels(formula_wb, allowed_sheet_names, budget))
+    findings.extend(_duplicate_keys(formula_wb, allowed_sheet_names, budget))
     findings.extend(_merged_cells(formula_wb, allowed_sheet_names))
     return findings
 
 
-def _numbers_stored_as_text(workbook, allowed_sheet_names: set[str] | None = None) -> list[Finding]:
+def _numbers_stored_as_text(workbook, allowed_sheet_names: set[str] | None = None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
-    for ws in workbook.worksheets:
-        if allowed_sheet_names is not None and ws.title not in allowed_sheet_names:
-            continue
-        for row in ws.iter_rows():
-            for cell in row:
-                value = cell.value
-                if isinstance(value, str) and NUMERIC_TEXT_RE.match(value):
-                    findings.append(
-                        Finding(
-                            rule_id="NUMBERS_STORED_AS_TEXT",
-                            severity="High",
-                            error_confidence="Likely defect",
-                            detection_mode="DET",
-                            location=location(ws.title, cell.row, cell.column),
-                            title="Numeric-looking value stored as text",
-                            evidence=[f"Cell contains text value {value!r}, which may be ignored by numeric formulas."],
-                            suggested_fix="Convert the value to a number or confirm it is intentionally text.",
-                        )
+    for ws in _sheets(workbook, allowed_sheet_names):
+        for cell in iter_existing_cells(ws):
+            tick(budget)
+            value = cell.value
+            if isinstance(value, str) and NUMERIC_TEXT_RE.match(value):
+                findings.append(
+                    Finding(
+                        rule_id="NUMBERS_STORED_AS_TEXT",
+                        severity="High",
+                        error_confidence="Likely defect",
+                        detection_mode="DET",
+                        location=location(ws.title, cell.row, cell.column),
+                        title="Numeric-looking value stored as text",
+                        evidence=[f"Cell contains text value {value!r}, which may be ignored by numeric formulas."],
+                        suggested_fix="Convert the value to a number or confirm it is intentionally text.",
                     )
+                )
     return findings
 
 
-def _whitespace_labels(workbook, allowed_sheet_names: set[str] | None = None) -> list[Finding]:
+def _whitespace_labels(workbook, allowed_sheet_names: set[str] | None = None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
-    for ws in workbook.worksheets:
-        if allowed_sheet_names is not None and ws.title not in allowed_sheet_names:
-            continue
-        for row in ws.iter_rows():
-            for cell in row:
-                value = cell.value
-                if isinstance(value, str) and value != value.strip():
-                    findings.append(
-                        Finding(
-                            rule_id="WHITESPACE_KEY",
-                            severity="Medium",
-                            error_confidence="Review",
-                            detection_mode="DET",
-                            location=location(ws.title, cell.row, cell.column),
-                            title="Text has leading or trailing whitespace",
-                            evidence=[f"Raw value is {value!r}."],
-                            suggested_fix="Trim the value if it is used as a lookup key or label.",
-                        )
+    for ws in _sheets(workbook, allowed_sheet_names):
+        for cell in iter_existing_cells(ws):
+            tick(budget)
+            value = cell.value
+            if isinstance(value, str) and value != value.strip():
+                findings.append(
+                    Finding(
+                        rule_id="WHITESPACE_KEY",
+                        severity="Medium",
+                        error_confidence="Review",
+                        detection_mode="DET",
+                        location=location(ws.title, cell.row, cell.column),
+                        title="Text has leading or trailing whitespace",
+                        evidence=[f"Raw value is {value!r}."],
+                        suggested_fix="Trim the value if it is used as a lookup key or label.",
                     )
+                )
     return findings
 
 
-def _duplicate_keys(workbook, allowed_sheet_names: set[str] | None = None) -> list[Finding]:
+def _duplicate_keys(workbook, allowed_sheet_names: set[str] | None = None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
-    for ws in workbook.worksheets:
-        if allowed_sheet_names is not None and ws.title not in allowed_sheet_names:
-            continue
+    for ws in _sheets(workbook, allowed_sheet_names):
         seen: dict[str, list[str]] = defaultdict(list)
-        for row in range(1, ws.max_row + 1):
-            value = ws.cell(row=row, column=1).value
+        for cell in iter_existing_cells(ws):
+            if cell.column != 1:
+                continue
+            tick(budget)
+            value = cell.value
             if isinstance(value, str) and value.strip():
-                seen[value.strip().lower()].append(location(ws.title, row, 1))
+                seen[value.strip().lower()].append(location(ws.title, cell.row, 1))
         for key, locs in seen.items():
             if len(locs) > 1:
                 findings.append(
@@ -96,9 +101,7 @@ def _duplicate_keys(workbook, allowed_sheet_names: set[str] | None = None) -> li
 
 def _merged_cells(workbook, allowed_sheet_names: set[str] | None = None) -> list[Finding]:
     findings: list[Finding] = []
-    for ws in workbook.worksheets:
-        if allowed_sheet_names is not None and ws.title not in allowed_sheet_names:
-            continue
+    for ws in _sheets(workbook, allowed_sheet_names):
         for merged in ws.merged_cells.ranges:
             findings.append(
                 Finding(

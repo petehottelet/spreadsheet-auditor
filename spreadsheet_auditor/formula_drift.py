@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
+from .budget import tick
 from .finding import Finding
 from .formula_parser import is_formula, normalize_formula
-from .workbook_inventory import location
+from .workbook_inventory import iter_existing_cells, location
 
 
-def detect_formula_drift(formula_cells: list[dict]) -> list[Finding]:
+def detect_formula_drift(formula_cells: list[dict], budget=None) -> list[Finding]:
     findings: list[Finding] = []
     seen: set[str] = set()
 
@@ -17,15 +18,15 @@ def detect_formula_drift(formula_cells: list[dict]) -> list[Finding]:
         by_row[(cell["sheet"], cell["row"])].append(cell)
         by_col[(cell["sheet"], cell["col"])].append(cell)
 
-    for cells, axis in [(values, "row") for values in by_row.values()] + [(values, "column") for values in by_col.values()]:
+    groups = [(values, "row") for values in by_row.values()]
+    groups += [(values, "column") for values in by_col.values()]
+    for cells, axis in groups:
         key = "col" if axis == "row" else "row"
         for segment in _contiguous_segments(sorted(cells, key=lambda c: c[key]), key):
+            tick(budget)
             if len(segment) < 3:
                 continue
-            patterns = [
-                normalize_formula(c["formula"], c["row"], c["col"])
-                for c in segment
-            ]
+            patterns = [normalize_formula(c["formula"], c["row"], c["col"]) for c in segment]
             counts = Counter(patterns)
             majority, count = counts.most_common(1)[0]
             if count < len(segment) - 1:
@@ -71,32 +72,41 @@ def _drift_neighbors(segment: list[dict], idx: int, radius: int = 1) -> list[str
     return neighbors
 
 
-def detect_hardcode_breaks(formula_wb, allowed_sheet_names: set[str] | None = None) -> list[Finding]:
+def detect_hardcode_breaks(formula_wb, allowed_sheet_names: set[str] | None = None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
     seen: set[str] = set()
     for ws in formula_wb.worksheets:
         if allowed_sheet_names is not None and ws.title not in allowed_sheet_names:
             continue
-        for row in range(1, ws.max_row + 1):
-            values = [ws.cell(row=row, column=col).value for col in range(1, ws.max_column + 1)]
-            _hardcode_breaks_in_sequence(values, ws.title, row, None, seen, findings)
-        for col in range(1, ws.max_column + 1):
-            values = [ws.cell(row=row, column=col).value for row in range(1, ws.max_row + 1)]
-            _hardcode_breaks_in_sequence(values, ws.title, None, col, seen, findings)
+        by_row: dict[int, dict[int, object]] = defaultdict(dict)
+        by_col: dict[int, dict[int, object]] = defaultdict(dict)
+        for cell in iter_existing_cells(ws):
+            if cell.value is None:
+                continue
+            by_row[cell.row][cell.column] = cell.value
+            by_col[cell.column][cell.row] = cell.value
+        for row, values in by_row.items():
+            tick(budget)
+            _hardcode_breaks_in_line(values, ws.title, row, None, seen, findings)
+        for col, values in by_col.items():
+            tick(budget)
+            _hardcode_breaks_in_line(values, ws.title, None, col, seen, findings)
     return findings
 
 
-def _hardcode_breaks_in_sequence(values, sheet, row, col, seen, findings):
-    formula_indexes = [idx for idx, value in enumerate(values) if is_formula(value)]
-    if len(formula_indexes) < 2:
+def _hardcode_breaks_in_line(values: dict[int, object], sheet: str, row: int | None, col: int | None, seen, findings) -> None:
+    formula_keys = [key for key, value in values.items() if is_formula(value)]
+    if len(formula_keys) < 2:
         return
-    start, end = min(formula_indexes), max(formula_indexes)
-    for idx in range(start, end + 1):
-        value = values[idx]
-        if value is None or is_formula(value) or isinstance(value, str):
+    start, end = min(formula_keys), max(formula_keys)
+    for key in sorted(values):
+        if key <= start or key >= end:
             continue
-        r = row if row is not None else idx + 1
-        c = col if col is not None else idx + 1
+        value = values[key]
+        if is_formula(value) or isinstance(value, str):
+            continue
+        r = row if row is not None else key
+        c = col if col is not None else key
         loc = location(sheet, r, c)
         if loc in seen:
             continue

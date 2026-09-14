@@ -10,5 +10,4 @@ jsonschema>=4.0
 
 # Optional runtime extras exercised by CI:
 defusedxml>=0.7
-networkx>=3.0
 PyYAML>=6.0

@@ -34,7 +34,6 @@ def _collect_runtime(coverage: dict | None = None) -> dict:
         "platform": platform.platform(),
         "openpyxl": _safe_version("openpyxl"),
         "defusedxml": _safe_version("defusedxml"),
-        "networkx": _safe_version("networkx"),
         "libreoffice": libreoffice_version,
     }
 

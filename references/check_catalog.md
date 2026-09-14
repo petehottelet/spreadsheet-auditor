@@ -21,7 +21,7 @@ Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 | LIVE_ERROR | DET | Critical | A cell contains or evaluates to an Excel error value such as `#REF!`, `#DIV/0!`, or `#VALUE!`. |
 | BROKEN_REFERENCE | DET | High | A formula contains a deleted reference, missing sheet reference, unavailable external reference, or out-of-bounds target. |
 | BLANK_PRECEDENT | DET | Medium | A formula references a blank cell in a calculation path. |
-| CIRCULAR_REFERENCE | DET | High | Formula dependencies contain a cycle. |
+| CIRCULAR_REFERENCE | DET | High | Formula dependencies contain a cycle, including a total whose range includes its own cell. One finding per connected group of cells. |
 | FORMULA_DRIFT | DET | High | A formula breaks the relative pattern used by neighboring formulas. |
 | IFERROR_MASK | HEUR | Medium | `IFERROR` or `IFNA` may be hiding a real error. |
 
