@@ -15,6 +15,7 @@ tails of names such as ``EBITDA2025`` as cell references.
 from __future__ import annotations
 
 import re
+import weakref
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
@@ -44,11 +45,12 @@ ERROR_LITERALS = {
     "#SPILL!",
     "#CALC!",
 }
-FUNCTION_PREFIXES = ("_XLFN.", "_XLWS.", "_XLPM.", "_XLL.")
+FUNCTION_PREFIXES = ("_XLFN.", "_XLWS.", "_XLPM.", "_XLL.", "__XLUDF.")
 
 # Functions that read a reference's position or shape, never its value:
-# ``ROWS(A$1:A3)`` filled down is a counter, not a dependency on A1:A3.
-POSITIONAL_FUNCS = {"ROW", "ROWS", "COLUMN", "COLUMNS", "ISREF", "AREAS", "SHEET", "SHEETS"}
+# ``ROWS(A$1:A3)`` filled down is a counter, not a dependency on A1:A3, and
+# ``CELL("filename",Q2)`` placed in Q2 is the sheet-name idiom, not a cycle.
+POSITIONAL_FUNCS = {"ROW", "ROWS", "COLUMN", "COLUMNS", "ISREF", "AREAS", "SHEET", "SHEETS", "CELL"}
 # Functions that report on a blank argument or ignore it by definition.
 BLANK_AWARE_FUNCS = {
     "ISBLANK",
@@ -294,7 +296,12 @@ LITERAL_SLOTS = {
     ("XMATCH", 3),
     ("XLOOKUP", 4),
     ("XLOOKUP", 5),
+    # A criteria literal is what is being counted, not an assumption to move.
+    ("COUNTIF", 1),
+    ("SUMIF", 1),
+    ("AVERAGEIF", 1),
 }
+_PARSE_CACHE_LIMIT = 250_000
 COMPARISON_OPS = {"=", "<>", "<", ">", "<=", ">="}
 ARITHMETIC_OPS = {"+", "-", "*", "/", "^", "%"}
 _OPERATOR_TYPES = {Token.OP_IN, Token.OP_PRE, Token.OP_POST}
@@ -563,14 +570,16 @@ def _operand_context(tokens: tuple, idx: int, stack: list[list]) -> dict:
     arithmetic = any(op in ARITHMETIC_OPS for op in operators)
     concat = "&" in operators
     handled = any(frame[0] in ERROR_HANDLER_FUNCS for frame in stack)
+    bare = not operators
     return {
         "func": func,
         "arg": arg,
-        "bare": not operators,
+        "bare": bare,
         "positional": func in POSITIONAL_FUNCS,
         "guarded": comparison or concat or handled or func in BLANK_AWARE_FUNCS or (func == "IF" and arg == 0),
         "sensitive": arithmetic or func in BLANK_SENSITIVE_FUNCS,
-        "numeric": arithmetic or func in NUMERIC_FUNCS or (func, arg) in NUMERIC_SLOTS,
+        # ``SUMPRODUCT((E4:E110=E4)*...)`` compares the column, it does not add it.
+        "numeric": arithmetic or (bare and (func in NUMERIC_FUNCS or (func, arg) in NUMERIC_SLOTS)),
         "array_context": comparison or arithmetic or concat or func in ARRAY_FUNCS,
     }
 
@@ -579,6 +588,10 @@ def _literal_is_structural(stack: list[list]) -> bool:
     if not stack:
         return False
     func, arg = stack[-1]
+    if func == "COUNTIFS" and arg % 2 == 1:
+        return True
+    if func in {"SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS"} and arg >= 2 and arg % 2 == 0:
+        return True
     return func in LITERAL_SLOT_FUNCS or (func, arg) in LITERAL_SLOTS
 
 
@@ -586,6 +599,22 @@ def external_source(raw: str) -> str:
     """The bracketed workbook part of an external reference: ``[1]`` or ``[Book.xlsx]``."""
     match = _EXTERNAL_SOURCE_RE.match(raw)
     return match.group(1) if match else raw.split("!", 1)[0]
+
+
+_null_names_cache: dict = {}
+_caches: "weakref.WeakKeyDictionary[Any, dict]" = weakref.WeakKeyDictionary()
+
+
+def _cache_for(names: Any) -> dict | None:
+    if names is None:
+        return _null_names_cache
+    try:
+        cache = _caches.get(names)
+        if cache is None:
+            cache = _caches[names] = {}
+        return cache
+    except TypeError:  # pragma: no cover - names object cannot be weakly referenced
+        return None
 
 
 def parse_formula(
@@ -599,7 +628,26 @@ def parse_formula(
     structured table references. ``origin`` is ``(sheet, row, col)`` of the
     formula cell; it is needed for sheet-scoped names and ``[@Column]``
     this-row references.
+
+    Results are cached per ``names`` object: every check parses the same
+    inventory, so a workbook of forty thousand formulas is parsed once, not
+    seven times. Callers must treat the returned object as read-only.
     """
+    cache = _cache_for(names)
+    key = (formula, origin)
+    if cache is not None:
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+    parsed = _parse(formula, names, origin)
+    if cache is not None:
+        if len(cache) >= _PARSE_CACHE_LIMIT:
+            cache.clear()
+        cache[key] = parsed
+    return parsed
+
+
+def _parse(formula: str, names: Any, origin: tuple[str, int, int] | None) -> ParsedFormula:
     parsed = ParsedFormula(formula=formula)
     tokens = _tokenize(formula)
     if tokens is None:

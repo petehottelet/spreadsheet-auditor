@@ -41,8 +41,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--per-rule", type=int, default=20)
     parser.add_argument("--max-per-workbook", type=int, default=2)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--name",
+        default=None,
+        help="Basename for the sample files under samples/ (default: the source name). "
+        "Use a distinct name to keep the sample of an earlier run next to a new one.",
+    )
     args = parser.parse_args(argv)
 
+    name = args.name or args.source
     results_dir = Path(args.results_dir) if args.results_dir else RESULTS_DIR / args.source
     data_dir = Path(args.data_dir) / args.source / "files"
     items = load_findings(results_dir)
@@ -72,11 +79,11 @@ def main(argv: list[str] | None = None) -> int:
         "total_findings": len(items),
         "items": sample_items,
     }
-    write_json(SAMPLES_DIR / f"{args.source}.json", sample)
-    write_text(SAMPLES_DIR / f"{args.source}.md", render_cards(sample))
-    write_text(SAMPLES_DIR / f"{args.source}.compact.md", render_compact_cards(sample))
+    write_json(SAMPLES_DIR / f"{name}.json", sample)
+    write_text(SAMPLES_DIR / f"{name}.md", render_cards(sample))
+    write_text(SAMPLES_DIR / f"{name}.compact.md", render_compact_cards(sample))
     rules = sorted({item["finding"]["rule_id"] for item in sample_items})
-    print(f"sampled {len(sample_items)} of {len(items)} findings across {len(rules)} rules -> {SAMPLES_DIR / (args.source + '.md')}")
+    print(f"sampled {len(sample_items)} of {len(items)} findings across {len(rules)} rules -> {SAMPLES_DIR / (name + '.md')}")
     return 0
 
 

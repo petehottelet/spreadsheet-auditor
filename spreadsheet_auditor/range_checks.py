@@ -700,8 +700,8 @@ def detect_fragile_functions(formula_cells: list[dict], names=None, budget=None)
     fragile and are reported per pattern. TODAY and NOW are the normal way to
     age a date; they get one Info note per sheet. A whole-column reference is
     only reported where it is evaluated as an array (a comparison, arithmetic,
-    IF, SUMPRODUCT, an array formula): COUNTIF or VLOOKUP over ``A:A`` bound
-    themselves to the used range.
+    IF, SUMPRODUCT): COUNTIF, VLOOKUP or INDEX over ``A:A`` bound themselves
+    to the used range.
     """
     volatile = {"OFFSET", "INDIRECT", "RAND", "RANDBETWEEN"}
     clock = {"TODAY", "NOW"}
@@ -718,8 +718,10 @@ def detect_fragile_functions(formula_cells: list[dict], names=None, budget=None)
             found_of[id(cell)] = found
         elif parsed.functions.intersection(clock):
             clock_cells[cell["sheet"]].append(cell)
-        unbounded = [ref for ref in parsed.references if not ref.bounded and not ref.positional]
-        if unbounded and (cell.get("array") or any(ref.array_context for ref in unbounded)):
+        # An array formula that only hands a whole column to INDEX still
+        # bounds its array part elsewhere; the reference itself must sit in
+        # an array context.
+        if any(not ref.bounded and not ref.positional and ref.array_context for ref in parsed.references):
             whole_cells.append(cell)
 
     findings: list[Finding] = []

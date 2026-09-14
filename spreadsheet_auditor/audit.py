@@ -259,6 +259,11 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
                 )
 
         findings = _dedupe_range_length_with_drift(findings)
+        if "google_sheets_placeholders" in unsupported_features:
+            limitations.append(
+                "Some formulas are Google Sheets placeholders (IFERROR(__xludf.DUMMYFUNCTION(...), cached value)); "
+                "those cells are frozen values, not live calculations."
+            )
         if recalc_status != "completed":
             limitations.append(
                 "Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) "
@@ -398,7 +403,9 @@ def detect_reference_issues(
         low = max(column_rows[0], row - window)
         high = min(column_rows[-1], row + window)
         filled = bisect_left(column_rows, high + 1) - bisect_left(column_rows, low)
-        return filled * 2 >= high - low + 1
+        # Three in four cells around the blank must be filled: a ledger with a
+        # debit and a credit column is half blank by design.
+        return filled * 4 >= (high - low + 1) * 3
 
     findings: list[Finding] = []
     masked: list[tuple[dict, set[str]]] = []
@@ -437,6 +444,10 @@ def detect_reference_issues(
             unsupported_features.add("structured_or_dynamic_references")
         if parsed.unresolved_names and not parsed.functions.intersection({"LET", "LAMBDA"}):
             unsupported_features.add("unresolved_defined_names")
+        if "DUMMYFUNCTION" in parsed.functions:
+            # Google Sheets exports functions Excel lacks as
+            # IFERROR(__xludf.DUMMYFUNCTION("..."), <cached value>).
+            unsupported_features.add("google_sheets_placeholders")
 
         masks = parsed.functions.intersection({"IFERROR", "IFNA"})
         if masks:
@@ -447,6 +458,10 @@ def detect_reference_issues(
         tested = {
             ((ref.sheet or cell["sheet"]).casefold(), ref.ref) for ref in parsed.references if ref.guarded
         }
+        # A row whose inputs are all blank (a day off on a timesheet, an
+        # unused template row) is not a broken link; only a lone blank among
+        # filled inputs is.
+        row_inputs_blank = _row_inputs_all_blank(formula_wb, cell, parsed)
         for ref in parsed.references:
             ok, reason = reference_in_bounds(ref, cell["sheet"], formula_wb)
             if not ok:
@@ -464,7 +479,7 @@ def detect_reference_issues(
                     )
                 )
                 continue
-            if ref.is_range or not ref.bounded or ref.positional or not ref.sensitive:
+            if ref.is_range or not ref.bounded or ref.positional or not ref.sensitive or row_inputs_blank:
                 continue
             if ((ref.sheet or cell["sheet"]).casefold(), ref.ref) in tested:
                 continue
@@ -535,6 +550,34 @@ def detect_reference_issues(
             )
         )
     return findings
+
+
+def _row_inputs_all_blank(formula_wb, cell: dict, parsed) -> bool:
+    """True when the formula reads two or more single cells from its own row and all are blank.
+
+    A timesheet day with neither an in nor an out time, or a template row
+    with every input empty, is unused space; a lone blank input among filled
+    ones is what BLANK_PRECEDENT is for.
+    """
+    from .reference_resolver import boundaries, existing_cell, find_sheet
+
+    inputs = 0
+    for ref in parsed.references:
+        if ref.is_range or not ref.bounded or ref.positional:
+            continue
+        if ref.sheet is not None and ref.sheet.casefold() != cell["sheet"].casefold():
+            continue
+        box = boundaries(ref.ref)
+        if box is None or box[1] != cell["row"] or box[0] == cell["col"]:
+            continue
+        title = find_sheet(formula_wb, cell["sheet"])
+        if title is None:
+            return False
+        target = existing_cell(formula_wb[title], box[1], box[0])
+        if target is not None and target.value is not None:
+            return False
+        inputs += 1
+    return inputs >= 2
 
 
 def _dedupe_range_length_with_drift(findings: list[Finding]) -> list[Finding]:

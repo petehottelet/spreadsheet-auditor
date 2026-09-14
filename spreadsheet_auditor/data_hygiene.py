@@ -125,17 +125,24 @@ def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIn
     findings: list[Finding] = []
     for ws in _sheets(workbook, allowed_sheet_names):
         text_cells: dict[int, list] = defaultdict(list)
-        first_row: dict[int, int] = {}
-        occupied: dict[int, int] = defaultdict(int)
+        last_row: dict[int, int] = {}
+        row_counts: dict[int, int] = defaultdict(int)
         for cell in iter_existing_cells(ws):
             tick(budget)
             value = cell.value
             if value is None:
                 continue
-            occupied[cell.column] += 1
-            first_row.setdefault(cell.column, cell.row)
+            last_row[cell.column] = cell.row
+            if not is_formula(value):
+                row_counts[cell.row] += 1
             if isinstance(value, str) and not is_formula(value):
                 text_cells[cell.column].append(cell)
+        # The header band is the sheet's first occupied row, plus the second
+        # when the first holds a lone title.
+        top_rows = sorted(row_counts)[:2]
+        header_rows = set(top_rows[:1])
+        if len(top_rows) == 2 and row_counts[top_rows[0]] == 1:
+            header_rows.add(top_rows[1])
         for col in sorted(text_cells):
             cells = text_cells[col]
             candidates = []
@@ -143,11 +150,12 @@ def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIn
                 value = cell.value
                 if value == value.strip() or not value.strip():
                     continue
-                if cell.row == first_row[col] and occupied[col] > 1:
-                    continue  # a header over data, not a key
+                if cell.row in header_rows and last_row[col] > cell.row:
+                    continue  # a title or header over data, not a key
                 referenced = index.contains(ws.title, cell.row, cell.column)
-                if value.rstrip() == value and not referenced:
-                    continue  # leading spaces indent a label
+                leading_only = value.rstrip() == value
+                if leading_only and (len(value) - len(value.lstrip()) >= 2 or not referenced):
+                    continue  # leading spaces indent a label; a single stray space on a key still counts
                 if cell.column != 1 and not referenced:
                     continue
                 candidates.append(cell)
@@ -243,10 +251,11 @@ def _merged_cells(workbook, allowed_sheet_names, index: ReferenceIndex, names) -
         for merged in ws.merged_cells.ranges:
             box = (merged.min_col, merged.min_row, merged.max_col, merged.max_row)
             top_left = cell_value(ws, merged.min_row, merged.min_col)
-            if not (_is_plain_number(top_left) or is_formula(top_left)):
-                # A merged title, section header, label or blank spacer is
-                # presentation; only a merged number or formula is data that
-                # a range read through the merge sees as blanks.
+            if not _is_plain_number(top_left):
+                # A merged title, header, label, blank spacer, or a merged
+                # formula in a totals row is presentation; only a merged
+                # number is an input that a range read through the merge
+                # sees as blanks.
                 continue
             referenced = index.intersects_box(ws.title, box, ranges_only=True)
             if not referenced and not _inside_table(names, ws.title, box):
