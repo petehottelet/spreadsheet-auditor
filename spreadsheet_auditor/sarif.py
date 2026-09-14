@@ -138,4 +138,6 @@ def render_sarif(payload: dict) -> dict:
 
 
 def write_sarif(payload: dict, path: str | Path) -> None:
-    Path(path).write_text(json.dumps(render_sarif(payload), indent=2), encoding="utf-8")
+    Path(path).write_text(
+        json.dumps(render_sarif(payload), indent=2) + "\n", encoding="utf-8", newline="\n"
+    )

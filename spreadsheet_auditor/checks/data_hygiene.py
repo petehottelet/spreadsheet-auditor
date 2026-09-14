@@ -24,6 +24,8 @@ class DataHygieneCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..data_hygiene import detect_data_hygiene
 
+        if not ctx.grid_scan_allowed:
+            return []
         return detect_data_hygiene(
             ctx.formula_wb,
             ctx.allowed_sheet_names,

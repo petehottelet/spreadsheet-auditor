@@ -2,12 +2,12 @@
 
 ## Executive Summary
 
-- Tool version: `0.1.0` (run at 2026-09-14T02:52:10+00:00)
-- Workbook SHA-256: `9fcd67e466bbfbda3686e8f22a151b4186538f599654e526fafbf351c69e369e`
+- Tool version: `0.1.0` (run at 2026-09-14T03:12:10+00:00)
+- Workbook SHA-256: `7b10374b2199fc3a0e47e26956b40be1c71a47af9284c007496d4f48f29fc8bc`
 - Sheets analyzed: 2
 - Formulas scanned: 30
 - Recalculation status: unavailable
-- Findings: 1 Critical, 7 High, 3 Medium, 0 Low, 0 Info
+- Findings: 2 Critical, 7 High, 3 Medium, 0 Low, 0 Info
 - Suppressed findings: 0
 
 ## Coverage And Limitations
@@ -21,6 +21,14 @@
 ## Confirmed Findings
 
 _Hard defects: the auditor is certain this is wrong._
+
+### [CRITICAL] Cell contains live spreadsheet error - LIVE_ERROR
+
+- ID: `LIVE_ERROR-001`
+- Location: `Budget!B14`
+- Detection: DET; confidence: Defect
+- Evidence: Formula contains #REF!, so the cell evaluates to that error whatever its inputs.
+- Suggested fix: Trace the formula precedent chain and resolve the underlying spreadsheet error.
 
 ### [HIGH] Formula contains deleted reference - BROKEN_REFERENCE
 

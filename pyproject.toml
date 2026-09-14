@@ -58,6 +58,7 @@ all = [
 dev = [
     "pytest>=8.0",
     "jsonschema>=4.0",
+    "ruff>=0.5",
     "defusedxml>=0.7",
     "PyYAML>=6.0",
 ]

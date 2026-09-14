@@ -109,22 +109,28 @@ def build_workbook() -> None:
     shutil.copyfile(WORKBOOK, PACKAGED_DEMO)
 
 
+def _rel(path: Path) -> str:
+    # Run the auditor with repo-relative paths so the committed outputs never
+    # embed a maintainer's absolute directory.
+    return path.relative_to(ROOT).as_posix()
+
+
 def regenerate_outputs() -> int:
     cmd = [
         sys.executable,
         "-m",
         "spreadsheet_auditor",
-        str(WORKBOOK),
+        _rel(WORKBOOK),
         "--out",
-        str(REPORT_MD),
+        _rel(REPORT_MD),
         "--json",
-        str(FINDINGS_JSON),
+        _rel(FINDINGS_JSON),
         "--annotated",
-        str(ANNOTATED),
+        _rel(ANNOTATED),
     ]
     # Auditor exits 1 when findings are present; that is the expected outcome
     # here because the demo workbook is intentionally broken.
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
     if result.returncode not in (0, 1):
         sys.stderr.write(result.stderr)
         return result.returncode
@@ -133,13 +139,13 @@ def regenerate_outputs() -> int:
         sys.executable,
         "-m",
         "spreadsheet_auditor",
-        str(WORKBOOK),
+        _rel(WORKBOOK),
         "--out",
-        str(REPORT_HTML),
+        _rel(REPORT_HTML),
         "--format",
         "html",
     ]
-    html_result = subprocess.run(html_cmd, capture_output=True, text=True)
+    html_result = subprocess.run(html_cmd, capture_output=True, text=True, cwd=ROOT)
     if html_result.returncode not in (0, 1):
         sys.stderr.write(html_result.stderr)
         return html_result.returncode

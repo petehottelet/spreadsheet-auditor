@@ -145,7 +145,10 @@ See `spreadsheet-auditor --help` for the full flag reference, including
 - **SARIF 2.1.0** for GitHub code scanning. See
   [`examples/github-actions/code-scanning.yml`](examples/github-actions/code-scanning.yml).
 - **Annotated workbook copy** with comments at finding cells (`--annotated`).
-  The source workbook is never modified.
+  The source workbook is never modified. The copy is written by openpyxl,
+  which does not carry over drawings, charts, images, or form controls; the
+  audit warns when the source contains them, so keep the original as the
+  master.
 
 ## Exit codes
 

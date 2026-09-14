@@ -124,7 +124,12 @@ def _package_available(package: str) -> bool:
 
 def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
     from .suppressions import apply_suppressions, load_suppressions
-    from .workbook_inventory import formula_cells, inventory, load_workbooks
+    from .workbook_inventory import (
+        formula_cells,
+        inventory,
+        load_workbook_formulas,
+        load_workbook_values,
+    )
 
     input_path = Path(args.workbook)
     preflight_info = preflight(input_path)
@@ -167,12 +172,28 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         analysis_path = Path(recalc.get("path", input_path))
         recalc_status = recalc.get("status", "unknown")
 
-        formula_wb, value_wb = load_workbooks(analysis_path)
+        # Static checks always read the original workbook so formula text is
+        # exactly what the author wrote; LibreOffice re-serializes formulas
+        # (for example ``=SUM(#ref!)``) in its converted copy. That copy, when
+        # recalculation ran, only supplies cached values.
+        formula_wb = load_workbook_formulas(input_path)
+        value_wb = load_workbook_values(analysis_path)
         inv = inventory(input_path, formula_wb, value_wb, preflight_info)
         include, exclude = allowed_sheets(config)
         allowed_sheet_names = {
             ws.title for ws in formula_wb.worksheets if sheet_is_allowed(ws.title, include, exclude)
         }
+        if "max_range_expansion_cells" in limits_config:
+            limitations.append(
+                "limits.max_range_expansion_cells is deprecated and ignored; ranges are resolved "
+                "exactly against the formula index, so no reference is dropped for being large."
+            )
+        if getattr(args, "annotated", None) and preflight_info.get("drawing_parts"):
+            limitations.append(
+                f"The annotated copy is written by openpyxl, which does not preserve drawings, charts, "
+                f"images, or form controls; this workbook contains {preflight_info['drawing_parts']} "
+                "such part(s) that the copy will drop. Keep the original workbook as the master."
+            )
         # Cell-count guardrail (cheap to compute).
         max_cells = int(limits_config.get("max_cells", 1_000_000) or 0)
         total_cells = 0
@@ -180,10 +201,14 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             if ws.title not in allowed_sheet_names:
                 continue
             total_cells += int(ws.max_row or 0) * int(ws.max_column or 0)
+        grid_scan_allowed = True
         if max_cells > 0 and total_cells > max_cells:
             truncated["cells"] = True
+            grid_scan_allowed = False
             limitations.append(
-                f"Cell scan capped: workbook reports {total_cells} cells, exceeding the configured max_cells={max_cells}."
+                f"Cell scan capped: workbook reports {total_cells} cells, exceeding the configured "
+                f"max_cells={max_cells}; cell-grid checks (HARDCODE_IN_FORMULA_BLOCK, CROSS_FOOT_FAILURE, "
+                "data hygiene) were skipped. Formula-based checks still ran."
             )
 
         all_formulas = formula_cells(formula_wb)
@@ -215,6 +240,7 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             unsupported_features=unsupported_features,
             names=names,
             budget=budget,
+            grid_scan_allowed=grid_scan_allowed,
         )
         for check_cls in registered_checks():
             check_name = getattr(check_cls, "name", "") or check_cls.__name__
@@ -261,7 +287,7 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             "elapsed_seconds": round(time.monotonic() - start_time, 3),
         }
         workbook_meta = {
-            "path": str(input_path),
+            "path": input_path.as_posix(),
             "sha256": inv["sha256"],
             "sheets_analyzed": len(allowed_sheet_names),
             "formulas_scanned": len(formulas),
@@ -303,7 +329,7 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
     return build_payload(
         AUDIT_VERSION,
         {
-            "path": str(path),
+            "path": Path(path).as_posix(),
             "sha256": preflight_info["sha256"],
             "sheets_analyzed": 1,
             "formulas_scanned": 0,
@@ -763,6 +789,9 @@ def main(argv: list[str] | None = None) -> int:
                 from .annotate import annotate_workbook
 
                 annotate_workbook(args.workbook, args.annotated, payload["findings"])
+                for note in payload.get("coverage", {}).get("limitations", []):
+                    if note.startswith("The annotated copy"):
+                        print(f"Warning: {note}", file=sys.stderr)
         except Exception as exc:
             print(f"Failed to write output: {exc}", file=sys.stderr)
             return 5

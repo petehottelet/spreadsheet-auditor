@@ -2,7 +2,8 @@
   "workbook": "seeded-defects.xlsx",
   "static_expected": {
     "LIVE_ERROR": [
-      "Model!B44"
+      "Model!B44",
+      "Model!B28"
     ],
     "BROKEN_REFERENCE": [
       "Model!B28"
@@ -51,9 +52,6 @@
   "value_dependent_expected": {
     "CROSS_FOOT_FAILURE": [
       "Model!E70"
-    ],
-    "LIVE_ERROR": [
-      "Model!B28"
     ]
   }
 }

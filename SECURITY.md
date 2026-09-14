@@ -21,7 +21,7 @@ The auditor's defaults are designed to *never* trigger any of these.
 | **External data sources / Power Query**   | **Not refreshed.** Cached values are read; the connection is not opened.              |
 | **Web queries / data tables**             | Not refreshed. Cached values only.                                                    |
 | **OOXML parsing**                         | When `defusedxml` is installed it is used to mitigate billion-laughs and XXE patterns. When `defusedxml` is missing the run records this as a coverage limitation rather than silently falling back. |
-| **Recalculation**                         | When LibreOffice / `soffice` is available, it is invoked headless inside a private user profile in a temporary directory. Macros are disabled (`--norestore --headless --convert-to xlsx`). |
+| **Recalculation**                         | When LibreOffice / `soffice` is available, it is invoked headless inside a private user profile in a temporary directory. The profile is seeded to force a full recalculation on load (`OOXMLRecalcMode = 0`) and to never run macros (`MacroSecurityLevel = 3`). Only cached values are read from the converted copy; formula text comes from the original file. |
 | **Annotation**                            | Always written to a *separate* file path supplied via `--annotated`. The source workbook is never modified. |
 | **Network access**                        | None during normal audit operation. HTML and SARIF outputs are self-contained. |
 
@@ -32,9 +32,11 @@ The auditor's defaults are designed to *never* trigger any of these.
 - **OOXML XXE / billion laughs**: `defusedxml` is installed when you `pip
   install "spreadsheet-auditor[xml]"` or `[all]`. Without it, the run is
   flagged in `coverage.limitations` so you know the risk applies.
-- **Macro execution**: never enabled. LibreOffice is invoked with
-  `--norestore --headless --convert-to xlsx`. If you suspect a workbook
-  contains malware, audit it on a disposable VM.
+- **Macro execution**: never enabled. LibreOffice runs headless inside a
+  throwaway profile whose `registrymodifications.xcu` pins
+  `MacroSecurityLevel` to 3 (macros never run) and forces a full
+  recalculation on load. If you suspect a workbook contains malware, audit it
+  on a disposable VM.
 - **Resource exhaustion**: per-check workload is bounded by
   `limits.max_cells`, `limits.max_formulas`, `limits.max_reported_findings`,
   and `limits.timeout_seconds` in the config. Exceeded limits are recorded
