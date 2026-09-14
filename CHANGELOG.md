@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-13
+
+The precision release. The formula parser, cycle detection, suppressions, and
+runtime guards were rebuilt; every deterministic check was re-scoped to fire
+only on evidence a reviewer would accept; the seed catalogs and the demo
+workbook were corrected; and LibreOffice recalculation is now forced and kept
+away from the static checks. A correct ten-row budget went from 23 findings
+to none, the demo from 63 findings to 13 (all seeded), and the benchmark from
+3 misses and 76 uncatalogued findings to 0 and 0. Dropping the unused
+`networkx` dependency removes the `graph` extra, hence the minor bump.
+
 ### Fixed
 
 - **Precision pass on the deterministic checks.** A correct ten-row budget
@@ -227,5 +238,6 @@ benchmark- and demo-backed evidence story.
 - Findings are defect candidates and likely errors, not a legal, accounting,
   tax, or valuation certification.
 
-[Unreleased]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/petehottelet/spreadsheet-auditor/releases/tag/v0.1.0
