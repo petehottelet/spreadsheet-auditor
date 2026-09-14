@@ -17,7 +17,7 @@ job when any workbook produces findings at or above `--fail-on High`.
 ### Install
 
 1. Copy this file to `.github/workflows/audit-spreadsheets.yml` in your repo.
-2. Pin the version: replace `spreadsheet-auditor[all]==0.1.0` with the
+2. Pin the version: replace `spreadsheet-auditor[all]==0.2.0` with the
    release you want to track (see the
    [releases page](https://github.com/petehottelet/spreadsheet-auditor/releases)).
 3. Optional: adjust the `--fail-on` threshold or the file glob pattern.
@@ -56,7 +56,7 @@ and under the repo's **Security -> Code scanning** tab.
    (`security-events: write`, `contents: read`) and uses `--fail-on None` so the
    SARIF upload succeeds even when findings exist; severities are shown as code
    scanning alerts instead of failing the job.
-4. Pin the version as above (`spreadsheet-auditor[all]==0.1.0`).
+4. Pin the version as above (`spreadsheet-auditor[all]==0.2.0`).
 
 > [!NOTE]
 > This is for auditing the spreadsheets *in your repository*. It is separate

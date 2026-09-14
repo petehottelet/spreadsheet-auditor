@@ -34,7 +34,7 @@ jobs:
       - name: Install spreadsheet-auditor
         run: |
           python -m pip install --upgrade pip
-          pip install "spreadsheet-auditor[all]==0.1.0"
+          pip install "spreadsheet-auditor[all]==0.2.0"
 
       - name: Audit workbooks and emit SARIF
         shell: bash
