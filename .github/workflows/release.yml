@@ -144,6 +144,8 @@ jobs:
       url: https://pypi.org/p/spreadsheet-auditor
     permissions:
       id-token: write
+      contents: read
+      actions: read
     steps:
       - name: Download built distributions
         uses: actions/download-artifact@v4
