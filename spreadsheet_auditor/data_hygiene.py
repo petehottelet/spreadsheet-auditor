@@ -3,14 +3,23 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
+from openpyxl.utils.cell import get_column_letter
+
 from .budget import tick
 from .finding import Finding
+from .formula_parser import is_formula
+from .reference_resolver import cell_value
 from .referenced import ReferenceIndex
 from .workbook_inventory import iter_existing_cells, location
 
 
 NUMERIC_TEXT_RE = re.compile(r"^\s*[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*$|^\s*[-+]?\d+(?:\.\d+)?\s*$")
+# "0013", "045": a leading zero marks an identifier that must stay text.
+LEADING_ZERO_RE = re.compile(r"^\s*[-+]?0\d")
 MIN_NUMERIC_COLUMN = 3
+# A column where this many values, and at least four in five of them, carry
+# padding was padded by an export; it gets one note, not one finding per cell.
+MIN_PADDED_COLUMN = 3
 
 
 def _sheets(workbook, allowed_sheet_names: set[str] | None):
@@ -59,7 +68,7 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
             value = cell.value
             if _is_plain_number(value):
                 numeric_per_col[cell.column] += 1
-            elif isinstance(value, str) and NUMERIC_TEXT_RE.match(value):
+            elif isinstance(value, str) and NUMERIC_TEXT_RE.match(value) and not LEADING_ZERO_RE.match(value):
                 text_numbers.append(cell)
         text_per_col: dict[int, int] = defaultdict(int)
         for cell in text_numbers:
@@ -67,7 +76,7 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
         for cell in text_numbers:
             value = cell.value
             loc = location(ws.title, cell.row, cell.column)
-            if index.contains(ws.title, cell.row, cell.column):
+            if index.numeric_contains(ws.title, cell.row, cell.column):
                 findings.append(
                     Finding(
                         rule_id="NUMBERS_STORED_AS_TEXT",
@@ -77,7 +86,8 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
                         location=loc,
                         title="Numeric-looking value stored as text",
                         evidence=[
-                            f"Cell contains text value {value!r} and is referenced by a formula; numeric functions such as SUM ignore text."
+                            f"Cell contains text value {value!r} and a formula consumes it as a number; "
+                            "SUM-style functions skip text and arithmetic on it fails."
                         ],
                         suggested_fix="Convert the value to a number or confirm it is intentionally text.",
                     )
@@ -104,27 +114,77 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
 
 
 def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIndex) -> list[Finding]:
+    """Padded keys and labels: the stray padded value, not the export artefact.
+
+    A column where most text values carry the same padding came out of a
+    fixed-width export and gets one note. A padded header, a label indented
+    with leading spaces, and a whitespace-only spacer cell are presentation.
+    What remains is the one padded value among clean ones, which a lookup or
+    a criteria match silently misses.
+    """
     findings: list[Finding] = []
     for ws in _sheets(workbook, allowed_sheet_names):
+        text_cells: dict[int, list] = defaultdict(list)
+        first_row: dict[int, int] = {}
+        occupied: dict[int, int] = defaultdict(int)
         for cell in iter_existing_cells(ws):
             tick(budget)
             value = cell.value
-            if not (isinstance(value, str) and value != value.strip()):
+            if value is None:
                 continue
-            if cell.column != 1 and not index.contains(ws.title, cell.row, cell.column):
+            occupied[cell.column] += 1
+            first_row.setdefault(cell.column, cell.row)
+            if isinstance(value, str) and not is_formula(value):
+                text_cells[cell.column].append(cell)
+        for col in sorted(text_cells):
+            cells = text_cells[col]
+            candidates = []
+            for cell in cells:
+                value = cell.value
+                if value == value.strip() or not value.strip():
+                    continue
+                if cell.row == first_row[col] and occupied[col] > 1:
+                    continue  # a header over data, not a key
+                referenced = index.contains(ws.title, cell.row, cell.column)
+                if value.rstrip() == value and not referenced:
+                    continue  # leading spaces indent a label
+                if cell.column != 1 and not referenced:
+                    continue
+                candidates.append(cell)
+            if not candidates:
                 continue
-            findings.append(
-                Finding(
-                    rule_id="WHITESPACE_KEY",
-                    severity="Medium",
-                    error_confidence="Review",
-                    detection_mode="DET",
-                    location=location(ws.title, cell.row, cell.column),
-                    title="Text has leading or trailing whitespace",
-                    evidence=[f"Raw value is {value!r}."],
-                    suggested_fix="Trim the value if it is used as a lookup key or label.",
+            if len(candidates) >= MIN_PADDED_COLUMN and len(candidates) * 5 >= len(cells) * 4:
+                lead = candidates[0]
+                findings.append(
+                    Finding(
+                        rule_id="WHITESPACE_KEY",
+                        severity="Low",
+                        error_confidence="Info",
+                        detection_mode="DET",
+                        location=location(ws.title, lead.row, lead.column),
+                        title="Column of padded text values",
+                        evidence=[
+                            f"{len(candidates)} of {len(cells)} text values in column {get_column_letter(col)} carry leading or "
+                            f"trailing whitespace, for example {lead.value!r}; this looks like fixed-width padding from an export."
+                        ],
+                        suggested_fix="Trim the column if its values are matched against keys typed elsewhere.",
+                    )
                 )
-            )
+                continue
+            for cell in candidates:
+                value = cell.value
+                findings.append(
+                    Finding(
+                        rule_id="WHITESPACE_KEY",
+                        severity="Medium",
+                        error_confidence="Review",
+                        detection_mode="DET",
+                        location=location(ws.title, cell.row, cell.column),
+                        title="Text has leading or trailing whitespace",
+                        evidence=[f"Raw value is {value!r}; the other text values in this column are not padded."],
+                        suggested_fix="Trim the value if it is used as a lookup key or label.",
+                    )
+                )
     return findings
 
 
@@ -182,7 +242,13 @@ def _merged_cells(workbook, allowed_sheet_names, index: ReferenceIndex, names) -
     for ws in _sheets(workbook, allowed_sheet_names):
         for merged in ws.merged_cells.ranges:
             box = (merged.min_col, merged.min_row, merged.max_col, merged.max_row)
-            referenced = index.intersects_box(ws.title, box)
+            top_left = cell_value(ws, merged.min_row, merged.min_col)
+            if not (_is_plain_number(top_left) or is_formula(top_left)):
+                # A merged title, section header, label or blank spacer is
+                # presentation; only a merged number or formula is data that
+                # a range read through the merge sees as blanks.
+                continue
+            referenced = index.intersects_box(ws.title, box, ranges_only=True)
             if not referenced and not _inside_table(names, ws.title, box):
                 continue
             findings.append(

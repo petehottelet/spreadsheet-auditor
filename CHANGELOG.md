@@ -19,6 +19,75 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   at a known cell, attributing a hit only when the finding is absent from the
   unmodified original. A manual `corpus.yml` workflow runs either corpus in CI
   with LibreOffice installed.
+- **Real-world precision report** (`benchmarks/real_world_precision.md`): the
+  auditor run over all 2,729 SpreadsheetBench input workbooks, with 394
+  findings sampled across the 18 rules that fired, labeled with a reason
+  each. Against 0.2.0 as released the overall precision was 36% (Wilson 95%
+  interval 32% to 41%), with `LIVE_ERROR` and `BROKEN_REFERENCE` at 100% and
+  `BLANK_PRECEDENT`, `CIRCULAR_REFERENCE`, `FORMULA_DRIFT`, `WHITESPACE_KEY`
+  and `MERGED_CELL_IN_DATA_RANGE` at 8% or below.
+
+### Changed
+
+Every rule below was re-scoped from what the labeled sample showed its
+false positives had in common; the seeded benchmark is unchanged.
+
+- **Parser context**: each reference now records the function and argument
+  it sits in, whether an operator touches it, and whether the formula tests
+  it for blank; positional references (`ROW`, `ROWS`, `COLUMN`, `COLUMNS`,
+  `ISREF`, `AREAS`) are no longer dependencies.
+- **CIRCULAR_REFERENCE**: `ROWS(A$6:A8)` counters and `COLUMNS($D7:AA7)`
+  are not cycles (23 of 25 sampled findings). A deliberate
+  `IFERROR(1/(1/F8),"")` self-reference is still reported.
+- **BLANK_PRECEDENT**: fires only when a blank is used in arithmetic, as a
+  lookup key, or in a date or rounding function, the formula never tests it
+  for blank, and the blank is a gap in an otherwise filled column; guarded
+  formulas, template rows, mirror links, sparse ledger columns and
+  blank-tolerant aggregates are quiet (24 of 25 sampled findings were these).
+- **FORMULA_DRIFT**: a cell that agrees with its formula neighbours on the
+  other axis is a different column by design, and the seed of a chain (an
+  opening balance, year 0) is expected to differ; a `#REF!` majority is not a
+  pattern.
+- **HARDCODE_IN_FORMULA_BLOCK**: an input column or row between two lines
+  of formulas sharing a pattern (running sums, unit x quantity) is not a
+  plug; a text label between the two formulas ends the block.
+- **BROKEN_REFERENCE**: external workbook links are one Low/Info finding per
+  source per sheet instead of a High finding per cell.
+- **DUPLICATE_KEY**: only the searched column of a first-match lookup is a
+  key column (`VLOOKUP` first column, `HLOOKUP` first row, the lookup array
+  of `MATCH`/`XMATCH`/`XLOOKUP`/`LOOKUP`); `SUMIF`/`COUNTIF` criteria ranges
+  and `VLOOKUP` return columns are not.
+- **NUMBERS_STORED_AS_TEXT**: the High variant requires a formula that
+  consumes the cell as a number; leading-zero identifiers are never
+  reported. The numeric-column variant was right 10 times out of 10 and is
+  unchanged.
+- **WHITESPACE_KEY**: headers over data, leading-space indentation and
+  whitespace-only cells are skipped; a column padded by an export gets one
+  Low/Info note instead of a finding per cell.
+- **MERGED_CELL_IN_DATA_RANGE**: only a merged number or formula read
+  through a range reference counts; merged titles, headers, labels and cells
+  that formulas address directly are presentation (0 of 25 sampled findings
+  were data).
+- **WHOLE_COLUMN_REFERENCE**: reported only where the column is evaluated as
+  an array (a comparison, arithmetic, `IF`, `SUMPRODUCT`, `LOOKUP(2,1/...)`,
+  array formulas); `COUNTIF`, `VLOOKUP`, `MATCH` and `INDEX` over `A:A` are
+  bounded by Excel and are quiet.
+- **VOLATILE_FUNCTION**: `TODAY`/`NOW` become one Low/Info note per sheet;
+  `RAND`, `RANDBETWEEN`, `OFFSET`, `INDIRECT` stay Medium.
+- **LITERAL_CONSTANT**: literals in structural argument slots (column
+  indexes, match types, string positions, date parts, rounding digits) and
+  the unit constants 60 and 3600 are skipped.
+- **HIDDEN_STRUCTURE_IN_TOTAL**: `AGGREGATE` options 1/3/5/7 and `SUBTOTAL`
+  101-111 skip hidden rows by definition; hidden rows feeding the same
+  formulas are reported together.
+- **RANGE_EXCLUSION**: expanding running-total ranges (`$A$9:A9`) are not
+  totals. **RANGE_INCLUDES_SUBTOTAL**: a labeled column of constants (a total
+  carried forward) is no longer reported. **RANGE_LENGTH_MISMATCH**: one-cell
+  aggregates are links, and sums over disjoint column groups are not peers.
+- **Grouping**: `IFERROR_MASK`, `LITERAL_CONSTANT`, `VOLATILE_FUNCTION` and
+  `WHOLE_COLUMN_REFERENCE` report once per formula pattern per sheet, at the
+  first cell, with the other cells listed as evidence, instead of once per
+  cell.
 
 ## [0.2.0] - 2026-09-13
 
