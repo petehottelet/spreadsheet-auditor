@@ -368,18 +368,21 @@ def detect_cross_foot_failures(
             }
             if len(spans) < 2:
                 continue
-            columns = sorted(spans)
-            runs: list[list[int]] = [[columns[0]]]
-            for col in columns[1:]:
-                if col == runs[-1][-1] + 1:
-                    runs[-1].append(col)
-                else:
-                    runs.append([col])
-            for run in runs:
+            # The corner may itself be a vertical SUM of the row totals (a grand
+            # total), which looks exactly like one more column total. So every
+            # column right after a column total is a candidate corner, and the
+            # run is whatever contiguous column totals sit to its left.
+            column_set = set(spans)
+            for corner_col in sorted({col + 1 for col in column_set}):
+                run: list[int] = []
+                col = corner_col - 1
+                while col in column_set:
+                    run.append(col)
+                    col -= 1
+                run.reverse()
                 if len(run) < 2:
                     continue
                 first_col, last_col = run[0], run[-1]
-                corner_col = last_col + 1
                 first_row = min(spans[col][0] for col in run)
                 last_row = max(spans[col][1] for col in run)
                 if last_row - first_row + 1 < 2:
