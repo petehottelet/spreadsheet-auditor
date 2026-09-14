@@ -2,12 +2,12 @@
 
 ## Executive Summary
 
-- Tool version: `0.1.0` (run at 2026-09-14T03:19:49+00:00)
-- Workbook SHA-256: `545d04b80babb03857af991311570257cd0b84345756a6eb0251e9b8425257da`
+- Tool version: `0.1.0` (run at 2026-09-14T03:21:46+00:00)
+- Workbook SHA-256: `f4d864f09222a6c169bef47ff0f72ed1ee7ac192972f1e590da12e8f7dec20f9`
 - Sheets analyzed: 2
 - Formulas scanned: 30
-- Recalculation status: unavailable
-- Findings: 2 Critical, 7 High, 3 Medium, 0 Low, 0 Info
+- Recalculation status: completed
+- Findings: 3 Critical, 7 High, 3 Medium, 0 Low, 0 Info
 - Suppressed findings: 0
 
 ## Coverage And Limitations
@@ -15,12 +15,19 @@
 - Macros present: False
 - Macros executed: False
 - External links present: False
-- Limitation: LibreOffice/soffice not available; using static analysis and cached values only.
-- Limitation: Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) rely on cached values and may be incomplete.
 
 ## Confirmed Findings
 
 _Hard defects: the auditor is certain this is wrong._
+
+### [CRITICAL] Row totals and column totals disagree - CROSS_FOOT_FAILURE
+
+- ID: `CROSS_FOOT_FAILURE-001`
+- Location: `Budget!E6`
+- Detection: DET; confidence: Defect
+- Evidence: Row totals E4:E5 sum to 7015.0; column totals B6:D6 sum to 7165.0.
+- Impact: {"estimated_delta": -150.0}
+- Suggested fix: Reconcile the totals row and totals column; one of the contributing aggregates is likely wrong.
 
 ### [CRITICAL] Cell contains live spreadsheet error - LIVE_ERROR
 

@@ -1,43 +1,37 @@
 {
   "audit_version": "0.1.0",
   "tool_version": "0.1.0",
-  "timestamp": "2026-09-14T03:19:49+00:00",
+  "timestamp": "2026-09-14T03:21:46+00:00",
   "runtime": {
-    "python": "3.12.10",
-    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.11.16",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
     "openpyxl": "3.1.5",
     "defusedxml": "0.7.1",
     "libreoffice": null
   },
   "workbook": {
     "path": "examples/demo_bad_budget.xlsx",
-    "sha256": "545d04b80babb03857af991311570257cd0b84345756a6eb0251e9b8425257da",
+    "sha256": "f4d864f09222a6c169bef47ff0f72ed1ee7ac192972f1e590da12e8f7dec20f9",
     "sheets_analyzed": 2,
     "formulas_scanned": 30,
-    "recalc_status": "unavailable"
+    "recalc_status": "completed"
   },
   "coverage": {
     "macros_present": false,
     "macros_executed": false,
     "external_links_present": false,
     "unsupported_features": [],
-    "limitations": [
-      "LibreOffice/soffice not available; using static analysis and cached values only.",
-      "Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) rely on cached values and may be incomplete."
-    ],
+    "limitations": [],
     "truncated": {
       "formulas": false,
       "findings": false,
       "cells": false,
       "timeout": false
     },
-    "elapsed_seconds": 0.047,
+    "elapsed_seconds": 1.351,
     "recalculation": {
-      "status": "unavailable",
-      "limitations": [
-        "LibreOffice/soffice not available; using static analysis and cached values only.",
-        "Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) rely on cached values and may be incomplete."
-      ]
+      "status": "completed",
+      "limitations": []
     },
     "macros": {
       "present": false,
@@ -49,6 +43,31 @@
     }
   },
   "findings": [
+    {
+      "id": "CROSS_FOOT_FAILURE-001",
+      "fingerprint": "c527c01a793890df",
+      "rule_id": "CROSS_FOOT_FAILURE",
+      "severity": "Critical",
+      "error_confidence": "Defect",
+      "confidence": "Defect",
+      "detection_mode": "DET",
+      "mode": "DET",
+      "location": "Budget!E6",
+      "sheet": "Budget",
+      "cell": "E6",
+      "range": null,
+      "title": "Row totals and column totals disagree",
+      "formula": null,
+      "evidence": [
+        "Row totals E4:E5 sum to 7015.0; column totals B6:D6 sum to 7165.0."
+      ],
+      "impact": {
+        "estimated_delta": -150.0
+      },
+      "limitations": [],
+      "suggested_fix": "Reconcile the totals row and totals column; one of the contributing aggregates is likely wrong.",
+      "suppressed": false
+    },
     {
       "id": "LIVE_ERROR-001",
       "fingerprint": "fbb6e5d7357bd57a",
