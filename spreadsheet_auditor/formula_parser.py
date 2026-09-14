@@ -131,6 +131,11 @@ def _tokenize(formula: str) -> tuple[tuple[str, str, str], ...] | None:
         return None
 
 
+def tokens(formula: str) -> tuple[tuple[str, str, str], ...] | None:
+    """Tokenize ``formula`` into ``(value, type, subtype)`` triples; None if unparseable."""
+    return _tokenize(formula)
+
+
 def strip_string_literals(formula: str) -> str:
     return STRING_RE.sub('""', formula)
 

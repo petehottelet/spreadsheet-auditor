@@ -9,6 +9,48 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- **Precision pass on the deterministic checks.** A correct ten-row budget
+  with a label column, a header row, subtotals, and a total column produced 23
+  findings (11 Critical); it now produces none. Rule by rule:
+  - `RANGE_EXCLUSION` only reports a plain number that sits between a total
+    and the range it sums. Text labels, headers, dates, and formula rows never
+    count as excluded data, and a total that lives elsewhere (another sheet or
+    column, quarterly sub-sums) produces no exclusion finding.
+  - `RANGE_INCLUDES_SUBTOTAL` fires only when the subtotal's own formula
+    aggregates cells that are also inside the range (a real double count).
+    "Subtotal + Other" totals stay quiet; a labeled row holding a constant is
+    reported at Medium/Review. Subtotal columns are checked the same way.
+  - `HARDCODE_IN_FORMULA_BLOCK` requires the constant to interrupt formulas
+    that share one relative pattern on both sides, within a short gap, and
+    exempts inputs that an adjacent subtotal sums. Every input beneath a
+    subtotal used to be a "plug".
+  - `FORMULA_DRIFT` exempts a row or column total that aggregates its own
+    neighbors and no longer lets it dilute the majority pattern, so the total
+    column of a budget is not drift while a genuine outlier beside it still is.
+  - `TOTAL_MISMATCH` no longer reports `AVERAGE`, `COUNT`, or `SUM(...)/1000`
+    as Confirmed defects. It now has two precise forms: a static double count
+    (`=SUM(B2:B5)+B5`, `=SUM(B2:B5,B3)`) at High/Likely defect, and a bare
+    `=SUM(range)` whose cached value disagrees with its components at
+    Critical/Defect.
+  - `HIDDEN_STRUCTURE_IN_TOTAL` reports once per hidden row, column, or sheet,
+    listing the visible formulas it feeds; hidden sheets are now covered, as
+    the README always claimed.
+  - `LIVE_ERROR` reports once at the root cell and lists the cells the error
+    propagates to instead of one Critical per dependent.
+  - `NUMBERS_STORED_AS_TEXT` reports text numbers a formula reads (High) or
+    that sit in a mostly numeric column (Medium); text numbers nothing
+    consumes are not reported. `WHITESPACE_KEY` is limited to first-column
+    labels and referenced cells, `DUPLICATE_KEY` to ranges that lookup
+    functions search, and `MERGED_CELL_IN_DATA_RANGE` to merges inside
+    formula-referenced ranges or tables. Title banners are no longer findings.
+  - `BLANK_PRECEDENT` ignores references into entirely empty rows or columns.
+- **Seed catalogs corrected.** Three benchmark "misses" were catalog errors
+  (`Budget!F6` never existed, `Budget!B13` is not an aggregate, `Model!B16` had
+  no adjacent excluded cell) and one seed (`Model!E5`) was itself a false
+  positive. The demo workbook was rebuilt so that it is correct everywhere
+  except its seeded defects, and both catalogs now list every finding the
+  auditor reports against them. A new test fails CI when a seeded workbook
+  produces any uncatalogued static finding or misses a seeded one.
 - **Formula parsing no longer invents cell references.** The regex parser read
   function names such as `LOG10`, `DAYS360`, or `ATAN2` and the tails of names
   such as `EBITDA2025` as cell addresses, then materialized those cells while

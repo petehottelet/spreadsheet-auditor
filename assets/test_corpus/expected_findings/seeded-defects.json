@@ -8,11 +8,13 @@
       "Model!B28"
     ],
     "FORMULA_DRIFT": [
-      "Model!E5"
+      "Model!D4",
+      "Model!B70"
     ],
     "RANGE_EXCLUSION": [
       "Model!B11",
-      "Model!B16"
+      "Model!B17",
+      "Model!B70"
     ],
     "RANGE_INCLUDES_SUBTOTAL": [
       "Model!B18"
@@ -36,7 +38,8 @@
       "Model!B35"
     ],
     "WHITESPACE_KEY": [
-      "Model!A36"
+      "Model!A36",
+      "Model!A38"
     ],
     "DUPLICATE_KEY": [
       "Model!A37, Model!A38"
@@ -48,6 +51,9 @@
   "value_dependent_expected": {
     "CROSS_FOOT_FAILURE": [
       "Model!E70"
+    ],
+    "LIVE_ERROR": [
+      "Model!B28"
     ]
   }
 }

@@ -330,6 +330,20 @@ def detect_reference_issues(
 ) -> list[Finding]:
     from .formula_parser import parse_formula
     from .reference_resolver import boundaries, existing_cell, find_sheet, reference_in_bounds
+    from .workbook_inventory import iter_existing_cells
+
+    occupancy: dict[str, tuple[set[int], set[int]]] = {}
+
+    def occupied(title: str) -> tuple[set[int], set[int]]:
+        if title not in occupancy:
+            rows: set[int] = set()
+            cols: set[int] = set()
+            for existing in iter_existing_cells(formula_wb[title]):
+                if existing.value is not None:
+                    rows.add(existing.row)
+                    cols.add(existing.column)
+            occupancy[title] = (rows, cols)
+        return occupancy[title]
 
     findings: list[Finding] = []
     for cell in formulas:
@@ -422,6 +436,11 @@ def detect_reference_issues(
                 continue
             target = existing_cell(formula_wb[title], box[1], box[0])
             if target is None or target.value is None:
+                occupied_rows, occupied_cols = occupied(title)
+                if box[1] not in occupied_rows or box[0] not in occupied_cols:
+                    # An entirely empty row or column is unused space (future
+                    # periods, spare inputs), not a broken link.
+                    continue
                 findings.append(
                     Finding(
                         rule_id="BLANK_PRECEDENT",
