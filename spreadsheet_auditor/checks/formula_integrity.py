@@ -47,16 +47,13 @@ class LiveErrorCheck(Check):
         from ..formula_parser import parse_formula
         from ..workbook_inventory import scan_live_errors
 
-        errors: dict[str, str] = {}
-        for loc, error_value in scan_live_errors(ctx.formula_wb, ctx.value_wb):
-            if loc.split("!", 1)[0] in ctx.allowed_sheet_names:
-                errors[loc] = error_value
         # A formula that carries an error literal outside any error-handling
-        # function evaluates to that error whatever the inputs, so it can be
-        # reported without cached values.
+        # function evaluates to that error whatever the inputs, so it is
+        # reported the same way with or without cached values.
+        errors: dict[str, str] = {}
         static: set[str] = set()
         for cell in ctx.formulas:
-            if cell["sheet"] not in ctx.allowed_sheet_names or cell["location"] in errors:
+            if cell["sheet"] not in ctx.allowed_sheet_names:
                 continue
             parsed = parse_formula(
                 cell["formula"], names=ctx.names, origin=(cell["sheet"], cell["row"], cell["col"])
@@ -64,6 +61,9 @@ class LiveErrorCheck(Check):
             if parsed.error_literals and not parsed.functions & ERROR_HANDLERS:
                 errors[cell["location"]] = parsed.error_literals[0]
                 static.add(cell["location"])
+        for loc, error_value in scan_live_errors(ctx.formula_wb, ctx.value_wb):
+            if loc.split("!", 1)[0] in ctx.allowed_sheet_names:
+                errors.setdefault(loc, error_value)
         if not errors:
             return []
 
