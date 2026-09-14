@@ -1,0 +1,40 @@
+{
+  "$schema_version": 1,
+  "description": "Real-world spreadsheet corpora used to measure the auditor's precision (how often a finding is right) and, where ground truth exists, recall. Workbooks are never committed; only sampled finding cards, labels, and the rendered report are.",
+  "sources": {
+    "spreadsheetbench": {
+      "name": "SpreadsheetBench v0.1 (912 instances)",
+      "kind": "precision",
+      "homepage": "https://github.com/RUCKBReasoning/SpreadsheetBench",
+      "url": "https://raw.githubusercontent.com/RUCKBReasoning/SpreadsheetBench/main/data/spreadsheetbench_912_v0.1.tar.gz",
+      "archive": "tar.gz",
+      "license": "CC BY-SA 4.0",
+      "format": "xlsx/xlsm",
+      "workbooks": 5464,
+      "default_include_glob": "*_input.*",
+      "notes": "Workbooks attached to real Excel-forum questions (Ma et al., NeurIPS 2024). Each instance ships an _input workbook and a near-duplicate _answer workbook; the default run uses the 2,732 inputs. Modern, formula-heavy, small files (median 10 KB). Saved by Excel, so cached values are present and value-dependent checks run without LibreOffice."
+    },
+    "euses-modified": {
+      "name": "Modified EUSES corpus (Graz University of Technology)",
+      "kind": "recall",
+      "homepage": "https://spreadsheets.sai.tugraz.at/index.php/corpora-for-benchmarking/euses/",
+      "url": "https://spreadsheets.sai.tugraz.at/wp-content/uploads/sites/3/benchmarks/EUSES_modified.zip",
+      "archive": "zip",
+      "license": "Academic use; cite the corpus paper (see homepage)",
+      "format": "xls (LibreOffice conversion required)",
+      "workbooks": 2058,
+      "notes": "Real EUSES spreadsheets with one injected formula fault per version. Each .properties file names the faulty cell (FAULTY_CELLS_1=sheet!col!row) and the fault type, so it measures whether the auditor points at a known-bad cell. Files are .xls; convert with LibreOffice before auditing. Not run by default."
+    },
+    "fuse": {
+      "name": "FUSE (Common Crawl spreadsheets, xlsx subset)",
+      "kind": "precision",
+      "homepage": "https://zenodo.org/records/581678",
+      "url": "https://zenodo.org/records/581678/files/fuse.zip?download=1",
+      "archive": "zip of a 140-part 7z",
+      "license": "CC BY 4.0",
+      "format": "mixed; about 10,500 xlsx",
+      "workbooks": 249376,
+      "notes": "9.4 GB single download with no per-file access; web-sourced diversity from a 2013 crawl. Not fetched by default; intended for a CI or one-off run."
+    }
+  }
+}

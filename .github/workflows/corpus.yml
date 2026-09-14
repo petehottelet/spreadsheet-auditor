@@ -1,0 +1,71 @@
+name: Corpus
+
+# Manual runs of the real-world corpus harness with LibreOffice installed.
+# Downloads a corpus, audits it, and uploads the results (and, for precision
+# corpora, the sample cards) as an artifact for labeling and reporting.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Corpus to run
+        type: choice
+        options: [spreadsheetbench, euses-modified]
+        default: spreadsheetbench
+      limit:
+        description: Number of workbooks to sample (0 = all)
+        default: "0"
+      workers:
+        description: Parallel auditor processes
+        default: "4"
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install LibreOffice (recalculation, and .xls conversion for EUSES)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Fetch corpus
+        run: python benchmarks/corpus/fetch.py "${{ inputs.source }}"
+
+      - name: Run precision corpus
+        if: inputs.source != 'euses-modified'
+        run: |
+          limit="${{ inputs.limit }}"
+          extra=""
+          if [ "$limit" != "0" ]; then extra="--limit $limit"; fi
+          python benchmarks/corpus/run_corpus.py "${{ inputs.source }}" --workers "${{ inputs.workers }}" $extra
+          python benchmarks/corpus/sample.py "${{ inputs.source }}"
+
+      - name: Run recall corpus
+        if: inputs.source == 'euses-modified'
+        run: |
+          limit="${{ inputs.limit }}"
+          extra=""
+          if [ "$limit" != "0" ]; then extra="--limit $limit"; fi
+          python benchmarks/corpus/recall.py --convert --workers "${{ inputs.workers }}" $extra
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-${{ inputs.source }}
+          path: |
+            benchmarks/corpus/results/**
+            benchmarks/corpus/samples/**
+          if-no-files-found: error

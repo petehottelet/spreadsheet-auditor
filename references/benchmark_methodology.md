@@ -92,3 +92,19 @@ When adding a new check:
   does not assert the wording of evidence or suggested fixes.
 - Sample sizes are small. Reviewers should not extrapolate the matrix to
   workbook complexity outside the catalog.
+
+## Real-world precision
+
+The seeded matrix only says whether each rule fires on the defect it was
+built for. `benchmarks/corpus/` measures what a reviewer actually cares about:
+when the auditor flags a cell in a workbook it has never seen, how often is
+it right? The harness audits public corpora of real spreadsheets (SpreadsheetBench
+by default, a set of real Excel-forum workbooks under CC BY-SA 4.0), draws a
+seeded stratified sample of findings per rule, renders each as a context
+card, and joins hand labels into
+[`benchmarks/real_world_precision.md`](../benchmarks/real_world_precision.md)
+with Wilson 95% intervals. See
+[`benchmarks/corpus/README.md`](../benchmarks/corpus/README.md) for the
+pipeline and the labeling protocol. Recall against real-world-derived faults
+is planned through the modified EUSES corpus registered in
+`benchmarks/corpus/sources.json`.

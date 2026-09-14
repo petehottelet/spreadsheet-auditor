@@ -2,11 +2,21 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
+from openpyxl.formula.tokenizer import Token
 from openpyxl.utils.cell import column_index_from_string, get_column_letter
 
 from .budget import tick
 from .finding import Finding
-from .formula_parser import ParsedReference, formula_text, is_formula, parse_formula
+from .formula_parser import (
+    FUNCTION_PREFIXES,
+    ParsedReference,
+    formula_text,
+    is_formula,
+    parse_formula,
+    split_sheet,
+    tokens,
+)
+from .grouping import group_by_pattern, pattern_note
 from .reference_resolver import (
     EXCEL_MAX_COL,
     EXCEL_MAX_ROW,
@@ -96,20 +106,52 @@ def _contiguous_by(items: list[tuple[dict, int]], key: str) -> list[list[tuple[d
     return segments
 
 
+def _single_aggregate_box(formula: str, names=None, origin=None) -> Box | None:
+    ranges = aggregate_ranges(formula, names=names, origin=origin)
+    if len(ranges) != 1:
+        return None
+    return boundaries(ranges[0].ref)
+
+
+def _boxes_overlap(a: Box, b: Box) -> bool:
+    return a[0] <= b[2] and a[2] >= b[0] and a[1] <= b[3] and a[3] >= b[1]
+
+
+def _peers_overlap(a: Box, b: Box) -> bool:
+    """Two aggregate ranges cover the same group when they overlap along the axis they run on.
+
+    Row sums in one column each cover their own row, so they are compared on
+    columns; column sums in one row are compared on rows. A debit sum over
+    C:I beside credit sums over J:AI shares no columns and is not a peer.
+    """
+    a_across = (a[2] - a[0]) >= (a[3] - a[1])
+    b_across = (b[2] - b[0]) >= (b[3] - b[1])
+    if a_across and b_across:
+        return a[0] <= b[2] and a[2] >= b[0]
+    if not a_across and not b_across:
+        return a[1] <= b[3] and a[3] >= b[1]
+    return _boxes_overlap(a, b)
+
+
 def detect_range_length_mismatch(formula_cells: list[dict], names=None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
     seen: set[str] = set()
 
-    sized: list[tuple[dict, int]] = []
+    sized: list[tuple[dict, int, Box]] = []
     for cell in formula_cells:
         tick(budget)
-        size = _single_aggregate_range_size(cell["formula"], names=names, origin=_origin(cell))
-        if size is not None:
-            sized.append((cell, size))
+        box = _single_aggregate_box(cell["formula"], names=names, origin=_origin(cell))
+        if box is None:
+            continue
+        size = (box[2] - box[0] + 1) * (box[3] - box[1] + 1)
+        if size > 1:  # SUM(G213:G213) is a link to one cell, not an aggregate with peers
+            sized.append((cell, size, box))
 
     by_row: dict[tuple[str, int], list[tuple[dict, int]]] = defaultdict(list)
     by_col: dict[tuple[str, int], list[tuple[dict, int]]] = defaultdict(list)
-    for cell, size in sized:
+    box_of: dict[str, Box] = {}
+    for cell, size, box in sized:
+        box_of[cell["location"]] = box
         by_row[(cell["sheet"], cell["row"])].append((cell, size))
         by_col[(cell["sheet"], cell["col"])].append((cell, size))
 
@@ -134,9 +176,12 @@ def detect_range_length_mismatch(formula_cells: list[dict], names=None, budget=N
             majority, count = counts.most_common(1)[0]
             if count < len(members) - 1:
                 continue
+            majority_boxes = [box_of[cell["location"]] for cell, size in members if size == majority]
             for cell, size in members:
                 if size == majority or cell["location"] in seen:
                     continue
+                if not any(_peers_overlap(box_of[cell["location"]], other) for other in majority_boxes):
+                    continue  # sums over disjoint column groups (debits beside credits) are not peers
                 seen.add(cell["location"])
                 findings.append(
                     Finding(
@@ -228,9 +273,23 @@ def detect_range_issues(formula_wb, value_wb, formula_cells: list[dict], names=N
             box = boundaries(ref.ref)
             if box is None:
                 continue
-            findings.extend(_detect_exclusion(ws, cell, ref.ref, box))
+            if not _is_expanding(ref.raw):
+                findings.extend(_detect_exclusion(ws, cell, ref.ref, box))
             findings.extend(_detect_subtotal_inclusion(ws, cell, ref.ref, box, names))
     return findings
+
+
+def _is_expanding(raw: str) -> bool:
+    """``$A$9:A9``: an anchored start and a relative end, the running-total idiom.
+
+    Filled down, the range grows one cell per row; the single cell it covers
+    in its first row is not a total that stopped short of its neighbour.
+    """
+    _, rest = split_sheet(raw)
+    if ":" not in rest:
+        return False
+    start, end = rest.split(":", 1)
+    return start.count("$") == 2 and "$" not in end
 
 
 def _detect_exclusion(ws, formula_cell: dict, ref_text: str, box: Box) -> list[Finding]:
@@ -347,8 +406,9 @@ def _detect_subtotal_inclusion(ws, formula_cell: dict, ref_text: str, box: Box, 
 
     A range that includes a row labeled "Subtotal" is only a double count when
     that subtotal's own formula aggregates cells inside the range. "Subtotal +
-    Other revenue" is a normal total and stays quiet. A labeled row holding a
-    constant instead of a formula is reported at Review confidence.
+    Other revenue" is a normal total and stays quiet, and so does a labeled
+    row or column of constants: "last week's total" carried forward into
+    "total overall" is a design, not a double count.
     """
     min_col, min_row, max_col, max_row = box
     findings: list[Finding] = []
@@ -360,21 +420,12 @@ def _detect_subtotal_inclusion(ws, formula_cell: dict, ref_text: str, box: Box, 
                 continue
             cells = [(col, cell_value(ws, row, col)) for col in range(min_col, max_col + 1)]
             formulas = [(col, value) for col, value in cells if is_formula(value)]
-            if formulas:
-                if any(_formula_overlaps(ws.title, value, row, col, box, names) for col, value in formulas):
-                    findings.append(
-                        _subtotal_finding(
-                            formula_cell,
-                            f"{ws.title}!{ref_text} includes row {row}, labeled {label!r}, whose formula aggregates cells that are also inside the range.",
-                            overlap=True,
-                        )
-                    )
-            elif any(_is_plain_number(value) for _, value in cells):
+            if any(_formula_overlaps(ws.title, value, row, col, box, names) for col, value in formulas):
                 findings.append(
                     _subtotal_finding(
                         formula_cell,
-                        f"{ws.title}!{ref_text} includes row {row}, labeled {label!r}, which holds a constant rather than a formula.",
-                        overlap=False,
+                        f"{ws.title}!{ref_text} includes row {row}, labeled {label!r}, whose formula aggregates cells that are also inside the range.",
+                        overlap=True,
                     )
                 )
 
@@ -386,21 +437,12 @@ def _detect_subtotal_inclusion(ws, formula_cell: dict, ref_text: str, box: Box, 
             cells = [(row, cell_value(ws, row, col)) for row in range(min_row, max_row + 1)]
             formulas = [(row, value) for row, value in cells if is_formula(value)]
             letter = get_column_letter(col)
-            if formulas:
-                if any(_formula_overlaps(ws.title, value, row, col, box, names) for row, value in formulas):
-                    findings.append(
-                        _subtotal_finding(
-                            formula_cell,
-                            f"{ws.title}!{ref_text} includes column {letter}, headed {header!r}, whose formula aggregates cells that are also inside the range.",
-                            overlap=True,
-                        )
-                    )
-            elif any(_is_plain_number(value) for _, value in cells):
+            if any(_formula_overlaps(ws.title, value, row, col, box, names) for row, value in formulas):
                 findings.append(
                     _subtotal_finding(
                         formula_cell,
-                        f"{ws.title}!{ref_text} includes column {letter}, headed {header!r}, which holds constants rather than formulas.",
-                        overlap=False,
+                        f"{ws.title}!{ref_text} includes column {letter}, headed {header!r}, whose formula aggregates cells that are also inside the range.",
+                        overlap=True,
                     )
                 )
     return findings
@@ -476,8 +518,11 @@ def detect_hidden_structure(
         if cell["row"] in hidden_rows_for(cell["sheet"]) or cell["col"] in hidden_cols_for(cell["sheet"]):
             continue
         parsed = parse_formula(cell["formula"], names=names, origin=_origin(cell))
+        skips_hidden_rows = _ignores_hidden_rows(cell["formula"])
         seen_keys: set[tuple[str, str, int]] = set()
         for ref in parsed.references:
+            if ref.positional:
+                continue
             target = find_sheet(formula_wb, ref.sheet or cell["sheet"])
             if target is None:
                 continue
@@ -496,12 +541,13 @@ def detect_hidden_structure(
             min_row = min_row or 1
             max_col = max_col if max_col is not None else int(ws.max_column or 1)
             max_row = max_row if max_row is not None else int(ws.max_row or 1)
-            for hidden_row in hidden_rows_for(target):
-                if min_row <= hidden_row <= max_row:
-                    key = (target, "row", hidden_row)
-                    if key not in seen_keys:
-                        seen_keys.add(key)
-                        groups[key].append(cell)
+            if not skips_hidden_rows:
+                for hidden_row in hidden_rows_for(target):
+                    if min_row <= hidden_row <= max_row:
+                        key = (target, "row", hidden_row)
+                        if key not in seen_keys:
+                            seen_keys.add(key)
+                            groups[key].append(cell)
             for hidden_col in hidden_cols_for(target):
                 if min_col <= hidden_col <= max_col:
                     key = (target, "col", hidden_col)
@@ -509,17 +555,31 @@ def detect_hidden_structure(
                         seen_keys.add(key)
                         groups[key].append(cell)
 
-    findings: list[Finding] = []
+    # Hidden rows that feed the same visible formulas are one fact: "rows 46,
+    # 48 and 60 of the receipts sheet are hidden and still counted".
+    merged: dict[tuple[str, str, tuple[str, ...]], list[int]] = defaultdict(list)
+    dependents_of: dict[tuple[str, str, tuple[str, ...]], list[dict]] = {}
     for key in sorted(groups):
         dependents = sorted(groups[key], key=lambda c: (c["sheet"], c["row"], c["col"]))
-        first = dependents[0]
         target, kind, number = key
+        merged_key = (target, kind, tuple(c["location"] for c in dependents))
+        merged[merged_key].append(number)
+        dependents_of[merged_key] = dependents
+
+    findings: list[Finding] = []
+    for merged_key in sorted(merged):
+        target, kind, _ = merged_key
+        numbers = merged[merged_key]
+        dependents = dependents_of[merged_key]
+        first = dependents[0]
         if kind == "row":
-            what = f"Hidden row {number} on {target}"
+            what = f"Hidden row {numbers[0]} on {target}" if len(numbers) == 1 else f"Hidden rows {_number_list(numbers)} on {target}"
         elif kind == "col":
-            what = f"Hidden column {get_column_letter(number)} on {target}"
+            letters = [get_column_letter(number) for number in numbers]
+            what = f"Hidden column {letters[0]} on {target}" if len(letters) == 1 else f"Hidden columns {_number_list(letters)} on {target}"
         else:
             what = f"Hidden sheet {target!r}"
+        verb = "feeds" if len(numbers) == 1 else "feed"
         shown = ", ".join(c["location"] for c in dependents[:MAX_DEPENDENTS_SHOWN])
         if len(dependents) > MAX_DEPENDENTS_SHOWN:
             shown += ", ..."
@@ -532,73 +592,197 @@ def detect_hidden_structure(
                 location=first["location"],
                 title="Formula inputs include hidden structure",
                 formula=first["formula"],
-                evidence=[f"{what} feeds {len(dependents)} visible formula(s): {shown}."],
+                evidence=[f"{what} {verb} {len(dependents)} visible formula(s): {shown}."],
                 suggested_fix="Confirm hidden inputs are intentional and disclosed in visible workbook documentation.",
             )
         )
     return findings
 
 
+def _number_list(items: list) -> str:
+    shown = ", ".join(str(item) for item in items[:MAX_DEPENDENTS_SHOWN])
+    if len(items) > MAX_DEPENDENTS_SHOWN:
+        shown += f" and {len(items) - MAX_DEPENDENTS_SHOWN} more"
+    return shown
+
+
+def _ignores_hidden_rows(formula: str) -> bool:
+    """AGGREGATE with option 1, 3, 5 or 7 and SUBTOTAL 101-111 skip hidden rows by definition."""
+    toks = tokens(formula)
+    if not toks:
+        return False
+    for idx, (value, ttype, subtype) in enumerate(toks):
+        if ttype != Token.FUNC or subtype != Token.OPEN:
+            continue
+        name = value[:-1].upper()
+        for prefix in FUNCTION_PREFIXES:
+            if name.startswith(prefix):
+                name = name[len(prefix) :]
+                break
+        if name not in ("AGGREGATE", "SUBTOTAL"):
+            continue
+        numbers = _leading_numbers(toks, idx + 1)
+        if name == "SUBTOTAL" and numbers and numbers[0] >= 101:
+            return True
+        if name == "AGGREGATE" and len(numbers) >= 2 and numbers[1] in (1, 3, 5, 7):
+            return True
+    return False
+
+
+def _leading_numbers(toks: tuple, start: int) -> list[int]:
+    """The run of plain integer arguments that opens a call: ``AGGREGATE(9,3,`` -> [9, 3]."""
+    numbers: list[int] = []
+    expect_number = True
+    for value, ttype, subtype in toks[start:]:
+        if ttype == Token.WSPACE:
+            continue
+        if expect_number:
+            if ttype == Token.OPERAND and subtype == Token.NUMBER:
+                try:
+                    numbers.append(int(float(value)))
+                except ValueError:
+                    break
+                expect_number = False
+                continue
+            break
+        if ttype == Token.SEP and subtype == Token.ARG:
+            expect_number = True
+            continue
+        break
+    return numbers
+
+
 # --- literals and fragile functions ------------------------------------------
 
 
 def detect_literal_constants(formula_cells: list[dict], budget=None) -> list[Finding]:
-    findings: list[Finding] = []
+    """One finding per formula pattern that embeds an assumption-like literal.
+
+    Literals in structural argument slots (a VLOOKUP column index, a MID
+    length, a date part, a rounding digit) are not reported; see
+    ``LITERAL_SLOT_FUNCS`` in the parser.
+    """
+    hits: list[dict] = []
+    literals_of: dict[int, list[str]] = {}
     for cell in formula_cells:
         tick(budget)
         literals = parse_formula(cell["formula"]).numeric_literals
         if literals:
-            findings.append(
-                Finding(
-                    rule_id="LITERAL_CONSTANT",
-                    severity="Medium",
-                    error_confidence="Review",
-                    detection_mode="DET",
-                    location=cell["location"],
-                    title="Formula contains embedded numeric literal",
-                    formula=cell["formula"],
-                    evidence=[f"Non-trivial numeric literal(s) found: {', '.join(literals)}."],
-                    suggested_fix="Move the assumption to a labeled input cell and reference it from the formula.",
-                )
+            hits.append(cell)
+            literals_of[id(cell)] = literals
+    findings: list[Finding] = []
+    for members in group_by_pattern(hits):
+        lead = members[0]
+        evidence = [f"Non-trivial numeric literal(s) found: {', '.join(literals_of[id(lead)])}."]
+        note = pattern_note(members)
+        if note:
+            evidence.append(note)
+        findings.append(
+            Finding(
+                rule_id="LITERAL_CONSTANT",
+                severity="Medium",
+                error_confidence="Review",
+                detection_mode="DET",
+                location=lead["location"],
+                title="Formula contains embedded numeric literal",
+                formula=lead["formula"],
+                evidence=evidence,
+                suggested_fix="Move the assumption to a labeled input cell and reference it from the formula.",
             )
+        )
     return findings
 
 
 def detect_fragile_functions(formula_cells: list[dict], names=None, budget=None) -> list[Finding]:
-    findings: list[Finding] = []
-    volatile = {"OFFSET", "INDIRECT", "NOW", "RAND", "RANDBETWEEN", "TODAY"}
+    """Volatile functions and whole-column references, once per formula pattern.
+
+    RAND, RANDBETWEEN, OFFSET and INDIRECT make results irreproducible or
+    fragile and are reported per pattern. TODAY and NOW are the normal way to
+    age a date; they get one Info note per sheet. A whole-column reference is
+    only reported where it is evaluated as an array (a comparison, arithmetic,
+    IF, SUMPRODUCT): COUNTIF, VLOOKUP or INDEX over ``A:A`` bound themselves
+    to the used range.
+    """
+    volatile = {"OFFSET", "INDIRECT", "RAND", "RANDBETWEEN"}
+    clock = {"TODAY", "NOW"}
+    volatile_cells: list[dict] = []
+    found_of: dict[int, set[str]] = {}
+    clock_cells: dict[str, list[dict]] = defaultdict(list)
+    whole_cells: list[dict] = []
     for cell in formula_cells:
         tick(budget)
         parsed = parse_formula(cell["formula"], names=names, origin=_origin(cell))
         found = parsed.functions.intersection(volatile)
         if found:
-            findings.append(
-                Finding(
-                    rule_id="VOLATILE_FUNCTION",
-                    severity="Medium",
-                    error_confidence="Review",
-                    detection_mode="DET",
-                    location=cell["location"],
-                    title="Formula uses volatile or fragile function",
-                    formula=cell["formula"],
-                    evidence=[f"Function(s) found: {', '.join(sorted(found))}."],
-                    suggested_fix="Confirm the volatility is intentional; prefer stable bounded references when possible.",
-                )
+            volatile_cells.append(cell)
+            found_of[id(cell)] = found
+        elif parsed.functions.intersection(clock):
+            clock_cells[cell["sheet"]].append(cell)
+        # An array formula that only hands a whole column to INDEX still
+        # bounds its array part elsewhere; the reference itself must sit in
+        # an array context.
+        if any(not ref.bounded and not ref.positional and ref.array_context for ref in parsed.references):
+            whole_cells.append(cell)
+
+    findings: list[Finding] = []
+    for members in group_by_pattern(volatile_cells):
+        lead = members[0]
+        evidence = [f"Function(s) found: {', '.join(sorted(found_of[id(lead)]))}."]
+        note = pattern_note(members)
+        if note:
+            evidence.append(note)
+        findings.append(
+            Finding(
+                rule_id="VOLATILE_FUNCTION",
+                severity="Medium",
+                error_confidence="Review",
+                detection_mode="DET",
+                location=lead["location"],
+                title="Formula uses volatile or fragile function",
+                formula=lead["formula"],
+                evidence=evidence,
+                suggested_fix="Confirm the volatility is intentional; prefer stable bounded references when possible.",
             )
-        if any(not ref.bounded for ref in parsed.references):
-            findings.append(
-                Finding(
-                    rule_id="WHOLE_COLUMN_REFERENCE",
-                    severity="Medium",
-                    error_confidence="Review",
-                    detection_mode="DET",
-                    location=cell["location"],
-                    title="Formula references an entire column",
-                    formula=cell["formula"],
-                    evidence=["Whole-column references can hide range and performance issues."],
-                    suggested_fix="Use a bounded range sized to the actual table.",
-                )
+        )
+    for sheet in sorted(clock_cells):
+        cells = clock_cells[sheet]
+        shown = ", ".join(c["location"] for c in cells[:MAX_DEPENDENTS_SHOWN])
+        if len(cells) > MAX_DEPENDENTS_SHOWN:
+            shown += ", ..."
+        findings.append(
+            Finding(
+                rule_id="VOLATILE_FUNCTION",
+                severity="Low",
+                error_confidence="Info",
+                detection_mode="DET",
+                location=cells[0]["location"],
+                title="Formulas depend on the current date or time",
+                formula=cells[0]["formula"],
+                evidence=[f"{len(cells)} formula(s) on {sheet} use TODAY or NOW, so their results change with the clock: {shown}."],
+                suggested_fix="Nothing to fix if ageing against today is the intent; freeze the date in an input cell for a reproducible snapshot.",
             )
+        )
+    for members in group_by_pattern(whole_cells):
+        lead = members[0]
+        evidence = [
+            "A whole-column reference is evaluated as an array here, so every recalculation scans the full column height."
+        ]
+        note = pattern_note(members)
+        if note:
+            evidence.append(note)
+        findings.append(
+            Finding(
+                rule_id="WHOLE_COLUMN_REFERENCE",
+                severity="Medium",
+                error_confidence="Review",
+                detection_mode="DET",
+                location=lead["location"],
+                title="Formula evaluates an entire column as an array",
+                formula=lead["formula"],
+                evidence=evidence,
+                suggested_fix="Use a bounded range sized to the actual table.",
+            )
+        )
     return findings
 
 
