@@ -19,30 +19,16 @@ EXCEL_MAX_ROW = 1048576
 EXCEL_MAX_COL = 16384
 WIDE_SPAN = 512  # ranges wider than this are kept as row intervals shared by every column
 
-LOOKUP_FUNCS = {
-    "VLOOKUP",
-    "HLOOKUP",
-    "XLOOKUP",
-    "LOOKUP",
-    "MATCH",
-    "XMATCH",
-    "INDEX",
-    "SUMIF",
-    "SUMIFS",
-    "COUNTIF",
-    "COUNTIFS",
-    "AVERAGEIF",
-    "AVERAGEIFS",
-    "MAXIFS",
-    "MINIFS",
-    "FILTER",
-    "UNIQUE",
-    "SORT",
-    "SORTBY",
-    "DGET",
-    "DSUM",
-    "DCOUNT",
-    "GETPIVOTDATA",
+# (function, 0-based argument index) of the range a first-match lookup
+# searches. SUMIF/COUNTIF criteria ranges are not keys: repeats there are the
+# point of the aggregation.
+KEY_SLOTS = {
+    ("VLOOKUP", 1),
+    ("HLOOKUP", 1),
+    ("MATCH", 1),
+    ("XMATCH", 1),
+    ("XLOOKUP", 1),
+    ("LOOKUP", 1),
 }
 
 Box = tuple[int, int, int, int]
@@ -107,7 +93,8 @@ class ReferenceIndex:
     def __init__(self) -> None:
         self._all: dict[str, _ColumnIndex] = {}
         self._lookup: dict[str, _ColumnIndex] = {}
-        self._boxes: dict[str, list[Box]] = defaultdict(list)
+        self._numeric: dict[str, _ColumnIndex] = {}
+        self._boxes: dict[str, list[tuple[Box, bool]]] = defaultdict(list)
 
     @classmethod
     def from_formulas(cls, formulas: list[dict], names=None, budget=None) -> "ReferenceIndex":
@@ -117,8 +104,9 @@ class ReferenceIndex:
             parsed = parse_formula(
                 item["formula"], names=names, origin=(item["sheet"], item["row"], item["col"])
             )
-            is_lookup = bool(parsed.functions & LOOKUP_FUNCS)
             for ref in parsed.references:
+                if ref.positional:
+                    continue
                 key = (ref.sheet or item["sheet"]).casefold()
                 raw = raw_boundaries(ref.ref)
                 if raw is None:
@@ -130,17 +118,33 @@ class ReferenceIndex:
                     EXCEL_MAX_COL if max_col is None else max_col,
                     EXCEL_MAX_ROW if max_row is None else max_row,
                 )
-                index._boxes[key].append(box)
+                index._boxes[key].append((box, ref.is_range))
                 index._all.setdefault(key, _ColumnIndex()).add(box)
-                if is_lookup:
-                    index._lookup.setdefault(key, _ColumnIndex()).add(box)
-        for column_index in list(index._all.values()) + list(index._lookup.values()):
+                if ref.numeric:
+                    index._numeric.setdefault(key, _ColumnIndex()).add(box)
+                if ref.bare and (ref.func, ref.arg) in KEY_SLOTS:
+                    # Only the searched column or row of a lookup table is a key
+                    # column; VLOOKUP's other columns are what it returns.
+                    key_box = box
+                    if ref.func == "VLOOKUP":
+                        key_box = (box[0], box[1], box[0], box[3])
+                    elif ref.func == "HLOOKUP":
+                        key_box = (box[0], box[1], box[2], box[1])
+                    index._lookup.setdefault(key, _ColumnIndex()).add(key_box)
+        for column_index in (
+            list(index._all.values()) + list(index._lookup.values()) + list(index._numeric.values())
+        ):
             column_index.build()
         return index
 
     def contains(self, sheet: str, row: int, col: int) -> bool:
         """True when some formula reads the cell at (row, col) on ``sheet``."""
         column_index = self._all.get(sheet.casefold())
+        return bool(column_index and column_index.covers(row, col))
+
+    def numeric_contains(self, sheet: str, row: int, col: int) -> bool:
+        """True when a formula consumes the cell at (row, col) as a number (arithmetic, SUM, ...)."""
+        column_index = self._numeric.get(sheet.casefold())
         return bool(column_index and column_index.covers(row, col))
 
     def lookup_columns(self, sheet: str) -> list[int]:
@@ -153,10 +157,17 @@ class ReferenceIndex:
         column_index = self._lookup.get(sheet.casefold())
         return column_index.intervals(col) if column_index else []
 
-    def intersects_box(self, sheet: str, box: Box) -> bool:
-        """True when any referenced range overlaps ``box`` on ``sheet``."""
+    def intersects_box(self, sheet: str, box: Box, ranges_only: bool = False) -> bool:
+        """True when any referenced range overlaps ``box`` on ``sheet``.
+
+        With ``ranges_only`` a single-cell reference does not count: a formula
+        that addresses the top-left cell of a merge directly reads the value
+        the author sees, only a range read through the merge sees blanks.
+        """
         min_col, min_row, max_col, max_row = box
-        for c1, r1, c2, r2 in self._boxes.get(sheet.casefold(), ()):
+        for (c1, r1, c2, r2), is_range in self._boxes.get(sheet.casefold(), ()):
+            if ranges_only and not is_range:
+                continue
             if c1 <= max_col and c2 >= min_col and r1 <= max_row and r2 >= min_row:
                 return True
         return False

@@ -47,7 +47,10 @@ Wilson 95% interval; read the interval, not the point estimate.
 
 ## Keys
 
-A sampled finding is keyed `<sha256[:12]>|<rule>|<location>`. Re-running the
-corpus after a code change keeps every label whose workbook and finding are
-unchanged and leaves new findings unlabeled, so the report shows exactly what
-still needs a human look.
+A sampled finding is keyed `<sha256[:12]>|<rule>|<location>`. When several
+findings of one run share that triple (a rule that reports one finding per
+hidden row can put several at one cell), a six-character hash of the
+evidence is appended so each label stays attached to the right finding.
+Re-running the corpus after a code change keeps every label whose workbook
+and finding are unchanged and leaves new findings unlabeled, so the report
+shows exactly what still needs a human look.
