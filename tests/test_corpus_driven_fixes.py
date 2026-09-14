@@ -63,10 +63,10 @@ def test_blank_precedent_skips_formulas_that_test_the_cell_for_blank(tmp_path):
     ws.append(["Sam", "=IF(ISBLANK(C3),A3,C3)", None])  # tests C3 for blank: handled
     ws.append(["Jo", '=IF(C4<>"",C4,A4)', None])  # handled
     ws.append(["Kim", "=C5*2", None])  # control: reads the blank without checking
-    ws.append(["Pat", "=A6&C6", None])  # concatenation tolerates a blank
-    ws.append(["Lee", '=IF(C7="",A7,C7)', None])  # handled
-    for row in range(8, 14):
-        ws.append([f"Row {row}", f"=C{row}*2", "x"])  # column C is filled below, so the blanks above are gaps
+    ws.append(["Pat", "=A6&C6", "b"])
+    ws.append(["Lee", '=IF(C7="",A7,C7)', "c"])
+    for row in range(8, 16):
+        ws.append([f"Row {row}", f"=C{row}*2", "x"])  # column C is mostly filled, so the blanks above are gaps
     path = tmp_path / "blank_tests.xlsx"
     wb.save(path)
     by_rule = _audit(path)
@@ -321,3 +321,171 @@ def test_iferror_is_reported_once_per_formula_block(tmp_path):
     masks = _audit(path).get("IFERROR_MASK", [])
     assert [f["location"] for f in masks] == ["S!B1", "S!D1"]
     assert "5 cells" in masks[0]["evidence"][1]
+
+
+# --- second round: patterns the re-audited corpus still showed ---------------
+
+
+def test_cell_filename_idiom_is_not_a_cycle(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "BRE"
+    ws["Q2"] = '=MID(CELL("filename",Q2),FIND("]",CELL("filename",Q2))+1,255)'
+    path = tmp_path / "cellname.xlsx"
+    wb.save(path)
+    assert "CIRCULAR_REFERENCE" not in _audit(path)
+
+
+def test_compared_text_codes_inside_sumproduct_are_not_numbers(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Raw"
+    ws.append(["Serial", "Code", "Dup"])
+    for row, code in enumerate(("9940", "9941", "9940", "9942"), start=2):
+        ws.append([row, code, f"=SUMPRODUCT(($B$2:$B$5=$B{row})*1)"])
+    ws["E1"] = "=SUM(B2:B5)"  # the control: a SUM does consume the codes as numbers
+    path = tmp_path / "codes.xlsx"
+    wb.save(path)
+    found = {f["location"]: f["severity"] for f in _audit(path).get("NUMBERS_STORED_AS_TEXT", [])}
+    assert found == {"Raw!B2": "High", "Raw!B3": "High", "Raw!B4": "High", "Raw!B5": "High"}
+    ws["E1"] = None
+    wb.save(path)
+    assert "NUMBERS_STORED_AS_TEXT" not in _audit(path)
+
+
+def test_input_column_with_a_total_row_above_and_a_plug_beside_is_still_an_input(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "DRP"
+    ws.append(["Buy", "Sell", "Net", "Buy 2", "Sell 2", "Net 2"])
+    for row in range(2, 6):
+        ws.append([10 * row, row, f"=A{row}-B{row}", 20 * row, 2 * row, f"=C{row}+D{row}-E{row}"])
+    ws.append(["=SUM(A2:A5)", "=SUM(B2:B5)", "=SUM(C2:C5)", "=SUM(D2:D5)", "=SUM(E2:E5)", "=SUM(F2:F5)"])
+    for row in range(7, 11):
+        ws.append([10 * row, row, f"=A{row}-B{row}", 20 * row, 2 * row, f"=C{row}+D{row}-E{row}"])
+    ws["C4"] = -1  # a plug in the Net column; the inputs beside it stay inputs
+    path = tmp_path / "drp.xlsx"
+    wb.save(path)
+    assert [f["location"] for f in _audit(path).get("HARDCODE_IN_FORMULA_BLOCK", [])] == ["DRP!C4"]
+
+
+def test_drift_skips_label_links_that_step_and_totals_rows_that_mix_aggregates(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Total"
+    ws.append(["Name", "Hours", "Pay"])
+    for i, row in enumerate(range(2, 8)):
+        src = 6 + 2 * i  # the label column links every second row of the source sheet
+        ws.append([f"=Jan!A{src}", f"=Jan!B{src}+Feb!B{src}", f"=Jan!C{src}+Feb!C{src}"])
+    ws.append(["Total", "=SUM(B2:B7)", "=AVERAGE(C2:C7)"])  # one sums, one averages the same block
+    for title in ("Jan", "Feb"):
+        sheet = wb.create_sheet(title)
+        for row in range(1, 20):
+            sheet.append([f"n{row}", row, row * 10])
+    path = tmp_path / "labels.xlsx"
+    wb.save(path)
+    assert "FORMULA_DRIFT" not in _audit(path)
+
+
+def test_merged_formulas_in_totals_rows_are_presentation(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    for row in range(1, 5):
+        ws.append([row, row * 2])
+    ws.append(["=SUM(A1:A4)", "=SUM(B1:B4)"])
+    ws.merge_cells("A6:B6")
+    ws["A6"] = "=A5-B5"  # a net line merged across the two columns it nets
+    ws["D1"] = "=SUM(A1:B6)"  # a range reads through the merge
+    path = tmp_path / "net.xlsx"
+    wb.save(path)
+    assert "MERGED_CELL_IN_DATA_RANGE" not in _audit(path)
+
+
+def test_whitespace_skips_headers_under_titles_and_deep_indentation_but_keeps_a_stray_space(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws.append(["Table 1"])
+    ws.append(["ID ", "Value"])  # a header under a title
+    ws.append(["a", 1])
+    ws.append([" CA13 9BH", 2])  # one stray leading space on a key
+    ws.append(["        STUFF 3", 3])  # indentation
+    ws["D1"] = '=VLOOKUP("CA13 9BH",A3:B5,2,FALSE)'
+    path = tmp_path / "keys.xlsx"
+    wb.save(path)
+    assert [f["location"] for f in _audit(path).get("WHITESPACE_KEY", [])] == ["S!A4"]
+
+
+def test_array_formula_that_only_indexes_a_whole_column_is_quiet(tmp_path):
+    from openpyxl.worksheet.formula import ArrayFormula
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    for row in range(1, 6):
+        ws.append([f"k{row}", row * 10])
+    ws["D1"] = ArrayFormula("D1", '=IFERROR(INDEX($B:$B,SMALL(IF($A$1:$A$5="k3",ROW($A$1:$A$5)),1)),"")')
+    ws["D2"] = ArrayFormula("D2", "=MAX(IF($A:$A=\"k2\",$B:$B,0))")  # the whole column really is the array
+    path = tmp_path / "arrays.xlsx"
+    wb.save(path)
+    assert [f["location"] for f in _audit(path).get("WHOLE_COLUMN_REFERENCE", [])] == ["S!D2"]
+
+
+def test_google_sheets_placeholders_are_flagged_as_a_coverage_gap(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "PAYMENT"
+    ws["A1"] = "Size"
+    ws["B1"] = '=IFERROR(__xludf.DUMMYFUNCTION("""COMPUTED_VALUE"""),"60*90")'
+    path = tmp_path / "gsheets.xlsx"
+    wb.save(path)
+    result = subprocess.run(
+        [sys.executable, "-m", "spreadsheet_auditor", str(path), "--json", "-", "--fail-on", "None"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    payload = json.loads(result.stdout)
+    assert "google_sheets_placeholders" in payload["coverage"]["unsupported_features"]
+    assert any("Google Sheets" in note for note in payload["coverage"]["limitations"])
+
+
+def test_blank_precedent_ignores_rows_with_no_inputs_and_half_filled_ledgers(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws.append(["Day", "In", "Out", "Hours", "Debit", "Credit", "Balance"])
+    times = [("08:00", "16:00"), (None, None), ("09:00", "17:00"), ("08:30", "16:30"), (None, None), ("09:00", "17:00")]
+    ledger = [(100, None), (None, 40), (None, 60), (200, None), (None, 50), (None, 70)]
+    for i, ((t_in, t_out), (debit, credit)) in enumerate(zip(times, ledger), start=2):
+        prev = f"G{i - 1}" if i > 2 else "0"
+        ws.append([i, t_in, t_out, f"=C{i}-B{i}", debit, credit, f"={prev}+E{i}-F{i}"])
+    ws["I2"] = 5
+    ws["I3"] = 7
+    ws["I4"] = None  # the one real gap in a filled column
+    ws["I5"] = 6
+    ws["I6"] = 8
+    ws["I7"] = 9
+    ws["J4"] = "=I4*2"
+    path = tmp_path / "ledger.xlsx"
+    wb.save(path)
+    assert [f["location"] for f in _audit(path).get("BLANK_PRECEDENT", [])] == ["S!J4"]
+
+
+def test_countif_criteria_literals_are_not_assumptions(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    for row in range(1, 8):
+        ws.append([row % 3])
+    ws["C1"] = "=COUNTIF(A1:A7,2)"
+    ws["C2"] = '=COUNTIFS(A1:A7,2,A1:A7,"<>1")'
+    ws["C3"] = "=SUMIFS(A1:A7,A1:A7,2)"
+    ws["C4"] = "=SUMIF(A1:A7,2)*1.3"  # the multiplier is the assumption
+    path = tmp_path / "criteria.xlsx"
+    wb.save(path)
+    literals = _audit(path).get("LITERAL_CONSTANT", [])
+    assert [f["location"] for f in literals] == ["S!C4"]
+    assert "1.3" in literals[0]["evidence"][0]

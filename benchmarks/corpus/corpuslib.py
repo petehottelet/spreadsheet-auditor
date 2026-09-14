@@ -590,7 +590,45 @@ def _pct(value: float | None) -> str:
     return "-" if value is None else f"{100 * value:.0f}%"
 
 
-def render_report(source_meta: dict, run_summary: dict, sample: dict, labels: dict, rows: list[dict]) -> str:
+def _baseline_section(baseline: dict, rows: list[dict], run_summary: dict, tp_total: int, judged: int) -> list[str]:
+    """How volumes and precision moved per rule against a previous report's JSON."""
+    before_rows = {row["rule"]: row for row in baseline.get("rules", [])}
+    before_run = baseline.get("run", {})
+    before_judged = sum(r["tp"] + r["fp"] for r in before_rows.values())
+    before_tp = sum(r["tp"] for r in before_rows.values())
+    before_overall = before_tp / before_judged if before_judged else None
+    overall = tp_total / judged if judged else None
+    lines = [
+        "",
+        f"## Change since auditor {before_run.get('auditor_version', '?')} ({str(baseline.get('generated', ''))[:10]})",
+        "",
+        f"- Findings: {before_run.get('findings_total', 0):,} before, {run_summary['findings_total']:,} after "
+        f"({run_summary['findings_total'] - before_run.get('findings_total', 0):+,}).",
+        f"- Overall precision: {_pct(before_overall)} before ({before_judged} judged), {_pct(overall)} after ({judged} judged). "
+        "Both sides are judged with the same labels file; a finding the fix removed is simply absent from the new sample.",
+        "",
+        "| Rule | Findings before | Findings after | Precision before | Precision after |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    ordered = sorted(set(before_rows) | {r["rule"] for r in rows}, key=lambda rule: -before_rows.get(rule, {}).get("findings", 0))
+    after_rows = {row["rule"]: row for row in rows}
+    for rule in ordered:
+        before = before_rows.get(rule)
+        after = after_rows.get(rule)
+        lines.append(
+            f"| {rule} | {before['findings']:,} | {after['findings']:,} | "
+            f"{_pct(before['precision'])} | {_pct(after['precision']) if after['sampled'] else '-'} |"
+            if before and after
+            else f"| {rule} | {before['findings']:,} | 0 | {_pct(before['precision'])} | - |"
+            if before
+            else f"| {rule} | 0 | {after['findings']:,} | - | {_pct(after['precision'])} |"
+        )
+    return lines
+
+
+def render_report(
+    source_meta: dict, run_summary: dict, sample: dict, labels: dict, rows: list[dict], baseline: dict | None = None
+) -> str:
     judged = sum(r["tp"] + r["fp"] for r in rows)
     tp_total = sum(r["tp"] for r in rows)
     overall = tp_total / judged if judged else None
@@ -629,6 +667,8 @@ def render_report(source_meta: dict, run_summary: dict, sample: dict, labels: di
             f"| {row['rule']} | {row['findings']:,} | {row['workbooks']:,} | {per_1k} | {row['sampled']} | "
             f"{row['tp']} | {row['fp']} | {row['unsure']} | {_pct(row['precision'])} | {ci} |"
         )
+    if baseline:
+        lines += _baseline_section(baseline, rows, run_summary, tp_total, judged)
     lines += ["", "## Notes by rule", ""]
     notes = labels.get("rule_notes", {})
     if notes:

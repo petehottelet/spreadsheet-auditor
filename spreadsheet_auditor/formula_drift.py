@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from bisect import bisect_left
 from collections import Counter, defaultdict
 
@@ -63,7 +64,9 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> 
             for cell, pattern in pairs:
                 if pattern == majority or cell["location"] in seen:
                     continue
-                if _conforms_across(cell, pattern, axis, pattern_at):
+                if _AGG_RE.sub("AGG(", pattern) == _AGG_RE.sub("AGG(", majority):
+                    continue  # a totals row where one column sums and the next averages the same block
+                if _conforms_across(cell, pattern, majority, axis, pattern_at):
                     continue
                 seen.add(cell["location"])
                 neighbors = _drift_neighbors(members, members.index(cell))
@@ -90,22 +93,39 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> 
     return findings
 
 
-def _conforms_across(cell: dict, pattern: str, axis: str, pattern_at: dict[tuple[str, int, int], str]) -> bool:
-    """True when the cell's formula matches its formula neighbours on the other axis.
+_OFFSET_RE = re.compile(r"\[-?\d+\]")
+_AGG_RE = re.compile(r"\b(?:SUM|AVERAGE|AVERAGEA|COUNT|COUNTA|MIN|MAX|MEDIAN|SUBTOTAL)\(")
+
+
+def _shape(pattern: str) -> str:
+    """A pattern with its relative offsets blanked: what the formula does, not where it points."""
+    return _OFFSET_RE.sub("[]", pattern)
+
+
+def _conforms_across(
+    cell: dict, pattern: str, majority: str, axis: str, pattern_at: dict[tuple[str, int, int], str]
+) -> bool:
+    """True when the cell's formula matches a formula neighbour on the other axis.
 
     A row of unrelated columns (a label link, a derived column, a mirror
     column) is not a fill. The cell that differs from the two beside it but
-    agrees with the cells above and below it is a different column by design,
-    not a broken pattern. The price is a column that was filled down wrongly
-    in every row, which then reads as consistent; the column scan still sees
-    it when the column's own pattern breaks.
+    agrees with the cell above or below it is a different column by design,
+    not a broken pattern. When the cell is a structurally different formula
+    from the majority (not the same formula with a slipped offset), agreeing
+    in shape with its neighbour is enough: a label column that links every
+    second row of another sheet never repeats an exact pattern. The price is
+    a column filled down wrongly in every row, which then reads as
+    consistent; the column scan still sees it when its own pattern breaks.
     """
     if axis == "row":
         keys = [(cell["sheet"], cell["row"] - 1, cell["col"]), (cell["sheet"], cell["row"] + 1, cell["col"])]
     else:
         keys = [(cell["sheet"], cell["row"], cell["col"] - 1), (cell["sheet"], cell["row"], cell["col"] + 1)]
     found = [pattern_at[key] for key in keys if key in pattern_at]
-    return bool(found) and all(other == pattern for other in found)
+    if any(other == pattern for other in found):
+        return True
+    shape = _shape(pattern)
+    return shape != _shape(majority) and any(_shape(other) == shape for other in found)
 
 
 def _chain_step(majority: str, axis: str, direction: int) -> bool:
@@ -204,7 +224,8 @@ def _is_input_line(
 
     row, col = cell_pos
     across = left_pos[0] == row  # the formula pair lies in this row
-    matched = False
+    evaluated = 0
+    formulas = 0
     for step in (-1, 1):
         if across:  # look up and down
             beside = at(row + step, col)
@@ -212,15 +233,16 @@ def _is_input_line(
         else:  # look left and right
             beside = at(row, col + step)
             corners = [at(left_pos[0], col + step), at(right_pos[0], col + step)]
-        if is_formula(beside):
-            return False
+        # A header, a label, a total row or the edge of the block beside the
+        # constant says nothing either way; a constant beside it does, when
+        # the formula lines continue there too.
         if _is_plain_number(beside):
-            if not all(is_formula(v) for v in corners):
-                return False
-            matched = True
-        # A header, a label or the edge of the block beside the constant says
-        # nothing either way.
-    return matched
+            evaluated += len(corners)
+            formulas += sum(1 for v in corners if is_formula(v))
+    if evaluated == 0:
+        return False
+    # One of four corners may itself hold a plug in the neighbouring formula line.
+    return formulas == evaluated or (evaluated >= 4 and formulas >= evaluated - 1)
 
 
 def _hardcode_breaks_in_line(

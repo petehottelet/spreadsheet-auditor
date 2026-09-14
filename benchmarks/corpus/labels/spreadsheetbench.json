@@ -1597,6 +1597,1446 @@
     "233b4f90d078|WHOLE_COLUMN_REFERENCE|Form!D7": {
       "label": "FP",
       "reason": "The array part is bounded to 70,000 rows; the whole column only feeds INDEX."
+    },
+    "6ed6a011684e|BLANK_PRECEDENT|Example!D9|e15415": {
+      "label": "FP",
+      "reason": "Timesheet day with no times entered gives 0:00 hours and 0 days billed; the blank row is a day off, not a missing input."
+    },
+    "d7e27f29097e|BLANK_PRECEDENT|Malaga!F16|21ed4d": {
+      "label": "FP",
+      "reason": "Blank deposit means no deposit paid; the formula already tests the row's key cell for blank."
+    },
+    "6d6fc1caeb06|BLANK_PRECEDENT|DRP!L2": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "ada3dc9b0be1|BLANK_PRECEDENT|EXCELHELP!AF14": {
+      "label": "FP",
+      "reason": "An empty row inside the block; its formulas evaluate to 0 and nothing reads them as data."
+    },
+    "6ed6a011684e|BLANK_PRECEDENT|Example!D15|7b794e": {
+      "label": "FP",
+      "reason": "Timesheet day with no times entered gives 0:00 hours and 0 days billed; the blank row is a day off, not a missing input."
+    },
+    "5989e352c77e|BLANK_PRECEDENT|OMRAAN!E4": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "a3b766273873|BLANK_PRECEDENT|GLDetails!G7": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "2ed80e0ee4cd|BLANK_PRECEDENT|DRP!I2": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "3466007fd64d|BLANK_PRECEDENT|Example!D17|f74512": {
+      "label": "FP",
+      "reason": "Timesheet day with no times entered gives 0:00 hours and 0 days billed; the blank row is a day off, not a missing input."
+    },
+    "5989e352c77e|BLANK_PRECEDENT|ALI!E5": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "0233c00701a4|BLANK_PRECEDENT|ALI!E6": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "6afa97343321|BLANK_PRECEDENT|AHMED!E6": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "6afa97343321|BLANK_PRECEDENT|ALI!E4": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "7b15ef0c0d8c|BLANK_PRECEDENT|data!G28|1e5926": {
+      "label": "TP",
+      "reason": "A service-log row with its label but no start or end time shows a zero duration that feeds the hours calculation; the record is incomplete."
+    },
+    "4eee00e05d38|BLANK_PRECEDENT|Example!F42": {
+      "label": "TP",
+      "reason": "Invoice line with a price and no quantity produces 0, and the invoice total is 0."
+    },
+    "3466007fd64d|BLANK_PRECEDENT|Example!F43": {
+      "label": "TP",
+      "reason": "Invoice line with a price and no quantity produces 0, and the invoice total is 0."
+    },
+    "c21a65d89062|BLANK_PRECEDENT|data!G28|1e5926": {
+      "label": "TP",
+      "reason": "A service-log row with its label but no start or end time shows a zero duration that feeds the hours calculation; the record is incomplete."
+    },
+    "738a64e94c99|BLANK_PRECEDENT|DRP!L2": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "c21a65d89062|BLANK_PRECEDENT|data!G28|940b37": {
+      "label": "TP",
+      "reason": "A service-log row with its label but no start or end time shows a zero duration that feeds the hours calculation; the record is incomplete."
+    },
+    "5cd8c4fe9805|BLANK_PRECEDENT|DATA!R3|599def": {
+      "label": "FP",
+      "reason": "Trade log where add-on and exit sizes are blank when there was none; blank is zero by design."
+    },
+    "7b15ef0c0d8c|BLANK_PRECEDENT|data!G28|940b37": {
+      "label": "TP",
+      "reason": "A service-log row with its label but no start or end time shows a zero duration that feeds the hours calculation; the record is incomplete."
+    },
+    "6d6fc1caeb06|BLANK_PRECEDENT|DRP!I2": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "0233c00701a4|BLANK_PRECEDENT|AHMED!E7": {
+      "label": "FP",
+      "reason": "Ledger row with one of two amount columns filled (debit or credit, buying or selling, deposit or none); the blank is a zero by design."
+    },
+    "95fdf876027b|BLANK_PRECEDENT|DATA!R3|0eae78": {
+      "label": "FP",
+      "reason": "Trade log where exit sizes are blank when there was no exit; blank is zero by design."
+    },
+    "d7e27f29097e|BLANK_PRECEDENT|Malaga!M12|d1ba0b": {
+      "label": "FP",
+      "reason": "Blank deposit means no deposit paid; the formula already tests the row's key cell for blank."
+    },
+    "84b858fcb37f|BROKEN_REFERENCE|Sheet1!C11": {
+      "label": "TP",
+      "reason": "One Info note for 270 cells linking to an external workbook; exactly the disclosure a reviewer wants."
+    },
+    "acb548947286|BROKEN_REFERENCE|Statistics!G44": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "ef479c030de6|BROKEN_REFERENCE|Sheet1!C6": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "5d8557dfb652|BROKEN_REFERENCE|July-KPIs!B36": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "5b3e1270b4b8|BROKEN_REFERENCE|Sheet1!A18": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "7dfe4964af12|BROKEN_REFERENCE|Sheet1!C7": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "74d967658eee|BROKEN_REFERENCE|Sheet1!AN57": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "a556b2a52595|BROKEN_REFERENCE|Sheet1!C6": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "c2c1c9ef2579|BROKEN_REFERENCE|formamspnc(7)!I10": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "8734ff2c3db4|BROKEN_REFERENCE|Sheet1!C12": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "484f4df3fe7b|BROKEN_REFERENCE|Statistics!G18": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "6d5548493a93|BROKEN_REFERENCE|July-KPIs!B12": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "1ee00a60f590|BROKEN_REFERENCE|Sheet1!AN55": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "7dfe4964af12|BROKEN_REFERENCE|Sheet1!C5": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "ef479c030de6|BROKEN_REFERENCE|Sheet1!D6": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "acb548947286|BROKEN_REFERENCE|Statistics!G52": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "37d41403fe20|BROKEN_REFERENCE|Statistics!G30": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "b230bc5037bf|BROKEN_REFERENCE|PrevworkingdayQuote(2)!A24|0dcee9": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "37d41403fe20|BROKEN_REFERENCE|Statistics!G52": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "40c4eca66328|BROKEN_REFERENCE|Sheet1!C15": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "7bd972dd1e37|BROKEN_REFERENCE|July-KPIs!B19": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "4ea284d68c01|BROKEN_REFERENCE|Sheet1!AN59": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "5d8557dfb652|BROKEN_REFERENCE|July-KPIs!B35": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "4ea284d68c01|BROKEN_REFERENCE|Sheet1!AN49": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "484f4df3fe7b|BROKEN_REFERENCE|Statistics!G43": {
+      "label": "TP",
+      "reason": "Formula carries #REF!; the reference really was deleted."
+    },
+    "92f8bf691072|CIRCULAR_REFERENCE|Test!F12": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F12),...) self-reference that freezes a date once set; needs iterative calculation, which a reviewer must know."
+    },
+    "40397a4736e1|CIRCULAR_REFERENCE|Test!F35": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F12),...) self-reference that freezes a date once set; needs iterative calculation, which a reviewer must know."
+    },
+    "40397a4736e1|CIRCULAR_REFERENCE|Test!F31": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F12),...) self-reference that freezes a date once set; needs iterative calculation, which a reviewer must know."
+    },
+    "b8b03c02336b|CIRCULAR_REFERENCE|Test!F3": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F12),...) self-reference that freezes a date once set; needs iterative calculation, which a reviewer must know."
+    },
+    "b8b03c02336b|CIRCULAR_REFERENCE|Test!F27": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F12),...) self-reference that freezes a date once set; needs iterative calculation, which a reviewer must know."
+    },
+    "92f8bf691072|CIRCULAR_REFERENCE|Test!F35": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F12),...) self-reference that freezes a date once set; needs iterative calculation, which a reviewer must know."
+    },
+    "70a7680e9819|CIRCULAR_REFERENCE|Sheet1!B323": {
+      "label": "TP",
+      "reason": "MAX(B$7:B377)+1 in B323 includes its own cell; a genuine circular reference that Excel reports."
+    },
+    "21bdc0943b23|CIRCULAR_REFERENCE|Sheet1!B323": {
+      "label": "TP",
+      "reason": "MAX(B$7:B377)+1 in B323 includes its own cell; a genuine circular reference that Excel reports."
+    },
+    "0a3eeb22d16c|CIRCULAR_REFERENCE|Sheet1!B323": {
+      "label": "TP",
+      "reason": "MAX(B$7:B377)+1 in B323 includes its own cell; a genuine circular reference that Excel reports."
+    },
+    "9c38434cffc6|CIRCULAR_REFERENCE|BRE!Q2": {
+      "label": "FP",
+      "reason": "CELL(\"filename\",Q2) placed in Q2 is the standard sheet-name idiom; CELL reads the reference's location, not its value, and Excel does not treat it as circular."
+    },
+    "a6f136b4462b|CIRCULAR_REFERENCE|BRE!Q2": {
+      "label": "FP",
+      "reason": "CELL(\"filename\",Q2) placed in Q2 is the standard sheet-name idiom; CELL reads the reference's location, not its value, and Excel does not treat it as circular."
+    },
+    "b9a46fca8da1|CIRCULAR_REFERENCE|BRE!Q2": {
+      "label": "FP",
+      "reason": "CELL(\"filename\",Q2) placed in Q2 is the standard sheet-name idiom; CELL reads the reference's location, not its value, and Excel does not treat it as circular."
+    },
+    "1c06477fced9|DUPLICATE_KEY|URNlookup!K1044,URNlookup!K1407": {
+      "label": "TP",
+      "reason": "Duplicate postcode in the column a MATCH searches; the first match can be the wrong school."
+    },
+    "ac9c457a4aed|DUPLICATE_KEY|URNlookup!K1072,URNlookup!K1437": {
+      "label": "TP",
+      "reason": "Duplicate postcode in the column a MATCH searches; the first match can be the wrong school."
+    },
+    "eba9bd965a28|DUPLICATE_KEY|ZORD!A5,ZORD!A7": {
+      "label": "FP",
+      "reason": "Versioned entries with valid-from dates; the XLOOKUP searches last-to-first (mode -1) to take the latest, so the repeats are the design."
+    },
+    "65228fa5c9a0|DUPLICATE_KEY|RS.Food!A20,RS.Food!A443": {
+      "label": "TP",
+      "reason": "Duplicate product name in a menu list searched by name; the second entry is unreachable."
+    },
+    "ac9c457a4aed|DUPLICATE_KEY|URNlookup!K38,URNlookup!K1420": {
+      "label": "TP",
+      "reason": "Duplicate postcode in the column a MATCH searches; the first match can be the wrong school."
+    },
+    "21865bab73e8|DUPLICATE_KEY|RS.Food!A577,RS.Food!A598": {
+      "label": "TP",
+      "reason": "Duplicate product name in a menu list searched by name; the second entry is unreachable."
+    },
+    "852b58472b57|DUPLICATE_KEY|Sheet1!D2,Sheet1!D6": {
+      "label": "FP",
+      "reason": "Product labels repeated as section headers of a grid; the lookup targets one section, so the repeats are layout."
+    },
+    "3c0a56086b5d|DUPLICATE_KEY|URNlookup!K802,URNlookup!K1387": {
+      "label": "TP",
+      "reason": "Duplicate postcode in the column a MATCH searches; the first match can be the wrong school."
+    },
+    "1c06477fced9|DUPLICATE_KEY|URNlookup!K341,URNlookup!K617": {
+      "label": "TP",
+      "reason": "Duplicate postcode in the column a MATCH searches; the first match can be the wrong school."
+    },
+    "3c0a56086b5d|DUPLICATE_KEY|URNlookup!K972,URNlookup!K1010": {
+      "label": "TP",
+      "reason": "Duplicate postcode in the column a MATCH searches; the first match can be the wrong school."
+    },
+    "21865bab73e8|DUPLICATE_KEY|RS.Food!A381,RS.Food!A382": {
+      "label": "TP",
+      "reason": "Duplicate product name in a menu list searched by name; the second entry is unreachable."
+    },
+    "ff0beb280ebe|DUPLICATE_KEY|Sheet1!G7,Sheet1!G9,Sheet1!G11,Sheet1!G13,Sheet1!G14": {
+      "label": "FP",
+      "reason": "The MATCH deliberately finds the previous occurrence of the name (days since last sale); duplicates are the design."
+    },
+    "852b58472b57|DUPLICATE_KEY|Sheet1!K2,Sheet1!K6,Sheet1!K10": {
+      "label": "FP",
+      "reason": "Product labels repeated as section headers of a grid; the lookup targets one section, so the repeats are layout."
+    },
+    "f0d026f067a4|DUPLICATE_KEY|Sheet1!B6,Sheet1!B8": {
+      "label": "FP",
+      "reason": "Product labels repeated as section headers of a grid; the lookup targets one section, so the repeats are layout."
+    },
+    "ff0beb280ebe|DUPLICATE_KEY|Sheet1!B9,Sheet1!B11,Sheet1!B15,Sheet1!B16,Sheet1!B18": {
+      "label": "FP",
+      "reason": "The MATCH deliberately finds the previous occurrence of the name (days since last sale); duplicates are the design."
+    },
+    "b4c2169bf692|DUPLICATE_KEY|Sheet1!A2,Sheet1!A3,Sheet1!A4,Sheet1!A5": {
+      "label": "unsure",
+      "reason": "The same ID on four readings; whether the lookup wants the first reading or a MINIFS is not visible on the card."
+    },
+    "65228fa5c9a0|DUPLICATE_KEY|RS.Food!A281,RS.Food!A282,RS.Food!A297": {
+      "label": "TP",
+      "reason": "Duplicate product name in a menu list searched by name; the second entry is unreachable."
+    },
+    "f367b87c90dd|DUPLICATE_KEY|Sheet1!J2,Sheet1!J6,Sheet1!J10": {
+      "label": "FP",
+      "reason": "Product labels repeated as section headers of a grid; the lookup targets one section, so the repeats are layout."
+    },
+    "e499130decde|DUPLICATE_KEY|Attendance!D5,Attendance!D6,Attendance!D7,Attendance!D8": {
+      "label": "FP",
+      "reason": "Attendance marks ('p') in a grid are categories, not keys."
+    },
+    "a4becd1e83e9|DUPLICATE_KEY|Sheet1!A13,Sheet1!A25": {
+      "label": "TP",
+      "reason": "A lookup table keyed by letter with 'L' listed twice; the second row can never be returned."
+    },
+    "3db55cfd98cc|DUPLICATE_KEY|Sheet2!B9,Sheet2!B18": {
+      "label": "FP",
+      "reason": "'R&M' under two regions is a composite key (region + line); the lookup matches on the region column."
+    },
+    "c903fcb4672b|DUPLICATE_KEY|RS.Food!A381,RS.Food!A382": {
+      "label": "TP",
+      "reason": "Duplicate product name in a menu list searched by name; the second entry is unreachable."
+    },
+    "c903fcb4672b|DUPLICATE_KEY|RS.Food!A307,RS.Food!A308,RS.Food!A309": {
+      "label": "TP",
+      "reason": "Duplicate product name in a menu list searched by name; the second entry is unreachable."
+    },
+    "10ace2be6dbc|DUPLICATE_KEY|Sheet1!G8,Sheet1!G10,Sheet1!G16,Sheet1!G20,Sheet1!G22": {
+      "label": "FP",
+      "reason": "The MATCH deliberately finds the previous occurrence of the name (days since last sale); duplicates are the design."
+    },
+    "d49eeac3b8af|DUPLICATE_KEY|Sheet1!G7,Sheet1!G9,Sheet1!G11,Sheet1!G13,Sheet1!G14": {
+      "label": "FP",
+      "reason": "The MATCH deliberately finds the previous occurrence of the name (days since last sale); duplicates are the design."
+    },
+    "81b42e5e2d2e|FORMULA_DRIFT|Total!A23": {
+      "label": "FP",
+      "reason": "Label column linking every second row of another sheet beside sum columns; the row is three different calculations, not a fill."
+    },
+    "7deacb0c30f0|FORMULA_DRIFT|Sheet1!C7": {
+      "label": "FP",
+      "reason": "Totals row where one column sums and the next averages the same block; different aggregates by design."
+    },
+    "81b42e5e2d2e|FORMULA_DRIFT|Total!A16": {
+      "label": "FP",
+      "reason": "Label column linking every second row of another sheet beside sum columns; the row is three different calculations, not a fill."
+    },
+    "47eb61dd533e|FORMULA_DRIFT|TEST!R7": {
+      "label": "FP",
+      "reason": "First row of a running balance links the opening amounts; the rows below chain from the previous balance."
+    },
+    "e82a4e0e50b2|FORMULA_DRIFT|DATABASECountries!F4": {
+      "label": "TP",
+      "reason": "The first row of the revenue column uses a different SUMPRODUCT than the rows below and evaluates to #VALUE!."
+    },
+    "d01aaa205624|FORMULA_DRIFT|MoneyInCheckingNextMonth!L2": {
+      "label": "FP",
+      "reason": "Summary cells in a header row link different totals; not a fill."
+    },
+    "470111f62d4c|FORMULA_DRIFT|Total!A5": {
+      "label": "FP",
+      "reason": "Label column linking every second row of another sheet beside sum columns; the row is three different calculations, not a fill."
+    },
+    "902b5e29897a|FORMULA_DRIFT|LeadTimes!B6": {
+      "label": "unsure",
+      "reason": "Column B uses 18 working days and a longer holiday list than columns C and D use; whether each column has its own lead time is not visible on the card."
+    },
+    "0574dfb01ae0|FORMULA_DRIFT|Summary!B2": {
+      "label": "unsure",
+      "reason": "The card does not show the formulas below B2, so the anchoring difference cannot be judged."
+    },
+    "589c38846e3c|FORMULA_DRIFT|Total!A11": {
+      "label": "FP",
+      "reason": "Label column linking every second row of another sheet beside sum columns; the row is three different calculations, not a fill."
+    },
+    "589c38846e3c|FORMULA_DRIFT|Total!A12": {
+      "label": "FP",
+      "reason": "Label column linking every second row of another sheet beside sum columns; the row is three different calculations, not a fill."
+    },
+    "28278a05f541|FORMULA_DRIFT|Sheet1!K7": {
+      "label": "FP",
+      "reason": "The percentage column is headed 'less BE' and sums two rows by design while the count columns sum three."
+    },
+    "0c0e0e5f0156|FORMULA_DRIFT|Sheet1!F7": {
+      "label": "FP",
+      "reason": "A sheet of assorted text-function examples; every cell is a different formula."
+    },
+    "d3575a4dff7b|FORMULA_DRIFT|MoneyInCheckingNextMonth!E61": {
+      "label": "FP",
+      "reason": "Totals row where each column closes with its own calculation."
+    },
+    "7c3edf13b7c6|FORMULA_DRIFT|Malaga!O22": {
+      "label": "FP",
+      "reason": "Column O mirrors column C while P and Q mirror E and F; the cell agrees with the cell above it."
+    },
+    "a67205f1d2d7|FORMULA_DRIFT|Sheet1!B3": {
+      "label": "TP",
+      "reason": "B3 wraps the VLOOKUP in IF(A3=\"\",...) unlike B2, and evaluates to #N/A."
+    },
+    "6d26dcd54bfa|FORMULA_DRIFT|Sheet1!C43": {
+      "label": "FP",
+      "reason": "Totals row where one column sums and the next averages the same block; different aggregates by design."
+    },
+    "9cc23579ce3a|FORMULA_DRIFT|DATACARS!B24": {
+      "label": "unsure",
+      "reason": "The card does not show the formulas beside B24 on the discount row."
+    },
+    "0bffec63dc84|FORMULA_DRIFT|Purchases!H5": {
+      "label": "TP",
+      "reason": "Due-date column adds 14 days in this row and 30 in the others; a reviewer would want to confirm the payment terms differ."
+    },
+    "6f6f318a8f93|FORMULA_DRIFT|LeadTimes!B9": {
+      "label": "unsure",
+      "reason": "Holiday list lengths differ between columns; the card cannot show whether that is deliberate."
+    },
+    "7dfe4964af12|FORMULA_DRIFT|Sheet1!G14": {
+      "label": "TP",
+      "reason": "G14 references $N16 and $K16 two rows down, the pattern of column H, while G12 and G13 reference E and B in their own row; a copy slip."
+    },
+    "7deacb0c30f0|FORMULA_DRIFT|Sheet1!C13": {
+      "label": "FP",
+      "reason": "Totals row where one column sums and the next averages the same block; different aggregates by design."
+    },
+    "f3998880f231|FORMULA_DRIFT|Sheet1!C7": {
+      "label": "FP",
+      "reason": "Totals row where one column sums and the next averages the same block; different aggregates by design."
+    },
+    "6d26dcd54bfa|FORMULA_DRIFT|Sheet1!C37": {
+      "label": "FP",
+      "reason": "Totals row where one column sums and the next averages the same block; different aggregates by design."
+    },
+    "5fb44ac2af63|HARDCODE_IN_FORMULA_BLOCK|Sheet1!M6": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input. The row above holds a plug in the neighbouring formula column, which is what tripped the check."
+    },
+    "fe25bc710753|HARDCODE_IN_FORMULA_BLOCK|Sheet1!L5": {
+      "label": "TP",
+      "reason": "A constant typed over a formula in a column of identical formulas; a real plug."
+    },
+    "6d6fc1caeb06|HARDCODE_IN_FORMULA_BLOCK|DRP!M7": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input. A SUM row above the block tripped the check."
+    },
+    "495cb6cdb000|HARDCODE_IN_FORMULA_BLOCK|Sheet1!P4": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input."
+    },
+    "5ec32da9071e|HARDCODE_IN_FORMULA_BLOCK|Total(2)!E29": {
+      "label": "TP",
+      "reason": "Three constants typed into a column that halves column B everywhere else; the typed values do not equal half of B."
+    },
+    "3a2b74c70f66|HARDCODE_IN_FORMULA_BLOCK|Total(2)!C27": {
+      "label": "TP",
+      "reason": "A constant typed over a formula in a column of identical formulas; a real plug."
+    },
+    "738a64e94c99|HARDCODE_IN_FORMULA_BLOCK|DRP!M10": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input."
+    },
+    "0c97a580a8e1|HARDCODE_IN_FORMULA_BLOCK|MonthlyTrans!AB67": {
+      "label": "TP",
+      "reason": "A year typed over the TEXT(date) formula in a table column."
+    },
+    "495cb6cdb000|HARDCODE_IN_FORMULA_BLOCK|Sheet1!G6": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input."
+    },
+    "b495a5e6f4d1|HARDCODE_IN_FORMULA_BLOCK|Sheet1!T3": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input. A one-row table gives the check no rows to compare."
+    },
+    "3a2b74c70f66|HARDCODE_IN_FORMULA_BLOCK|Total(2)!E30": {
+      "label": "TP",
+      "reason": "Constant typed into the column that halves column B everywhere else."
+    },
+    "6116800fac3b|HARDCODE_IN_FORMULA_BLOCK|Sheet1!D16": {
+      "label": "TP",
+      "reason": "A constant typed over a formula in a column of identical formulas; a real plug."
+    },
+    "f6618f3a869c|HARDCODE_IN_FORMULA_BLOCK|Sheet1!E4": {
+      "label": "FP",
+      "reason": "Input column between two running-sum columns; a typed value in the neighbouring formula column tripped the check."
+    },
+    "fe25bc710753|HARDCODE_IN_FORMULA_BLOCK|Sheet1!J4": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input."
+    },
+    "738a64e94c99|HARDCODE_IN_FORMULA_BLOCK|DRP!N20": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input."
+    },
+    "c05e60f72c61|HARDCODE_IN_FORMULA_BLOCK|Dati!AB25": {
+      "label": "TP",
+      "reason": "A constant typed over a formula in a column of identical formulas; a real plug."
+    },
+    "8b7bb50b3697|HARDCODE_IN_FORMULA_BLOCK|Sheet1!C31": {
+      "label": "TP",
+      "reason": "Zeros typed into a column of three-day rolling sums."
+    },
+    "2ed80e0ee4cd|HARDCODE_IN_FORMULA_BLOCK|DRP!N7": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input."
+    },
+    "e5094a660f5e|HARDCODE_IN_FORMULA_BLOCK|Sheet1!D73": {
+      "label": "TP",
+      "reason": "A constant typed over a formula in a column of identical formulas; a real plug."
+    },
+    "7b15ef0c0d8c|HARDCODE_IN_FORMULA_BLOCK|data!K25": {
+      "label": "TP",
+      "reason": "1.5 typed into the hours-difference column where every other row computes it."
+    },
+    "5fb44ac2af63|HARDCODE_IN_FORMULA_BLOCK|Sheet1!Q6": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input."
+    },
+    "09478d797a42|HARDCODE_IN_FORMULA_BLOCK|BankBalance!C4": {
+      "label": "TP",
+      "reason": "2000 typed into a column that otherwise pulls charges from the journal."
+    },
+    "711b43c06db1|HARDCODE_IN_FORMULA_BLOCK|Sheet1!T3": {
+      "label": "FP",
+      "reason": "Input column (Actual, MBQ, Buying, Selling, Revenue) between two difference or running-sum formula columns; every cell in the column is an input. A one-row table gives the check no rows to compare."
+    },
+    "cae038ac83e8|HARDCODE_IN_FORMULA_BLOCK|Sheet1!E3": {
+      "label": "FP",
+      "reason": "Input column between two running-sum columns; a typed value in the neighbouring formula column tripped the check."
+    },
+    "19dfd5dbcec5|HIDDEN_STRUCTURE_IN_TOTAL|formamspnc(7)!O5|ac6dc9": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "a556b2a52595|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!D4|eaab5a": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "c2c1c9ef2579|HIDDEN_STRUCTURE_IN_TOTAL|formamspnc(7)!O5|ac6dc9": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "ab88bab5d14b|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!H4": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "19dfd5dbcec5|HIDDEN_STRUCTURE_IN_TOTAL|formamspnc(7)!CP5|7ba3a8": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "970db979d624|HIDDEN_STRUCTURE_IN_TOTAL|formamspnc(7)!BF5|35c025": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "9b7879bd3308|HIDDEN_STRUCTURE_IN_TOTAL|Here!I2": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "d3e7f4128e71|HIDDEN_STRUCTURE_IN_TOTAL|DailyNumbers!M3": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "09478d797a42|HIDDEN_STRUCTURE_IN_TOTAL|MonthlyExpensesSummary!E6": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "ea1e0839ce78|HIDDEN_STRUCTURE_IN_TOTAL|Here!A2": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "3ee4d6f069b6|HIDDEN_STRUCTURE_IN_TOTAL|DailyNumbers!N3": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "c2c1c9ef2579|HIDDEN_STRUCTURE_IN_TOTAL|formamspnc(7)!CO5": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "ef479c030de6|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!D4|61d632": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "69355e1eb76d|HIDDEN_STRUCTURE_IN_TOTAL|DailyNumbers!M3": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "86313189897d|HIDDEN_STRUCTURE_IN_TOTAL|DATACARS!B24": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "447f9eaa5b6c|HIDDEN_STRUCTURE_IN_TOTAL|Employee2!U3": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "9cc23579ce3a|HIDDEN_STRUCTURE_IN_TOTAL|DATACARS!B24": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "7dfe4964af12|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!D4|61d632": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "447f9eaa5b6c|HIDDEN_STRUCTURE_IN_TOTAL|Employee1!V3": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "5a98e72c8ee6|HIDDEN_STRUCTURE_IN_TOTAL|MonthlyExpensesSummary!E6": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "d2a515f35dce|HIDDEN_STRUCTURE_IN_TOTAL|Admin&Settings!U5": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "d7bb3bd8958a|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!B25": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "7dfe4964af12|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!H8": {
+      "label": "TP",
+      "reason": "A hidden row, column or sheet really feeds visible formulas; disclosure a reviewer wants."
+    },
+    "57d001666bfd|IFERROR_MASK|Sheet1!E8": {
+      "label": "TP",
+      "reason": "Lookup miss replaced with 0 in a patient table; a missing record reads as a length of stay or an age of 0 and is then banded."
+    },
+    "c2c1c9ef2579|IFERROR_MASK|formamspnc(7)!BE5": {
+      "label": "FP",
+      "reason": "End-of-list or no-match idiom returning blank; nothing is hidden."
+    },
+    "f97f2feedd64|IFERROR_MASK|RESULTS1!W27": {
+      "label": "FP",
+      "reason": "The inner IF already guards the no-data case; the wrapper hides nothing."
+    },
+    "6741b8e20874|IFERROR_MASK|OrderSheetFinal!AJ6": {
+      "label": "FP",
+      "reason": "Order sheet: an item absent from a site's list is 0 units there by design."
+    },
+    "57d001666bfd|IFERROR_MASK|Sheet1!K5": {
+      "label": "TP",
+      "reason": "Lookup miss replaced with 0 in a patient table; a missing record reads as a length of stay or an age of 0 and is then banded."
+    },
+    "d2a515f35dce|IFERROR_MASK|InvoicePayments!K16": {
+      "label": "FP",
+      "reason": "The inner IF already guards the no-data case; the wrapper hides nothing."
+    },
+    "e143b38f6648|IFERROR_MASK|Sheet1!B14": {
+      "label": "FP",
+      "reason": "Array idiom: VALUE() of non-numeric text is meant to fall back to 0."
+    },
+    "783ba9a086e8|IFERROR_MASK|OrderSheetFinal!AB6": {
+      "label": "FP",
+      "reason": "Order sheet: an item absent from a site's list is 0 units there by design."
+    },
+    "74d967658eee|IFERROR_MASK|Sheet1!BF9": {
+      "label": "FP",
+      "reason": "End-of-list or no-match idiom returning blank; nothing is hidden."
+    },
+    "125be9ba2e04|IFERROR_MASK|RESULTS1!S29": {
+      "label": "FP",
+      "reason": "The inner IF already guards the no-data case; the wrapper hides nothing."
+    },
+    "552f4c55b2df|IFERROR_MASK|OrderSheetFinal!AP6": {
+      "label": "FP",
+      "reason": "Order sheet: an item absent from a site's list is 0 units there by design."
+    },
+    "86bd0c65882c|IFERROR_MASK|Sheet1!K5": {
+      "label": "TP",
+      "reason": "Lookup miss replaced with 0 in a patient table; a missing record reads as a length of stay or an age of 0 and is then banded."
+    },
+    "95fdf876027b|IFERROR_MASK|RESULTS1!T4": {
+      "label": "FP",
+      "reason": "TRIMMEAN of an empty selection is meant to show blank."
+    },
+    "f97f2feedd64|IFERROR_MASK|RESULTS1!V15": {
+      "label": "FP",
+      "reason": "COUNTIFS cannot error; the wrapper is dead code."
+    },
+    "30faaaeef9ee|IFERROR_MASK|RESULTS1!W8": {
+      "label": "TP",
+      "reason": "AVERAGEIFS with no matching trades gives #DIV/0!, shown as an average of 0."
+    },
+    "afc2b280227b|IFERROR_MASK|Sheet1!B14": {
+      "label": "FP",
+      "reason": "Array idiom: VALUE() of non-numeric text is meant to fall back to 0."
+    },
+    "86bd0c65882c|IFERROR_MASK|Sheet1!E8": {
+      "label": "TP",
+      "reason": "Lookup miss replaced with 0 in a patient table; a missing record reads as a length of stay or an age of 0 and is then banded."
+    },
+    "70420e2dcf7b|IFERROR_MASK|PAYMENT!B4": {
+      "label": "TP",
+      "reason": "IFERROR(__xludf.DUMMYFUNCTION(...), cached value): a Google Sheets export whose formulas are placeholders; every such cell is a frozen value."
+    },
+    "6741b8e20874|IFERROR_MASK|OrderSheetFinal!AQ6": {
+      "label": "FP",
+      "reason": "Order sheet: an item absent from a site's list is 0 units there by design."
+    },
+    "552f4c55b2df|IFERROR_MASK|OrderSheetFinal!K6": {
+      "label": "FP",
+      "reason": "Order sheet: an item absent from a site's list is 0 units there by design."
+    },
+    "30faaaeef9ee|IFERROR_MASK|RESULTS1!Q36": {
+      "label": "FP",
+      "reason": "The inner IF already guards the no-data case; the wrapper hides nothing."
+    },
+    "783ba9a086e8|IFERROR_MASK|OrderSheetFinal!AF6": {
+      "label": "FP",
+      "reason": "Order sheet: an item absent from a site's list is 0 units there by design."
+    },
+    "95fdf876027b|IFERROR_MASK|RESULTS1!X14": {
+      "label": "FP",
+      "reason": "The inner IF already guards the no-data case; the wrapper hides nothing."
+    },
+    "40815e616aca|IFERROR_MASK|Sheet1!G4": {
+      "label": "FP",
+      "reason": "End-of-list or no-match idiom returning blank; nothing is hidden."
+    },
+    "750361651608|IFERROR_MASK|PAYMENT!C4": {
+      "label": "TP",
+      "reason": "Google Sheets placeholder formula (DUMMYFUNCTION) with the cached value as the fallback; the cell is a frozen value."
+    },
+    "ecefab75d6ce|LITERAL_CONSTANT|Calendar!B93": {
+      "label": "FP",
+      "reason": "Calendar grid offset (a week count) is structural to the layout, not an assumption."
+    },
+    "a3ba2c45816f|LITERAL_CONSTANT|Calendar!B121": {
+      "label": "FP",
+      "reason": "Calendar grid offset (a week count) is structural to the layout, not an assumption."
+    },
+    "c2c1c9ef2579|LITERAL_CONSTANT|formamspnc(7)!D5": {
+      "label": "FP",
+      "reason": "COUNTIF criteria literal: the number is what is being counted, not an assumption to move."
+    },
+    "47eb61dd533e|LITERAL_CONSTANT|TEST!I9": {
+      "label": "TP",
+      "reason": "=7350-4821.71 is arithmetic on two typed numbers with no inputs; the classic hardcode."
+    },
+    "e239b7cffe03|LITERAL_CONSTANT|Sheet2!B15": {
+      "label": "FP",
+      "reason": "COUNTIF criteria literal: the number is what is being counted, not an assumption to move."
+    },
+    "7bd972dd1e37|LITERAL_CONSTANT|July-KPIs!E6": {
+      "label": "TP",
+      "reason": "1.3 is a weighting factor for inbound calls, an assumption embedded in every row."
+    },
+    "31acc3fe427b|LITERAL_CONSTANT|Holiday4FEB21-31MAR21!B6": {
+      "label": "TP",
+      "reason": "Each person's holiday entitlement (2.5, 3, 3.5) is typed into their formula instead of held in a column."
+    },
+    "47eb61dd533e|LITERAL_CONSTANT|TEST!H10": {
+      "label": "TP",
+      "reason": "=350 is a constant dressed as a formula in the goal cell."
+    },
+    "74d967658eee|LITERAL_CONSTANT|Sheet1!Y5": {
+      "label": "TP",
+      "reason": "Handicap basis 200 and factor 0.9 are league assumptions embedded in the formula."
+    },
+    "902b5e29897a|LITERAL_CONSTANT|LeadTimes!B6": {
+      "label": "TP",
+      "reason": "WORKDAY lead time of 18 days is a planning assumption."
+    },
+    "125be9ba2e04|LITERAL_CONSTANT|RESULTS1!T4": {
+      "label": "TP",
+      "reason": "The 'last 10 weeks' window (9) is an analysis assumption embedded in the formula."
+    },
+    "e239b7cffe03|LITERAL_CONSTANT|Sheet2!B20": {
+      "label": "FP",
+      "reason": "COUNTIF criteria literal: the number is what is being counted, not an assumption to move."
+    },
+    "125be9ba2e04|LITERAL_CONSTANT|RESULTS1!S4": {
+      "label": "TP",
+      "reason": "The 'last 10 weeks' window (9) is an analysis assumption embedded in the formula."
+    },
+    "7149679332c0|LITERAL_CONSTANT|RESULTS1!R30": {
+      "label": "TP",
+      "reason": "A minimum sample size of 10 trades embedded in every cell of the results grid; an assumption."
+    },
+    "a3ba2c45816f|LITERAL_CONSTANT|Calendar!B39": {
+      "label": "FP",
+      "reason": "Calendar grid offset (a week count) is structural to the layout, not an assumption."
+    },
+    "5cd8c4fe9805|LITERAL_CONSTANT|RESULTS1!R17": {
+      "label": "TP",
+      "reason": "A minimum sample size of 10 trades embedded in every cell of the results grid; an assumption."
+    },
+    "c9ce3280a26d|LITERAL_CONSTANT|Sheet1!A7": {
+      "label": "FP",
+      "reason": "ROW(A7)-6 subtracts the header height; structural."
+    },
+    "c2c1c9ef2579|LITERAL_CONSTANT|formamspnc(7)!DD6": {
+      "label": "FP",
+      "reason": "The 3 returned is the count of conditions the column tests; a code, not an assumption."
+    },
+    "36080f34a91e|LITERAL_CONSTANT|Calendar!B145": {
+      "label": "FP",
+      "reason": "Calendar grid offset (a week count) is structural to the layout, not an assumption."
+    },
+    "f97f2feedd64|LITERAL_CONSTANT|RESULTS1!Q23": {
+      "label": "TP",
+      "reason": "A minimum sample size of 10 trades embedded in every cell of the results grid; an assumption."
+    },
+    "4ea284d68c01|LITERAL_CONSTANT|Sheet1!R3": {
+      "label": "TP",
+      "reason": "'45 pins over average' is a metric threshold typed into the formula."
+    },
+    "63f333a488c9|LITERAL_CONSTANT|Sheet1!Q3": {
+      "label": "TP",
+      "reason": "A whole vector of productivity weights (70, 69, 64, ...) embedded in one formula."
+    },
+    "f97f2feedd64|LITERAL_CONSTANT|RESULTS1!R29": {
+      "label": "TP",
+      "reason": "A minimum sample size of 10 trades embedded in every cell of the results grid; an assumption."
+    },
+    "7f9746d5c513|LITERAL_CONSTANT|DATA!K17": {
+      "label": "TP",
+      "reason": "An April-21 cutoff and a 21-day threshold typed into the formula."
+    },
+    "7149679332c0|LITERAL_CONSTANT|RESULTS1!S23": {
+      "label": "TP",
+      "reason": "A minimum sample size of 10 trades embedded in every cell of the results grid; an assumption."
+    },
+    "484f4df3fe7b|LIVE_ERROR|Statistics!G28": {
+      "label": "TP",
+      "reason": "#REF! in the formula; the cell can never compute."
+    },
+    "87c4744e15aa|LIVE_ERROR|book1!B5": {
+      "label": "TP",
+      "reason": "SUMPRODUCT over whole columns times a three-column block gives #VALUE!; the formula is broken."
+    },
+    "724cc496b076|LIVE_ERROR|Sheet1!BK5": {
+      "label": "TP",
+      "reason": "#VALUE! from COUNTIFS over an external workbook that is not available."
+    },
+    "ed000e28cd42|LIVE_ERROR|Sheet1!G4": {
+      "label": "TP",
+      "reason": "VLOOKUP miss (#N/A) in a data column."
+    },
+    "79139a88c691|LIVE_ERROR|Sheet1!AI5": {
+      "label": "TP",
+      "reason": "#VALUE! from COUNTIFS over an external workbook that is not available."
+    },
+    "40c60acd7755|LIVE_ERROR|Sort!L33": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available."
+    },
+    "be2f958d4b41|LIVE_ERROR|Sort!L25": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available."
+    },
+    "1f2994e91d0b|LIVE_ERROR|Sheet1!D130": {
+      "label": "TP",
+      "reason": "INT() of a text timestamp; the whole column is #VALUE!."
+    },
+    "7cc6b0fe1206|LIVE_ERROR|Sort!L59": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available."
+    },
+    "79139a88c691|LIVE_ERROR|Sheet1!AZ9": {
+      "label": "TP",
+      "reason": "#VALUE! from COUNTIFS over an external workbook that is not available."
+    },
+    "385e5089842a|LIVE_ERROR|Type2!D17": {
+      "label": "TP",
+      "reason": "#DIV/0! in a salary calculation."
+    },
+    "7cc6b0fe1206|LIVE_ERROR|Sort!K97": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available."
+    },
+    "40c60acd7755|LIVE_ERROR|Sort!L35": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available."
+    },
+    "f4cc22517a5b|LIVE_ERROR|master!E66": {
+      "label": "TP",
+      "reason": "Text multiplied by text; #VALUE! in every row."
+    },
+    "b3080eb0650b|LIVE_ERROR|Sheet1!F5": {
+      "label": "TP",
+      "reason": "VLOOKUP whose table slides one row per fill (A5:B11, A6:B12) misses its key; a relative-reference bug."
+    },
+    "1f2994e91d0b|LIVE_ERROR|Sheet1!D109": {
+      "label": "TP",
+      "reason": "INT() of a text timestamp; the whole column is #VALUE!."
+    },
+    "9ffa652c7e85|LIVE_ERROR|VolymP5_P6_2023!I5": {
+      "label": "TP",
+      "reason": "TEXTJOIN(UNIQUE(...)) over whole columns returns #VALUE!."
+    },
+    "a94eb6a7585f|LIVE_ERROR|HR!AD12": {
+      "label": "TP",
+      "reason": "#REF! in the formula; the cell can never compute."
+    },
+    "192a19040f63|LIVE_ERROR|Sheettwo!E257": {
+      "label": "TP",
+      "reason": "Supplier lookup miss (#N/A) in a data column."
+    },
+    "9792181a96d9|LIVE_ERROR|Exp-DB!G34": {
+      "label": "TP",
+      "reason": "Category lookup miss for an expense description; the row is uncategorised."
+    },
+    "9792181a96d9|LIVE_ERROR|Exp-DB!G40": {
+      "label": "TP",
+      "reason": "Category lookup miss for an expense description; the row is uncategorised."
+    },
+    "48efbd20cf68|LIVE_ERROR|Sheet1!H9": {
+      "label": "TP",
+      "reason": "#VALUE! in a WORKDAY schedule formula."
+    },
+    "e0964cd37ef3|LIVE_ERROR|Data!H26": {
+      "label": "TP",
+      "reason": "Error values pasted as constants in a data column."
+    },
+    "6fd6aa9b279e|LIVE_ERROR|Sheet1!H21": {
+      "label": "TP",
+      "reason": "Price-list lookup miss (#N/A) on a bill line."
+    },
+    "1005e3afe84b|LIVE_ERROR|Query!C2": {
+      "label": "TP",
+      "reason": "#N/A in a result column."
+    },
+    "47eb61dd533e|MERGED_CELL_IN_DATA_RANGE|TEST!S70:S76": {
+      "label": "unsure",
+      "reason": "A weekly limit merged across the seven day rows; whether any formula aggregates column S expecting one value per row is not visible on the card."
+    },
+    "6fd6aa9b279e|MERGED_CELL_IN_DATA_RANGE|Sheet1!C1:H1": {
+      "label": "FP",
+      "reason": "A merged title formula (UPPER(TEXT(...)&' BILL')) across the header; presentation."
+    },
+    "be6378a48fb9|MERGED_CELL_IN_DATA_RANGE|TEST!S147:S153": {
+      "label": "unsure",
+      "reason": "A weekly limit merged across the seven day rows; whether any formula aggregates column S expecting one value per row is not visible on the card."
+    },
+    "b31624554d1c|MERGED_CELL_IN_DATA_RANGE|TEST!S112:S118": {
+      "label": "unsure",
+      "reason": "A weekly limit merged across the seven day rows; whether any formula aggregates column S expecting one value per row is not visible on the card."
+    },
+    "47eb61dd533e|MERGED_CELL_IN_DATA_RANGE|TEST!S7:S13": {
+      "label": "unsure",
+      "reason": "A weekly SUM merged across the week's rows; the same design question as the merged limits."
+    },
+    "b31624554d1c|MERGED_CELL_IN_DATA_RANGE|TEST!S56:S62": {
+      "label": "unsure",
+      "reason": "A weekly limit merged across the seven day rows; whether any formula aggregates column S expecting one value per row is not visible on the card."
+    },
+    "5ec32da9071e|MERGED_CELL_IN_DATA_RANGE|Total(2)!G75:H75": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "70420e2dcf7b|MERGED_CELL_IN_DATA_RANGE|Sheet1!C1:H1": {
+      "label": "FP",
+      "reason": "A merged title formula (UPPER(TEXT(...)&' BILL')) across the header; presentation."
+    },
+    "be6378a48fb9|MERGED_CELL_IN_DATA_RANGE|TEST!S70:S76": {
+      "label": "unsure",
+      "reason": "A weekly limit merged across the seven day rows; whether any formula aggregates column S expecting one value per row is not visible on the card."
+    },
+    "dd8e0d8d4758|MERGED_CELL_IN_DATA_RANGE|2023!D142:E142": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "fdad7150c0c3|MERGED_CELL_IN_DATA_RANGE|2023!D142:E142": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "fdad7150c0c3|MERGED_CELL_IN_DATA_RANGE|2023!F142:G142": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "3a2b74c70f66|MERGED_CELL_IN_DATA_RANGE|Total(2)!G38:H38": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "5ec32da9071e|MERGED_CELL_IN_DATA_RANGE|Total(2)!G38:H38": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "3a2b74c70f66|MERGED_CELL_IN_DATA_RANGE|Total(2)!G75:H75": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "dd8e0d8d4758|MERGED_CELL_IN_DATA_RANGE|2023!F142:G142": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "750361651608|MERGED_CELL_IN_DATA_RANGE|Sheet1!P1:S1": {
+      "label": "FP",
+      "reason": "A merged title formula (UPPER(TEXT(...)&' BILL')) across the header; presentation."
+    },
+    "750361651608|MERGED_CELL_IN_DATA_RANGE|Sheet1!C1:H1": {
+      "label": "FP",
+      "reason": "A merged title formula (UPPER(TEXT(...)&' BILL')) across the header; presentation."
+    },
+    "3f7694b32e64|MERGED_CELL_IN_DATA_RANGE|2023!F142:G142": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "bc56a9f2824a|MERGED_CELL_IN_DATA_RANGE|Total(2)!G38:H38": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "3f7694b32e64|MERGED_CELL_IN_DATA_RANGE|2023!D142:E142": {
+      "label": "FP",
+      "reason": "A merged net or ratio formula in a totals row spanning the two columns it nets; presentation, and nothing aggregates through it."
+    },
+    "6fd6aa9b279e|MERGED_CELL_IN_DATA_RANGE|Sheet1!P1:S1": {
+      "label": "FP",
+      "reason": "A merged title formula (UPPER(TEXT(...)&' BILL')) across the header; presentation."
+    },
+    "70420e2dcf7b|MERGED_CELL_IN_DATA_RANGE|Sheet1!P1:S1": {
+      "label": "FP",
+      "reason": "A merged title formula (UPPER(TEXT(...)&' BILL')) across the header; presentation."
+    },
+    "7fc97bb4d304|NUMBERS_STORED_AS_TEXT|Sheet1!A116": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "03acf31e2499|NUMBERS_STORED_AS_TEXT|Sheet1!A1052": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "876eccba2276|NUMBERS_STORED_AS_TEXT|Sheet2!F36": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "7fc97bb4d304|NUMBERS_STORED_AS_TEXT|Sheet1!A1050": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "9ea22c621bf1|NUMBERS_STORED_AS_TEXT|Sheet1!A3": {
+      "label": "TP",
+      "reason": "Fifteen-digit IDs stored partly as text and partly as numbers in one column; matches between the two forms fail."
+    },
+    "8a63f3e46c57|NUMBERS_STORED_AS_TEXT|RawData!E14": {
+      "label": "FP",
+      "reason": "Unit date codes ('9940', '0142') are text identifiers; the SUMPRODUCT that reads the column compares them, it does not add them."
+    },
+    "489956137c75|NUMBERS_STORED_AS_TEXT|Sheet2!F36": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "489956137c75|NUMBERS_STORED_AS_TEXT|Sheet2!E47": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "03acf31e2499|NUMBERS_STORED_AS_TEXT|Sheet1!A1145": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "4dea3614ed1b|NUMBERS_STORED_AS_TEXT|Sheet1!A1144": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "9ea22c621bf1|NUMBERS_STORED_AS_TEXT|Sheet1!A5": {
+      "label": "TP",
+      "reason": "Fifteen-digit IDs stored partly as text and partly as numbers in one column."
+    },
+    "4dea3614ed1b|NUMBERS_STORED_AS_TEXT|Sheet1!A1065": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "63df53e988c8|NUMBERS_STORED_AS_TEXT|Sheet2!F60": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "63df53e988c8|NUMBERS_STORED_AS_TEXT|Sheet2!E63": {
+      "label": "TP",
+      "reason": "Text number in a column that is otherwise numeric; lookups and sums on this column silently miss it."
+    },
+    "8a63f3e46c57|NUMBERS_STORED_AS_TEXT|RawData!E10": {
+      "label": "FP",
+      "reason": "Unit date codes ('9940', '0142') are text identifiers; the SUMPRODUCT that reads the column compares them, it does not add them."
+    },
+    "fbcb24cf156d|NUMBERS_STORED_AS_TEXT|RawData!E18": {
+      "label": "FP",
+      "reason": "Unit date codes ('9940', '0142') are text identifiers; the SUMPRODUCT that reads the column compares them, it does not add them."
+    },
+    "74d1b4bee11f|NUMBERS_STORED_AS_TEXT|Sheet1!A6": {
+      "label": "TP",
+      "reason": "An ID column mixing text and numeric forms of the same identifier."
+    },
+    "7e6034cae12d|NUMBERS_STORED_AS_TEXT|Sheet1!A3": {
+      "label": "TP",
+      "reason": "Fifteen-digit IDs stored partly as text and partly as numbers in one column."
+    },
+    "7e6034cae12d|NUMBERS_STORED_AS_TEXT|Sheet1!A14": {
+      "label": "TP",
+      "reason": "Fifteen-digit IDs stored partly as text and partly as numbers in one column."
+    },
+    "fbcb24cf156d|NUMBERS_STORED_AS_TEXT|RawData!E16": {
+      "label": "FP",
+      "reason": "Unit date codes ('9940', '0142') are text identifiers; the SUMPRODUCT that reads the column compares them, it does not add them."
+    },
+    "746dbe220c3b|NUMBERS_STORED_AS_TEXT|RawData!E33": {
+      "label": "FP",
+      "reason": "Unit date codes ('9940', '0142') are text identifiers; the SUMPRODUCT that reads the column compares them, it does not add them."
+    },
+    "1a12611d45b2|NUMBERS_STORED_AS_TEXT|Sheet1!A2": {
+      "label": "TP",
+      "reason": "Fifteen-digit IDs stored partly as text and partly as numbers in one column."
+    },
+    "746dbe220c3b|NUMBERS_STORED_AS_TEXT|RawData!E12": {
+      "label": "FP",
+      "reason": "Unit date codes ('9940', '0142') are text identifiers; the SUMPRODUCT that reads the column compares them, it does not add them."
+    },
+    "1a12611d45b2|NUMBERS_STORED_AS_TEXT|Sheet1!A18": {
+      "label": "TP",
+      "reason": "Fifteen-digit IDs stored partly as text and partly as numbers in one column."
+    },
+    "74d967658eee|RANGE_LENGTH_MISMATCH|Sheet1!I26": {
+      "label": "TP",
+      "reason": "COUNT over three rows in a column where every other row counts its own row; a fill error that inflates the count."
+    },
+    "74d967658eee|RANGE_LENGTH_MISMATCH|Sheet1!I110": {
+      "label": "TP",
+      "reason": "COUNT over three rows in a column where every other row counts its own row; a fill error that inflates the count."
+    },
+    "4ea284d68c01|RANGE_LENGTH_MISMATCH|Sheet1!I89": {
+      "label": "TP",
+      "reason": "COUNT over three rows in a column where every other row counts its own row; a fill error that inflates the count."
+    },
+    "4ea284d68c01|RANGE_LENGTH_MISMATCH|Sheet1!I215": {
+      "label": "TP",
+      "reason": "COUNT over three rows in a column where every other row counts its own row; a fill error that inflates the count."
+    },
+    "1ee00a60f590|RANGE_LENGTH_MISMATCH|Sheet1!I89": {
+      "label": "TP",
+      "reason": "COUNT over three rows in a column where every other row counts its own row; a fill error that inflates the count."
+    },
+    "1ee00a60f590|RANGE_LENGTH_MISMATCH|Sheet1!I299": {
+      "label": "TP",
+      "reason": "COUNT over three rows in a column where every other row counts its own row; a fill error that inflates the count."
+    },
+    "63492daacabf|VOLATILE_FUNCTION|Sheet1!D2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "09478d797a42|VOLATILE_FUNCTION|YTDBudget&Summary!G2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "bc617c24080f|VOLATILE_FUNCTION|Sheet1!E4": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "9950acdeddc6|VOLATILE_FUNCTION|Extract!H2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "cf1c0902ee66|VOLATILE_FUNCTION|GDPRTrg!S6": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "5124d0617e42|VOLATILE_FUNCTION|example!G8": {
+      "label": "TP",
+      "reason": "RAND/RANDBETWEEN data that other formulas consume; results are not reproducible."
+    },
+    "40397a4736e1|VOLATILE_FUNCTION|Test!F3": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "c4229dd05b85|VOLATILE_FUNCTION|example!E8": {
+      "label": "TP",
+      "reason": "RAND/RANDBETWEEN data that other formulas consume; results are not reproducible."
+    },
+    "766ae98f7318|VOLATILE_FUNCTION|Sheet1!F10": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "a05e86bd9436|VOLATILE_FUNCTION|Open!P4": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "6b43fa913e4f|VOLATILE_FUNCTION|Sheet1!D2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "026595829753|VOLATILE_FUNCTION|Sheet1!D2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "c9425772da07|VOLATILE_FUNCTION|Purchases!M2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "5124d0617e42|VOLATILE_FUNCTION|example!E8": {
+      "label": "TP",
+      "reason": "RAND/RANDBETWEEN data that other formulas consume; results are not reproducible."
+    },
+    "a5e1567c7a75|VOLATILE_FUNCTION|DATABANK!B4": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "2b144ac2a52b|VOLATILE_FUNCTION|Result!J10": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "3a4af9c80244|VOLATILE_FUNCTION|Sheet1!F3": {
+      "label": "TP",
+      "reason": "RAND/RANDBETWEEN data that other formulas consume; results are not reproducible."
+    },
+    "0b213825e4f4|VOLATILE_FUNCTION|Result!J10": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "c05e60f72c61|VOLATILE_FUNCTION|Dati!CF12": {
+      "label": "TP",
+      "reason": "OFFSET over a #REF! range; fragile and already broken."
+    },
+    "e61cd08d6d5f|VOLATILE_FUNCTION|SubCO's!B6": {
+      "label": "TP",
+      "reason": "INDIRECT builds a sheet reference from a cell value; silent breakage when a sheet is renamed."
+    },
+    "9bb02d9c0dd0|VOLATILE_FUNCTION|CALCULATEAGE!D2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "c4229dd05b85|VOLATILE_FUNCTION|example!D8": {
+      "label": "TP",
+      "reason": "RAND/RANDBETWEEN data that other formulas consume; results are not reproducible."
+    },
+    "9d7ac18c8fd7|VOLATILE_FUNCTION|Extract!H2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "cb86e8d7c651|VOLATILE_FUNCTION|Sheet1!K1": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "f97521719691|VOLATILE_FUNCTION|Open!P4": {
+      "label": "TP",
+      "reason": "One Info note per sheet that its results move with the clock; the right weight for TODAY/NOW."
+    },
+    "ac9c457a4aed|WHITESPACE_KEY|Compiledandlocatedschoolsda!L2": {
+      "label": "TP",
+      "reason": "A leading space in a postcode that is a lookup key; the postcode match misses it."
+    },
+    "411e282dd1c8|WHITESPACE_KEY|COVER!A23": {
+      "label": "FP",
+      "reason": "Leading spaces indent sub-items of a report layout; the same indentation is used on the sheet that references them."
+    },
+    "c561c810150e|WHITESPACE_KEY|Sheet1!B40": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "736a1dfb4636|WHITESPACE_KEY|Sheet1!M12": {
+      "label": "TP",
+      "reason": "'HOME ' among HOME/AWAY/DRAW picks; a COUNTIF on the pick misses it."
+    },
+    "2f8c049b867d|WHITESPACE_KEY|Inventory!A10": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "7b8131bea152|WHITESPACE_KEY|Sheet1!A2": {
+      "label": "FP",
+      "reason": "A padded header ('ID ') sitting under a title row, not a key."
+    },
+    "adfb0542e52f|WHITESPACE_KEY|After!A9": {
+      "label": "TP",
+      "reason": "Timestamps padded inconsistently in a column that is parsed and sorted."
+    },
+    "b3b8477b9402|WHITESPACE_KEY|Sheet1!A130": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "9ba8f22c1ad0|WHITESPACE_KEY|Sheet1!M6": {
+      "label": "TP",
+      "reason": "'HOME ' among HOME/AWAY/DRAW picks; a COUNTIF on the pick misses it."
+    },
+    "37d41403fe20|WHITESPACE_KEY|WK1!C2": {
+      "label": "TP",
+      "reason": "One Info note for a column padded by an export; the right weight."
+    },
+    "53fb4bf35e11|WHITESPACE_KEY|Sheet1!A55": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "950cdc594b54|WHITESPACE_KEY|After!A6": {
+      "label": "TP",
+      "reason": "Timestamps padded inconsistently in a column that is parsed and sorted."
+    },
+    "b2d0d6365d71|WHITESPACE_KEY|Sheet1!B40": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "4cfd58a6f68f|WHITESPACE_KEY|DATA!A24": {
+      "label": "FP",
+      "reason": "Leading spaces indent sub-items of a report layout; the same indentation is used on the sheet that references them."
+    },
+    "16655eaea0b3|WHITESPACE_KEY|Sheet1!A73": {
+      "label": "FP",
+      "reason": "Fixed-width text from a report dump ('REPORT END', 'Z1/Sales by TP'); not a key."
+    },
+    "da1e266217a2|WHITESPACE_KEY|Sheet1!A85": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "b4bb29667c08|WHITESPACE_KEY|Sheet1!A9": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "b2d0d6365d71|WHITESPACE_KEY|Sheet1!B23": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "cc14175a29f0|WHITESPACE_KEY|Sheet1!A73": {
+      "label": "FP",
+      "reason": "Fixed-width text from a report dump; not a key."
+    },
+    "0e8785562296|WHITESPACE_KEY|DATA!A21": {
+      "label": "FP",
+      "reason": "Leading spaces indent sub-items of a report layout; the same indentation is used on the sheet that references them."
+    },
+    "d7ca7b8ac452|WHITESPACE_KEY|Inflexion!A13": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "34ca77355303|WHITESPACE_KEY|Inventory!A6": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "adfb0542e52f|WHITESPACE_KEY|After!A6": {
+      "label": "TP",
+      "reason": "Timestamps padded inconsistently in a column that is parsed and sorted."
+    },
+    "c72923c9ab96|WHITESPACE_KEY|Sheet1!A17": {
+      "label": "TP",
+      "reason": "One padded value in a column of clean keys or labels; a lookup or criteria match on it misses."
+    },
+    "37d41403fe20|WHOLE_COLUMN_REFERENCE|Statistics!B5": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "eba9bd965a28|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!J2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "b5cf69fbd13d|WHOLE_COLUMN_REFERENCE|Sheet1!P8": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "64aece717e7d|WHOLE_COLUMN_REFERENCE|Sheet2!A8": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "acb548947286|WHOLE_COLUMN_REFERENCE|Statistics!B5": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "9ffa652c7e85|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!K2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "eb31bc468d52|WHOLE_COLUMN_REFERENCE|Form!D6": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "5358e587d475|WHOLE_COLUMN_REFERENCE|Sheet1!B2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "8a16f4351e90|WHOLE_COLUMN_REFERENCE|Sheet1!B3": {
+      "label": "FP",
+      "reason": "INDEX/MATCH over whole columns is bounded by Excel; flagged only because the cell is an array formula."
+    },
+    "9dd7a633cf36|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!K2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "eba9bd965a28|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!I2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "9dd7a633cf36|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!I2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "9ffa652c7e85|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!J2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "df2b81a5f43c|WHOLE_COLUMN_REFERENCE|Sheet1!B3": {
+      "label": "FP",
+      "reason": "INDEX/MATCH over whole columns is bounded by Excel; flagged only because the cell is an array formula."
+    },
+    "593afcf306d6|WHOLE_COLUMN_REFERENCE|Sheet1!P8": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "b31624554d1c|WHOLE_COLUMN_REFERENCE|TEST!B11": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "97d36b88791d|WHOLE_COLUMN_REFERENCE|Sheet1!G4": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "61bf2143f38b|WHOLE_COLUMN_REFERENCE|book1!B3": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "47eb61dd533e|WHOLE_COLUMN_REFERENCE|TEST!B11": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "be6378a48fb9|WHOLE_COLUMN_REFERENCE|TEST!B11": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "b569de1c5256|WHOLE_COLUMN_REFERENCE|Sheet2!A8": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "5d1887987f48|WHOLE_COLUMN_REFERENCE|Sheet2!A8": {
+      "label": "FP",
+      "reason": "The whole column only feeds INDEX; the array part of the formula is bounded. Flagged because the cell is an array formula."
+    },
+    "0e309a2a0da6|WHOLE_COLUMN_REFERENCE|Sheet1!N2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "286f4ae7ac70|WHOLE_COLUMN_REFERENCE|book1!B3": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "740614797bbb|WHOLE_COLUMN_REFERENCE|Sheet1!N2": {
+      "label": "TP",
+      "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
     }
   }
 }
