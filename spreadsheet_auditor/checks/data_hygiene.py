@@ -9,7 +9,10 @@ from .base import Check, CheckContext, register
 @register
 class DataHygieneCheck(Check):
     name = "data_hygiene"
-    description = "Surfaces numbers-stored-as-text, whitespace keys, duplicate keys, merged cells in data ranges."
+    description = (
+        "Surfaces numbers-stored-as-text that formulas consume, whitespace in keys, "
+        "duplicate keys in lookup ranges, and merged cells inside data that formulas read."
+    )
     rule_ids = (
         "NUMBERS_STORED_AS_TEXT",
         "WHITESPACE_KEY",
@@ -21,4 +24,12 @@ class DataHygieneCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..data_hygiene import detect_data_hygiene
 
-        return detect_data_hygiene(ctx.formula_wb, ctx.allowed_sheet_names)
+        if not ctx.grid_scan_allowed:
+            return []
+        return detect_data_hygiene(
+            ctx.formula_wb,
+            ctx.allowed_sheet_names,
+            budget=ctx.budget,
+            formulas=ctx.formulas,
+            names=ctx.names,
+        )

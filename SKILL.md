@@ -49,7 +49,6 @@ Required for `.xlsx`/`.xlsm` auditing:
 Used when available:
 
 - `defusedxml` for safer XML parsing through workbook dependencies.
-- `networkx` for graph cycle detection; the script has a built-in DFS fallback.
 - `LibreOffice` / `soffice` for recalculation; the script falls back to static/cached-value analysis when unavailable.
 - `PyYAML` for `.yml` / `.yaml` config files. Use JSON config when PyYAML is unavailable, especially in API runtimes with no package installation.
 

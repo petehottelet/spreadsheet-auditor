@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 from openpyxl import Workbook
 
 ROOT = Path(__file__).resolve().parents[1]

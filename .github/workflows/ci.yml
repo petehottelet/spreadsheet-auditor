@@ -31,6 +31,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
+      - name: Lint (unused imports, undefined names)
+        run: python -m ruff check --select F,E9 spreadsheet_auditor tests scripts benchmarks examples
+
       - name: Validate skill metadata (root)
         run: python scripts/quick_validate.py .
 
@@ -72,6 +75,23 @@ jobs:
         run: |
           python examples/make_demo.py
           python benchmarks/run_benchmark.py
+
+      - name: Upload LibreOffice-backed demo and benchmark artifacts
+        # Maintainers download this bundle and commit it, so the checked-in
+        # demo report and benchmark matrix always come from a run with
+        # recalculation available, whatever machine the maintainer uses.
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-artifacts
+          path: |
+            examples/demo_bad_budget.xlsx
+            examples/demo_audit_report.md
+            examples/demo_audit_report.html
+            examples/demo_findings.json
+            examples/demo_annotated.xlsx
+            spreadsheet_auditor/demo/demo_bad_budget.xlsx
+            benchmarks/seeded_defects_matrix.md
+          if-no-files-found: error
 
       - name: Build distributable skill packages
         run: python scripts/build_dist.py

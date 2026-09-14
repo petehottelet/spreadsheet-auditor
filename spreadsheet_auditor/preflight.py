@@ -6,6 +6,17 @@ from pathlib import Path
 
 
 SUPPORTED_EXTENSIONS = {".xlsx", ".xlsm", ".csv"}
+# Package parts openpyxl does not round-trip; an annotated copy drops them.
+DRAWING_PART_PREFIXES = (
+    "xl/drawings/",
+    "xl/charts/",
+    "xl/media/",
+    "xl/ctrlprops/",
+    "xl/embeddings/",
+    "xl/activex/",
+    "xl/slicers/",
+    "xl/timelines/",
+)
 
 
 class PreflightError(RuntimeError):
@@ -43,6 +54,11 @@ def preflight(path: str | Path, max_uncompressed_mb: int = 250) -> dict:
                 result["archive_checked"] = True
                 result["uncompressed_bytes"] = total_uncompressed
                 result["macros_present"] = any(info.filename.lower() == "xl/vbaproject.bin" for info in archive.infolist())
+                result["drawing_parts"] = sum(
+                    1
+                    for info in archive.infolist()
+                    if not info.is_dir() and info.filename.lower().startswith(DRAWING_PART_PREFIXES)
+                )
                 if total_uncompressed > max_uncompressed_mb * 1024 * 1024:
                     raise PreflightError(
                         f"Workbook expands to {total_uncompressed} bytes, above configured limit"

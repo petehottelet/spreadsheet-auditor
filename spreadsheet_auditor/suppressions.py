@@ -14,6 +14,13 @@ Suppressions can be supplied two ways:
 2. **Config section** (`[suppressions]`). A list of `{rule_id, range, reason}`
    or `{fingerprint, reason}` mappings. Same semantics as the file.
 
+A suppression's `range` may be a single cell (`Budget!B14`), a range
+(`Imports!A1:A100`), a whole column or row (`Imports!A:A`), or a bare sheet
+name (`Imports`). A finding is suppressed when its cell or range lies inside
+that target on the same sheet; a multi-cell finding matches when any of its
+cells does. Sheet names are case-insensitive and `$` markers are ignored.
+Nothing is matched by substring, so `Imports!A1` never hides `Imports!A10`.
+
 A reason is required for every suppression. Suppressions missing a reason (or
 otherwise malformed) are dropped and a note is appended to the optional
 ``warnings`` list passed by the caller, which surfaces in the report's
@@ -27,6 +34,8 @@ require `--show-suppressed` to surface them.
 from __future__ import annotations
 
 from pathlib import Path
+
+from .locations import location_matches
 
 
 def load_suppressions(
@@ -99,11 +108,7 @@ def _matches(finding, suppression: dict) -> bool:
         return str(fp).lower() == finding.fingerprint.lower()
     if suppression.get("rule_id") != finding.rule_id:
         return False
-    target = str(suppression.get("range", ""))
+    target = str(suppression.get("range", "") or "").strip()
     if not target:
         return False
-    return (
-        finding.location == target
-        or finding.location.startswith(target)
-        or target in finding.location
-    )
+    return location_matches(finding.location, target)

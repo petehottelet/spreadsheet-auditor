@@ -71,7 +71,7 @@ the resulting report/JSON/HTML/annotated outputs ready to inspect.
 | Formula integrity | live errors (`#REF!`, `#DIV/0!`, `#VALUE!`, `#N/A`, ...), broken/deleted references, references to blank precedents, circular references, formula drift across a row/column, `IFERROR`/`IFNA` error masking |
 | Hardcodes & inputs | numeric literals embedded in formulas, hardcoded plug values inside a formula block |
 | Ranges | aggregate ranges that exclude adjacent data (off-by-one), ranges that include subtotal/total rows, inconsistent aggregate range lengths across peers, hidden rows/columns/sheets inside totals |
-| Reconciliation | stated totals that differ from their components, row totals vs column totals that don't cross-foot |
+| Reconciliation | totals that double-count a component (`=SUM(B2:B5)+B5`), bare `SUM` totals whose cached value differs from their components, row totals vs column totals that don't cross-foot |
 | Logic & structure | volatile/fragile functions (`OFFSET`, `INDIRECT`, `NOW`, `RAND`, ...), whole-column references |
 | Data hygiene | numbers stored as text, leading/trailing whitespace in keys/labels, duplicate lookup keys, merged cells inside data ranges |
 | Finance (opt-in HEUR) | balance-sheet balance, sign convention on revenue/expense rows, quarterly period sequencing |
@@ -90,7 +90,7 @@ methodology at
 
 ```bash
 pip install spreadsheet-auditor             # core + .xlsx/.xlsm/.csv audit
-pip install "spreadsheet-auditor[all]"      # adds defusedxml, networkx, PyYAML
+pip install "spreadsheet-auditor[all]"      # adds defusedxml, PyYAML
 ```
 
 For local development:
@@ -145,7 +145,10 @@ See `spreadsheet-auditor --help` for the full flag reference, including
 - **SARIF 2.1.0** for GitHub code scanning. See
   [`examples/github-actions/code-scanning.yml`](examples/github-actions/code-scanning.yml).
 - **Annotated workbook copy** with comments at finding cells (`--annotated`).
-  The source workbook is never modified.
+  The source workbook is never modified. The copy is written by openpyxl,
+  which does not carry over drawings, charts, images, or form controls; the
+  audit warns when the source contains them, so keep the original as the
+  master.
 
 ## Exit codes
 
@@ -242,7 +245,10 @@ value-dependent checks.
 that.
 
 **How are false positives handled?** Suppress them by `(rule_id, range, reason)`
-or by `fingerprint`. A reason is required; suppressions missing a reason are
+or by `fingerprint`. The range may be a cell, a range, a whole column or row,
+or a bare sheet name; a finding is suppressed when its cell lies inside that
+target on the same sheet, never by text prefix (`Imports!A1` does not hide
+`Imports!A10`). A reason is required; suppressions missing a reason are
 ignored and called out in the report's coverage limitations. Suppressed findings
 stay in the JSON payload (auditable) but are hidden from the report unless
 `--show-suppressed` is passed.

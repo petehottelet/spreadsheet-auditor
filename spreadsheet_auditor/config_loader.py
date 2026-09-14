@@ -11,6 +11,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "limits": {
         "max_formulas": 50000,
         "max_reported_findings": 200,
+        # Wall-clock budget for the check phase. Checks poll it cooperatively,
+        # so a pathological workbook degrades to a partial report with a
+        # limitation note instead of running for hours. 0 disables it.
+        "timeout_seconds": 120,
     },
     "recalc": {
         "enabled": True,
