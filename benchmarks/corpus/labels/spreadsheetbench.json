@@ -1,0 +1,6 @@
+{
+  "labeler": "Claude (Fable 5.1) working from the context cards in samples/spreadsheetbench.md, 2026-09-14; every label carries a reason so a maintainer can overrule it.",
+  "protocol": "TP: the finding points at something a careful reviewer would want to look at, for the reason the rule gives. FP: the rule misread the workbook. unsure: the card was not enough to decide; excluded from precision.",
+  "rule_notes": {},
+  "labels": {}
+}

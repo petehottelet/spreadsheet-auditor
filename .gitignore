@@ -18,4 +18,5 @@ _tmp_wheel_review/
 release-notes.md
 report.html
 report.sarif
-
+benchmarks/corpus/data/
+benchmarks/corpus/results/
