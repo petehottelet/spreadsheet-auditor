@@ -47,8 +47,17 @@ Calc implements the vast majority of Excel functions, but differences remain:
 - The audit is bounded by the `limits` block in your config:
   `max_cells`, `max_formulas`, `max_reported_findings`, `timeout_seconds`.
   Exceeded limits surface in `coverage.truncated`.
-- Very large dependency graphs may exceed `max_range_expansion_cells` for
-  `CIRCULAR_REFERENCE`; expand the limit or accept the truncation note.
+- `timeout_seconds` defaults to 120 and is polled inside every check. When it
+  expires, the check in progress stops, the remaining checks are skipped, and
+  the report carries a limitation note naming the check. Set it to 0 to
+  disable the budget.
+- Checks only visit cells the workbook actually contains, and references are
+  resolved without materializing cells, so a formula that points far away
+  from the data does not grow the scan.
+- `max_range_expansion_cells` is accepted for backward compatibility but no
+  longer does anything: `CIRCULAR_REFERENCE` resolves ranges, including
+  whole-column references, against an index of formula cells and never drops
+  a reference for being large.
 
 ## Always disclose when
 
@@ -62,7 +71,9 @@ Calc implements the vast majority of Excel functions, but differences remain:
 - Suppressions hide findings; the report's summary always shows the
   suppressed count. Every suppression requires a reason; malformed
   suppressions (missing reason, unparseable line) are ignored and reported as
-  a coverage limitation so a dropped suppression is never silent.
+  a coverage limitation so a dropped suppression is never silent. Suppression
+  targets are matched by location (a cell, range, whole column/row, or sheet
+  name), never by text prefix.
 
 Never execute macros. Never follow external links without explicit user
 approval and sandbox controls.

@@ -47,7 +47,12 @@ class ReferenceIntegrityCheck(Check):
         from ..audit import detect_reference_issues
 
         return detect_reference_issues(
-            ctx.formula_wb, ctx.value_wb, ctx.formulas, ctx.unsupported_features
+            ctx.formula_wb,
+            ctx.value_wb,
+            ctx.formulas,
+            ctx.unsupported_features,
+            names=ctx.names,
+            budget=ctx.budget,
         )
 
 
@@ -61,7 +66,7 @@ class FormulaDriftCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..formula_drift import detect_formula_drift
 
-        return detect_formula_drift(ctx.formulas)
+        return detect_formula_drift(ctx.formulas, budget=ctx.budget)
 
 
 @register
@@ -74,18 +79,23 @@ class HardcodeBreakCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..formula_drift import detect_hardcode_breaks
 
-        return detect_hardcode_breaks(ctx.formula_wb, ctx.allowed_sheet_names)
+        return detect_hardcode_breaks(ctx.formula_wb, ctx.allowed_sheet_names, budget=ctx.budget)
 
 
 @register
 class CircularReferenceCheck(Check):
     name = "circular_references"
-    description = "Reports dependency cycles between formula cells."
+    description = "Reports dependency cycles between formula cells, including a cell that references itself."
     rule_ids = ("CIRCULAR_REFERENCE",)
     mode = "DET"
 
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..audit import detect_cycles
 
-        expansion_limit = int((ctx.config.get("limits") or {}).get("max_range_expansion_cells", 500))
-        return detect_cycles(ctx.formulas, expansion_limit=expansion_limit)
+        extents = None
+        if ctx.formula_wb is not None:
+            extents = {
+                ws.title: (int(ws.max_row or 1), int(ws.max_column or 1))
+                for ws in ctx.formula_wb.worksheets
+            }
+        return detect_cycles(ctx.formulas, names=ctx.names, extents=extents, budget=ctx.budget)

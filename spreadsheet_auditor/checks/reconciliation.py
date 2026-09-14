@@ -16,7 +16,7 @@ class TotalMismatchCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..reconcile import detect_total_mismatches
 
-        return detect_total_mismatches(ctx.formula_wb, ctx.value_wb, ctx.formulas)
+        return detect_total_mismatches(ctx.formula_wb, ctx.value_wb, ctx.formulas, names=ctx.names, budget=ctx.budget)
 
 
 @register
@@ -29,4 +29,4 @@ class CrossFootCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..reconcile import detect_cross_foot_failures
 
-        return detect_cross_foot_failures(ctx.formula_wb, ctx.value_wb, ctx.allowed_sheet_names)
+        return detect_cross_foot_failures(ctx.formula_wb, ctx.value_wb, ctx.allowed_sheet_names, budget=ctx.budget)

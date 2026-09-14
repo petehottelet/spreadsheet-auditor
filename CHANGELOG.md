@@ -7,6 +7,67 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+
+- **Formula parsing no longer invents cell references.** The regex parser read
+  function names such as `LOG10`, `DAYS360`, or `ATAN2` and the tails of names
+  such as `EBITDA2025` as cell addresses, then materialized those cells while
+  checking for blank precedents. A 12-row workbook could balloon to millions of
+  scanned cells, run for minutes at several gigabytes, and emit bogus
+  `BLANK_PRECEDENT` findings. Parsing now uses openpyxl's formula tokenizer
+  (`spreadsheet_auditor/formula_parser.py`) and cell lookups never create cells
+  (`reference_resolver.py`).
+- **Circular references.** A total that includes its own cell (`=SUM(A1:A3)`
+  in `A3`) was dropped when `networkx` was installed and reported only by the
+  fallback DFS, so results depended on the environment. Cycles are now reported
+  once per strongly connected component with an iterative algorithm: a
+  filled-down self-inclusive total yields one finding instead of millions of
+  elementary cycles, and dependency chains thousands of cells long no longer hit
+  the recursion limit. Whole-column references (`SUM(A:A)`) take part in cycle
+  detection.
+- **Suppressions match by location, not by substring.** `Imports!A1` no longer
+  hides `Imports!A10`, and the documented range form (`Imports!A1:A100`) now
+  works. Whole columns/rows and bare sheet names are accepted; sheet names are
+  case-insensitive. `scope.headline_outputs` uses the same matching.
+- **Structured table references** (`Table1[Sales]`, `[@Sales]`) were reported
+  as external workbook links and produced phantom blank-precedent findings.
+  They now resolve against the workbook's tables; unresolvable ones surface as
+  the `structured_references` coverage flag.
+- **Defined names** resolve to their ranges instead of being ignored or
+  misread; names defined as constants or formulas are recorded under the
+  `unresolved_defined_names` coverage flag.
+- **Array formulas** (legacy CSE and dynamic arrays) were invisible to every
+  check with no coverage note. They are now parsed for references and counted,
+  with an `array_formulas` coverage flag and a limitation note.
+- `LITERAL_CONSTANT` no longer flags digits left behind after stripping a
+  reference that shares a prefix with another (`=C3*C35` flagged `5`).
+- Non-ASCII cell labels no longer crash report output on Windows when stdout is
+  redirected; output streams are reconfigured to UTF-8 with replacement.
+- Sheet names in references resolve case-insensitively, as in Excel.
+
+### Changed
+
+- **Default time budget.** `limits.timeout_seconds` now defaults to 120 and is
+  polled inside every check, so a pathological workbook degrades to a partial
+  report with a limitation note naming the interrupted check instead of running
+  for hours. Set it to 0 to disable.
+- Checks iterate the cells a sheet actually holds instead of the full bounding
+  box, so sparse sheets no longer materialize millions of empty cells.
+- `CheckContext` gained `names` (resolved defined names and tables) and
+  `budget` (cooperative deadline); custom checks should call `budget.tick()`
+  in long loops. See `references/custom_checks.md`.
+- `FORMULA_DRIFT` normalization honours absolute markers (`$B$1` stays
+  anchored), so rows that share an absolute anchor normalize to one pattern.
+- New coverage flags: `array_formulas`, `structured_references`,
+  `unresolved_defined_names`, `3d_references`, `unparseable_formulas`.
+- `limits.max_range_expansion_cells` is accepted but ignored: ranges are
+  resolved against an index of formula cells and are never dropped for size.
+
+### Removed
+
+- `networkx` is no longer used or listed as an optional dependency; the
+  `graph` extra is gone and `[all]` installs `defusedxml` and `PyYAML` only.
+
 ## [0.1.0] - 2026-06-16
 
 First public release. Establishes the audit-only contract, the deterministic

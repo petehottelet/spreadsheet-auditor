@@ -90,7 +90,7 @@ methodology at
 
 ```bash
 pip install spreadsheet-auditor             # core + .xlsx/.xlsm/.csv audit
-pip install "spreadsheet-auditor[all]"      # adds defusedxml, networkx, PyYAML
+pip install "spreadsheet-auditor[all]"      # adds defusedxml, PyYAML
 ```
 
 For local development:
@@ -242,7 +242,10 @@ value-dependent checks.
 that.
 
 **How are false positives handled?** Suppress them by `(rule_id, range, reason)`
-or by `fingerprint`. A reason is required; suppressions missing a reason are
+or by `fingerprint`. The range may be a cell, a range, a whole column or row,
+or a bare sheet name; a finding is suppressed when its cell lies inside that
+target on the same sheet, never by text prefix (`Imports!A1` does not hide
+`Imports!A10`). A reason is required; suppressions missing a reason are
 ignored and called out in the report's coverage limitations. Suppressed findings
 stay in the JSON payload (auditable) but are hidden from the report unless
 `--show-suppressed` is passed.

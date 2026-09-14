@@ -55,6 +55,8 @@ class MyHardcodedYearCheck(Check):
 | `config`               | `dict`                     | Parsed config (or `{}`).                             |
 | `inventory`            | `dict`                     | Workbook inventory (macros, external links, sheets). |
 | `unsupported_features` | `set[str]`                 | Append to this when a check encounters a feature it cannot reason about (e.g. dynamic arrays). |
+| `names`                | `NameTable` or `None`      | Defined names and structured table references resolved to A1 ranges. Pass it to `parse_formula` / `extract_references` as `names=` so `SUM(Revenue_FY)` and `Table1[Sales]` resolve. |
+| `budget`               | `Budget` or `None`         | Cooperative deadline. Call `ctx.budget.tick()` once per row or formula in long loops; it raises `AuditTimeout` when `limits.timeout_seconds` has elapsed and the orchestrator records the interruption. |
 
 ## Severity, confidence, and mode conventions
 
@@ -86,8 +88,17 @@ needs to be reused.
 ## Performance contract
 
 - Checks should respect `ctx.config.get("limits")` when they iterate broadly.
-- Long-running checks should yield control frequently; the orchestrator does
-  not enforce a per-check timeout but stops invoking further checks once the
-  global timeout (`limits.timeout_seconds`) is exceeded.
+- Long-running checks must poll the budget: call `ctx.budget.tick()` (or
+  `spreadsheet_auditor.budget.tick(ctx.budget)`, which tolerates `None`) once
+  per row or formula. When the global budget (`limits.timeout_seconds`,
+  default 120) expires, `AuditTimeout` propagates to the orchestrator, which
+  records a limitation and skips the remaining checks.
+- Never materialize cells. `ws.cell()` and `ws[coord]` create missing cells
+  and silently grow the used range; use `existing_cell` / `cell_value` from
+  `spreadsheet_auditor.reference_resolver` and `iter_existing_cells` from
+  `spreadsheet_auditor.workbook_inventory` instead.
+- Parse formulas with `spreadsheet_auditor.formula_parser.parse_formula`
+  rather than regular expressions; it is tokenizer-based and classifies
+  references, functions, literals, names, tables, and external links.
 - Detectors must be deterministic given the same input workbook + config so
   `fingerprint` matches across runs and suppressions stay stable.

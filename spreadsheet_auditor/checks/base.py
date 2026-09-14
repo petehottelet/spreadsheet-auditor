@@ -20,6 +20,13 @@ class CheckContext:
     config: dict
     inventory: dict
     unsupported_features: set[str] = field(default_factory=set)
+    #: Defined names and structured table references resolved to A1 ranges
+    #: (``spreadsheet_auditor.names.NameTable``). May be None in unit tests.
+    names: Any = None
+    #: Cooperative time budget (``spreadsheet_auditor.budget.Budget``). Long
+    #: loops should call ``budget.tick()`` once per row or formula; it raises
+    #: ``AuditTimeout`` when the audit's deadline has passed. May be None.
+    budget: Any = None
 
 
 class Check:
@@ -68,7 +75,6 @@ def discovered_modules() -> list[str]:
 
 def make_runner(name: str, fn: Callable[[CheckContext], list[Finding]], **attrs: Any) -> type[Check]:
     """Helper: build a Check subclass from a function. Reduces boilerplate."""
-    body = {"run": staticmethod(fn) if False else (lambda self, ctx: fn(ctx))}
+    body: dict[str, Any] = {"run": lambda self, ctx: fn(ctx)}
     body.update(attrs)
-    cls = type(name, (Check,), body)
-    return cls
+    return type(name, (Check,), body)

@@ -1,35 +1,38 @@
 from __future__ import annotations
 
-import re
 from collections import Counter, defaultdict
-from typing import Iterable
 
-from openpyxl.utils.cell import get_column_letter, range_boundaries
+from openpyxl.utils.cell import get_column_letter
 
+from .budget import tick
 from .finding import Finding
-from .formula_parser import extract_functions, extract_references, is_formula
-from .workbook_inventory import location
+from .formula_parser import ParsedReference, is_formula, parse_formula
+from .reference_resolver import boundaries, cell_value, find_sheet
 
 
 AGG_FUNCS = {"SUM", "AVERAGE", "COUNT", "COUNTA"}
 SUBTOTAL_WORDS = {"total", "subtotal", "grand total", "sum"}
 
 
-def aggregate_ranges(formula: str):
-    funcs = extract_functions(formula)
-    if not funcs.intersection(AGG_FUNCS):
+def _origin(cell: dict) -> tuple[str, int, int]:
+    return (cell["sheet"], cell["row"], cell["col"])
+
+
+def aggregate_ranges(formula: str, names=None, origin: tuple[str, int, int] | None = None) -> list[ParsedReference]:
+    parsed = parse_formula(formula, names=names, origin=origin)
+    if not parsed.functions.intersection(AGG_FUNCS):
         return []
-    return [ref for ref in extract_references(formula) if ref.is_range]
+    return [ref for ref in parsed.references if ref.is_range]
 
 
-def _single_aggregate_range_size(formula: str) -> int | None:
-    ranges = aggregate_ranges(formula)
+def _single_aggregate_range_size(formula: str, names=None, origin=None) -> int | None:
+    ranges = aggregate_ranges(formula, names=names, origin=origin)
     if len(ranges) != 1:
         return None
-    try:
-        min_col, min_row, max_col, max_row = range_boundaries(ranges[0].ref)
-    except ValueError:
+    box = boundaries(ranges[0].ref)
+    if box is None:
         return None
+    min_col, min_row, max_col, max_row = box
     return (max_col - min_col + 1) * (max_row - min_row + 1)
 
 
@@ -46,13 +49,14 @@ def _contiguous_by(items: list[tuple[dict, int]], key: str) -> list[list[tuple[d
     return segments
 
 
-def detect_range_length_mismatch(formula_cells: list[dict]) -> list[Finding]:
+def detect_range_length_mismatch(formula_cells: list[dict], names=None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
     seen: set[str] = set()
 
     sized: list[tuple[dict, int]] = []
     for cell in formula_cells:
-        size = _single_aggregate_range_size(cell["formula"])
+        tick(budget)
+        size = _single_aggregate_range_size(cell["formula"], names=names, origin=_origin(cell))
         if size is not None:
             sized.append((cell, size))
 
@@ -96,26 +100,28 @@ def detect_range_length_mismatch(formula_cells: list[dict]) -> list[Finding]:
     return findings
 
 
-def detect_range_issues(formula_wb, value_wb, formula_cells: list[dict]) -> list[Finding]:
+def detect_range_issues(formula_wb, value_wb, formula_cells: list[dict], names=None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
     for cell in formula_cells:
-        for ref in aggregate_ranges(cell["formula"]):
-            sheet = ref.sheet or cell["sheet"]
-            if sheet not in formula_wb.sheetnames:
+        tick(budget)
+        for ref in aggregate_ranges(cell["formula"], names=names, origin=_origin(cell)):
+            if not ref.bounded:
                 continue
-            ws = formula_wb[sheet]
-            try:
-                min_col, min_row, max_col, max_row = range_boundaries(ref.ref)
-            except ValueError:
+            title = find_sheet(formula_wb, ref.sheet or cell["sheet"])
+            if title is None:
                 continue
+            ws = formula_wb[title]
+            box = boundaries(ref.ref)
+            if box is None:
+                continue
+            min_col, min_row, max_col, max_row = box
             findings.extend(_detect_exclusion(ws, cell, ref.ref, min_col, min_row, max_col, max_row))
             findings.extend(_detect_subtotal_inclusion(ws, cell, ref.ref, min_col, min_row, max_col, max_row))
             findings.extend(_detect_hidden_intersections(ws, cell, ref.ref, min_col, min_row, max_col, max_row))
     return findings
 
 
-def _cell_has_data(cell) -> bool:
-    value = cell.value
+def _has_data(value) -> bool:
     if value is None:
         return False
     if is_formula(value):
@@ -128,7 +134,7 @@ def _cell_has_data(cell) -> bool:
 def _row_label(ws, row: int, min_col: int) -> str:
     labels = []
     for col in range(1, min_col):
-        value = ws.cell(row=row, column=col).value
+        value = cell_value(ws, row, col)
         if value is not None:
             labels.append(str(value).strip())
     return " ".join(labels).lower()
@@ -146,11 +152,12 @@ def _detect_exclusion(ws, formula_cell: dict, ref_text: str, min_col: int, min_r
         if max_row + 1 < formula_cell["row"]:
             candidates.append((max_row + 1, min_col, "below"))
         for row, col, direction in candidates:
-            neighbor = ws.cell(row=row, column=col)
-            if _cell_has_data(neighbor):
+            neighbor_value = cell_value(ws, row, col)
+            if _has_data(neighbor_value):
                 label = _row_label(ws, row, min_col)
                 if any(word in label for word in SUBTOTAL_WORDS):
                     continue
+                coord = f"{get_column_letter(col)}{row}"
                 findings.append(
                     Finding(
                         rule_id="RANGE_EXCLUSION",
@@ -160,8 +167,8 @@ def _detect_exclusion(ws, formula_cell: dict, ref_text: str, min_col: int, min_r
                         location=loc,
                         title="Aggregation range appears to exclude adjacent data row",
                         formula=formula,
-                        evidence=[f"{ws.title}!{ref_text} excludes adjacent {direction} cell {ws.title}!{neighbor.coordinate} with value {neighbor.value!r}."],
-                        suggested_fix=f"Confirm whether {ws.title}!{neighbor.coordinate} belongs in the aggregate, then extend the range if appropriate.",
+                        evidence=[f"{ws.title}!{ref_text} excludes adjacent {direction} cell {ws.title}!{coord} with value {neighbor_value!r}."],
+                        suggested_fix=f"Confirm whether {ws.title}!{coord} belongs in the aggregate, then extend the range if appropriate.",
                     )
                 )
     if min_row == max_row:
@@ -171,8 +178,9 @@ def _detect_exclusion(ws, formula_cell: dict, ref_text: str, min_col: int, min_r
         if max_col + 1 < formula_cell["col"]:
             candidates.append((min_row, max_col + 1, "right"))
         for row, col, direction in candidates:
-            neighbor = ws.cell(row=row, column=col)
-            if _cell_has_data(neighbor):
+            neighbor_value = cell_value(ws, row, col)
+            if _has_data(neighbor_value):
+                coord = f"{get_column_letter(col)}{row}"
                 findings.append(
                     Finding(
                         rule_id="RANGE_EXCLUSION",
@@ -182,8 +190,8 @@ def _detect_exclusion(ws, formula_cell: dict, ref_text: str, min_col: int, min_r
                         location=loc,
                         title="Aggregation range appears to exclude adjacent data column",
                         formula=formula,
-                        evidence=[f"{ws.title}!{ref_text} excludes adjacent {direction} cell {ws.title}!{neighbor.coordinate} with value {neighbor.value!r}."],
-                        suggested_fix=f"Confirm whether {ws.title}!{neighbor.coordinate} belongs in the aggregate, then extend the range if appropriate.",
+                        evidence=[f"{ws.title}!{ref_text} excludes adjacent {direction} cell {ws.title}!{coord} with value {neighbor_value!r}."],
+                        suggested_fix=f"Confirm whether {ws.title}!{coord} belongs in the aggregate, then extend the range if appropriate.",
                     )
                 )
     return findings
@@ -210,13 +218,19 @@ def _detect_subtotal_inclusion(ws, formula_cell: dict, ref_text: str, min_col: i
     return findings
 
 
+def _row_hidden(ws, row: int) -> bool:
+    dim = ws.row_dimensions.get(row)
+    return bool(dim is not None and dim.hidden)
+
+
+def _col_hidden(ws, col: int) -> bool:
+    dim = ws.column_dimensions.get(get_column_letter(col))
+    return bool(dim is not None and dim.hidden)
+
+
 def _detect_hidden_intersections(ws, formula_cell: dict, ref_text: str, min_col: int, min_row: int, max_col: int, max_row: int):
-    hidden_rows = [row for row in range(min_row, max_row + 1) if ws.row_dimensions[row].hidden]
-    hidden_cols = [
-        get_column_letter(col)
-        for col in range(min_col, max_col + 1)
-        if ws.column_dimensions[get_column_letter(col)].hidden
-    ]
+    hidden_rows = [row for row in range(min_row, max_row + 1) if _row_hidden(ws, row)]
+    hidden_cols = [get_column_letter(col) for col in range(min_col, max_col + 1) if _col_hidden(ws, col)]
     if not hidden_rows and not hidden_cols:
         return []
     pieces = []
@@ -239,12 +253,11 @@ def _detect_hidden_intersections(ws, formula_cell: dict, ref_text: str, min_col:
     ]
 
 
-def detect_literal_constants(formula_cells: list[dict]) -> list[Finding]:
-    from .formula_parser import extract_numeric_literals
-
+def detect_literal_constants(formula_cells: list[dict], budget=None) -> list[Finding]:
     findings: list[Finding] = []
     for cell in formula_cells:
-        literals = extract_numeric_literals(cell["formula"])
+        tick(budget)
+        literals = parse_formula(cell["formula"]).numeric_literals
         if literals:
             findings.append(
                 Finding(
@@ -262,13 +275,14 @@ def detect_literal_constants(formula_cells: list[dict]) -> list[Finding]:
     return findings
 
 
-def detect_fragile_functions(formula_cells: list[dict]) -> list[Finding]:
+def detect_fragile_functions(formula_cells: list[dict], names=None, budget=None) -> list[Finding]:
     findings: list[Finding] = []
     volatile = {"OFFSET", "INDIRECT", "NOW", "RAND", "RANDBETWEEN", "TODAY"}
-    whole_col_re = re.compile(r"\$?[A-Z]{1,3}:\$?[A-Z]{1,3}")
     for cell in formula_cells:
-        funcs = extract_functions(cell["formula"])
-        if funcs.intersection(volatile):
+        tick(budget)
+        parsed = parse_formula(cell["formula"], names=names, origin=_origin(cell))
+        found = parsed.functions.intersection(volatile)
+        if found:
             findings.append(
                 Finding(
                     rule_id="VOLATILE_FUNCTION",
@@ -278,11 +292,11 @@ def detect_fragile_functions(formula_cells: list[dict]) -> list[Finding]:
                     location=cell["location"],
                     title="Formula uses volatile or fragile function",
                     formula=cell["formula"],
-                    evidence=[f"Function(s) found: {', '.join(sorted(funcs.intersection(volatile)))}."],
+                    evidence=[f"Function(s) found: {', '.join(sorted(found))}."],
                     suggested_fix="Confirm the volatility is intentional; prefer stable bounded references when possible.",
                 )
             )
-        if whole_col_re.search(cell["formula"].upper()):
+        if any(not ref.bounded for ref in parsed.references):
             findings.append(
                 Finding(
                     rule_id="WHOLE_COLUMN_REFERENCE",

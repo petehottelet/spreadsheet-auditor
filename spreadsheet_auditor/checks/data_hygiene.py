@@ -21,4 +21,4 @@ class DataHygieneCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..data_hygiene import detect_data_hygiene
 
-        return detect_data_hygiene(ctx.formula_wb, ctx.allowed_sheet_names)
+        return detect_data_hygiene(ctx.formula_wb, ctx.allowed_sheet_names, budget=ctx.budget)

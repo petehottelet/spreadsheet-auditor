@@ -14,7 +14,6 @@
         "platform": { "type": ["string", "null"] },
         "openpyxl": { "type": ["string", "null"] },
         "defusedxml": { "type": ["string", "null"] },
-        "networkx": { "type": ["string", "null"] },
         "libreoffice": { "type": ["string", "null"] }
       }
     },

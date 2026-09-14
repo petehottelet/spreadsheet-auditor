@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from openpyxl.utils.cell import get_column_letter, range_boundaries
+from openpyxl.utils.cell import get_column_letter
 
+from .budget import tick
 from .finding import Finding
-from .formula_parser import extract_functions, is_formula
+from .formula_parser import extract_functions, formula_text
 from .range_checks import AGG_FUNCS, aggregate_ranges
+from .reference_resolver import boundaries, cell_value, find_sheet
 
 
 def _numeric(value) -> float | None:
@@ -16,33 +18,44 @@ def _numeric(value) -> float | None:
 
 
 def _is_aggregate_formula(value) -> bool:
-    return is_formula(value) and bool(extract_functions(str(value)).intersection(AGG_FUNCS))
+    text = formula_text(value)
+    return bool(text) and bool(extract_functions(text).intersection(AGG_FUNCS))
 
 
-def detect_total_mismatches(formula_wb, value_wb, formula_cells: list[dict], tolerance: float = 1e-6) -> list[Finding]:
+def detect_total_mismatches(
+    formula_wb,
+    value_wb,
+    formula_cells: list[dict],
+    tolerance: float = 1e-6,
+    names=None,
+    budget=None,
+) -> list[Finding]:
     findings: list[Finding] = []
     for cell in formula_cells:
-        ranges = aggregate_ranges(cell["formula"])
+        tick(budget)
+        ranges = aggregate_ranges(cell["formula"], names=names, origin=(cell["sheet"], cell["row"], cell["col"]))
         if len(ranges) != 1:
             continue
         ref = ranges[0]
-        sheet = ref.sheet or cell["sheet"]
-        if sheet not in value_wb.sheetnames:
+        if not ref.bounded:
             continue
-        value_ws = value_wb[sheet]
-        formula_value_ws = value_wb[cell["sheet"]]
-        cached_total = _numeric(formula_value_ws[cell["coord"]].value)
+        range_sheet = find_sheet(value_wb, ref.sheet or cell["sheet"])
+        home_sheet = find_sheet(value_wb, cell["sheet"])
+        if range_sheet is None or home_sheet is None:
+            continue
+        value_ws = value_wb[range_sheet]
+        cached_total = _numeric(cell_value(value_wb[home_sheet], cell["row"], cell["col"]))
         if cached_total is None:
             continue
-        try:
-            min_col, min_row, max_col, max_row = range_boundaries(ref.ref)
-        except ValueError:
+        box = boundaries(ref.ref)
+        if box is None:
             continue
+        min_col, min_row, max_col, max_row = box
         component_sum = 0.0
         numeric_count = 0
         for row in range(min_row, max_row + 1):
             for col in range(min_col, max_col + 1):
-                value = _numeric(value_ws.cell(row=row, column=col).value)
+                value = _numeric(cell_value(value_ws, row, col))
                 if value is not None:
                     component_sum += value
                     numeric_count += 1
@@ -69,6 +82,7 @@ def detect_cross_foot_failures(
     value_wb,
     allowed_sheet_names: set[str] | None = None,
     tolerance: float = 1e-6,
+    budget=None,
 ) -> list[Finding]:
     """Compare a grand total reached down a totals column vs across a totals row.
 
@@ -82,28 +96,30 @@ def detect_cross_foot_failures(
     for ws in formula_wb.worksheets:
         if allowed_sheet_names is not None and ws.title not in allowed_sheet_names:
             continue
-        if ws.title not in value_wb.sheetnames:
+        value_title = find_sheet(value_wb, ws.title)
+        if value_title is None:
             continue
-        value_ws = value_wb[ws.title]
-        for gr in range(2, ws.max_row + 1):
-            for gc in range(2, ws.max_column + 1):
+        value_ws = value_wb[value_title]
+        for gr in range(2, (ws.max_row or 0) + 1):
+            tick(budget)
+            for gc in range(2, (ws.max_column or 0) + 1):
                 rows: list[int] = []
                 r = gr - 1
-                while r >= 1 and _is_aggregate_formula(ws.cell(row=r, column=gc).value):
+                while r >= 1 and _is_aggregate_formula(cell_value(ws, r, gc)):
                     rows.append(r)
                     r -= 1
                 if len(rows) < 2:
                     continue
                 cols: list[int] = []
                 c = gc - 1
-                while c >= 1 and _is_aggregate_formula(ws.cell(row=gr, column=c).value):
+                while c >= 1 and _is_aggregate_formula(cell_value(ws, gr, c)):
                     cols.append(c)
                     c -= 1
                 if len(cols) < 2:
                     continue
 
-                down = [v for v in (_numeric(value_ws.cell(row=rr, column=gc).value) for rr in rows) if v is not None]
-                across = [v for v in (_numeric(value_ws.cell(row=gr, column=cc).value) for cc in cols) if v is not None]
+                down = [v for v in (_numeric(cell_value(value_ws, rr, gc)) for rr in rows) if v is not None]
+                across = [v for v in (_numeric(cell_value(value_ws, gr, cc)) for cc in cols) if v is not None]
                 if len(down) < 2 or len(across) < 2:
                     continue
 
