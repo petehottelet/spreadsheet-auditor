@@ -13,8 +13,11 @@ from collections import Counter
 from pathlib import Path
 
 from . import __version__
+from .budget import AuditTimeout, Budget
 from .config_loader import allowed_sheets, apply_check_settings, load_config, sheet_is_allowed
 from .finding import Finding, assign_ids, sort_findings
+from .locations import location_matches
+from .names import NameTable
 from .preflight import PreflightError, preflight
 from .recalc import recalc_if_available, soffice_path
 from .report import (
@@ -31,7 +34,7 @@ FAIL_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "None": 99}
 
 
 REQUIRED_PACKAGES = ["openpyxl"]
-OPTIONAL_PACKAGES = ["defusedxml", "networkx", "yaml"]
+OPTIONAL_PACKAGES = ["defusedxml", "yaml"]
 
 
 def _probe_package(package: str) -> dict:
@@ -120,17 +123,13 @@ def _package_available(package: str) -> bool:
 
 
 def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
-    from .data_hygiene import detect_data_hygiene
-    from .formula_drift import detect_formula_drift, detect_hardcode_breaks
-    from .range_checks import (
-        detect_fragile_functions,
-        detect_literal_constants,
-        detect_range_issues,
-        detect_range_length_mismatch,
-    )
-    from .reconcile import detect_cross_foot_failures, detect_total_mismatches
     from .suppressions import apply_suppressions, load_suppressions
-    from .workbook_inventory import formula_cells, inventory, load_workbooks, scan_live_errors
+    from .workbook_inventory import (
+        formula_cells,
+        inventory,
+        load_workbook_formulas,
+        load_workbook_values,
+    )
 
     input_path = Path(args.workbook)
     preflight_info = preflight(input_path)
@@ -142,18 +141,12 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
     start_time = time.monotonic()
     limits_config = config.get("limits") or {}
     timeout_seconds = int(limits_config.get("timeout_seconds", 0) or 0)
+    budget = Budget(timeout_seconds, start=start_time)
 
-    def _timed_out() -> bool:
-        if timeout_seconds <= 0:
-            return False
-        if time.monotonic() - start_time > timeout_seconds:
-            if not truncated["timeout"]:
-                truncated["timeout"] = True
-                limitations.append(
-                    f"Audit timeout of {timeout_seconds}s exceeded; remaining checks were skipped."
-                )
-            return True
-        return False
+    def _note_timeout(detail: str) -> None:
+        if not truncated["timeout"]:
+            truncated["timeout"] = True
+            limitations.append(f"Audit timeout of {timeout_seconds}s exceeded; {detail}")
 
     if preflight_info["extension"] == ".csv":
         payload = audit_csv(input_path, preflight_info, config, args.ignore)
@@ -179,12 +172,28 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         analysis_path = Path(recalc.get("path", input_path))
         recalc_status = recalc.get("status", "unknown")
 
-        formula_wb, value_wb = load_workbooks(analysis_path)
+        # Static checks always read the original workbook so formula text is
+        # exactly what the author wrote; LibreOffice re-serializes formulas
+        # (for example ``=SUM(#ref!)``) in its converted copy. That copy, when
+        # recalculation ran, only supplies cached values.
+        formula_wb = load_workbook_formulas(input_path)
+        value_wb = load_workbook_values(analysis_path)
         inv = inventory(input_path, formula_wb, value_wb, preflight_info)
         include, exclude = allowed_sheets(config)
         allowed_sheet_names = {
             ws.title for ws in formula_wb.worksheets if sheet_is_allowed(ws.title, include, exclude)
         }
+        if "max_range_expansion_cells" in limits_config:
+            limitations.append(
+                "limits.max_range_expansion_cells is deprecated and ignored; ranges are resolved "
+                "exactly against the formula index, so no reference is dropped for being large."
+            )
+        if getattr(args, "annotated", None) and preflight_info.get("drawing_parts"):
+            limitations.append(
+                f"The annotated copy is written by openpyxl, which does not preserve drawings, charts, "
+                f"images, or form controls; this workbook contains {preflight_info['drawing_parts']} "
+                "such part(s) that the copy will drop. Keep the original workbook as the master."
+            )
         # Cell-count guardrail (cheap to compute).
         max_cells = int(limits_config.get("max_cells", 1_000_000) or 0)
         total_cells = 0
@@ -192,10 +201,14 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             if ws.title not in allowed_sheet_names:
                 continue
             total_cells += int(ws.max_row or 0) * int(ws.max_column or 0)
+        grid_scan_allowed = True
         if max_cells > 0 and total_cells > max_cells:
             truncated["cells"] = True
+            grid_scan_allowed = False
             limitations.append(
-                f"Cell scan capped: workbook reports {total_cells} cells, exceeding the configured max_cells={max_cells}."
+                f"Cell scan capped: workbook reports {total_cells} cells, exceeding the configured "
+                f"max_cells={max_cells}; cell-grid checks (HARDCODE_IN_FORMULA_BLOCK, CROSS_FOOT_FAILURE, "
+                "data hygiene) were skipped. Formula-based checks still ran."
             )
 
         all_formulas = formula_cells(formula_wb)
@@ -208,6 +221,14 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
 
         from .checks import CheckContext, checks as registered_checks
 
+        names = NameTable.from_workbook(formula_wb)
+        array_formulas = int(inv.get("array_formulas", 0) or 0)
+        if array_formulas:
+            unsupported_features.add("array_formulas")
+            limitations.append(
+                f"{array_formulas} array formula(s) were parsed for references only; "
+                "array and spill semantics are not evaluated."
+            )
         ctx = CheckContext(
             workbook_path=input_path,
             formula_wb=formula_wb,
@@ -217,16 +238,24 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             config=config,
             inventory=inv,
             unsupported_features=unsupported_features,
+            names=names,
+            budget=budget,
+            grid_scan_allowed=grid_scan_allowed,
         )
         for check_cls in registered_checks():
-            if _timed_out():
+            check_name = getattr(check_cls, "name", "") or check_cls.__name__
+            if budget.expired():
+                _note_timeout(f"'{check_name}' and remaining checks were skipped.")
                 break
             check = check_cls()
             try:
                 findings.extend(check.run(ctx))
+            except AuditTimeout:
+                _note_timeout(f"'{check_name}' was interrupted and remaining checks were skipped.")
+                break
             except Exception as exc:
                 limitations.append(
-                    f"Check '{getattr(check, 'name', check_cls.__name__)}' raised an exception and was skipped: {exc!r}"
+                    f"Check '{check_name}' raised an exception and was skipped: {exc!r}"
                 )
 
         findings = _dedupe_range_length_with_drift(findings)
@@ -251,14 +280,14 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         coverage = {
             "macros_present": inv["macros_present"],
             "macros_executed": False,
-            "external_links_present": bool(inv["external_links"]) or any("[" in f["formula"] for f in formulas),
+            "external_links_present": bool(inv["external_links"]) or "external_workbook_links" in unsupported_features,
             "unsupported_features": sorted(unsupported_features),
             "limitations": limitations,
             "truncated": truncated,
             "elapsed_seconds": round(time.monotonic() - start_time, 3),
         }
         workbook_meta = {
-            "path": str(input_path),
+            "path": input_path.as_posix(),
             "sha256": inv["sha256"],
             "sheets_analyzed": len(allowed_sheet_names),
             "formulas_scanned": len(formulas),
@@ -300,7 +329,7 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
     return build_payload(
         AUDIT_VERSION,
         {
-            "path": str(path),
+            "path": Path(path).as_posix(),
             "sha256": preflight_info["sha256"],
             "sheets_analyzed": 1,
             "formulas_scanned": 0,
@@ -317,14 +346,41 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
     )
 
 
-def detect_reference_issues(formula_wb, value_wb, formulas: list[dict], unsupported_features: set[str]) -> list[Finding]:
-    from .formula_parser import extract_functions, extract_references
-    from .reference_resolver import cells_from_locations, expand_reference, reference_in_bounds
+def detect_reference_issues(
+    formula_wb,
+    value_wb,
+    formulas: list[dict],
+    unsupported_features: set[str],
+    names=None,
+    budget=None,
+) -> list[Finding]:
+    from .formula_parser import parse_formula
+    from .reference_resolver import boundaries, existing_cell, find_sheet, reference_in_bounds
+    from .workbook_inventory import iter_existing_cells
+
+    occupancy: dict[str, tuple[set[int], set[int]]] = {}
+
+    def occupied(title: str) -> tuple[set[int], set[int]]:
+        if title not in occupancy:
+            rows: set[int] = set()
+            cols: set[int] = set()
+            for existing in iter_existing_cells(formula_wb[title]):
+                if existing.value is not None:
+                    rows.add(existing.row)
+                    cols.add(existing.column)
+            occupancy[title] = (rows, cols)
+        return occupancy[title]
 
     findings: list[Finding] = []
     for cell in formulas:
+        if budget is not None:
+            budget.tick()
         formula = cell["formula"]
-        if "#REF!" in formula.upper():
+        parsed = parse_formula(formula, names=names, origin=(cell["sheet"], cell["row"], cell["col"]))
+        if parsed.parse_error:
+            unsupported_features.add("unparseable_formulas")
+            continue
+        if parsed.deleted_reference:
             findings.append(
                 Finding(
                     rule_id="BROKEN_REFERENCE",
@@ -338,8 +394,9 @@ def detect_reference_issues(formula_wb, value_wb, formulas: list[dict], unsuppor
                     suggested_fix="Restore the deleted reference or rebuild the formula from intended source cells.",
                 )
             )
-        if "[" in formula and "]" in formula:
+        if parsed.external_references:
             unsupported_features.add("external_workbook_links")
+            shown = ", ".join(parsed.external_references[:5])
             findings.append(
                 Finding(
                     rule_id="BROKEN_REFERENCE",
@@ -349,15 +406,21 @@ def detect_reference_issues(formula_wb, value_wb, formulas: list[dict], unsuppor
                     location=cell["location"],
                     title="Formula references external workbook",
                     formula=formula,
-                    evidence=["External workbook links are inventoried but not followed by default."],
+                    evidence=[f"External workbook links are inventoried but not followed by default: {shown}."],
                     suggested_fix="Provide linked workbooks or confirm the cached linked value is current.",
                 )
             )
-        if "@" in formula or reuses_structured_reference(formula):
+        if parsed.unresolved_structured:
+            unsupported_features.add("structured_references")
+        if parsed.three_d_references:
+            unsupported_features.add("3d_references")
+        if parsed.implicit_intersection or parsed.spill:
             unsupported_features.add("structured_or_dynamic_references")
+        if parsed.unresolved_names and not parsed.functions.intersection({"LET", "LAMBDA"}):
+            unsupported_features.add("unresolved_defined_names")
 
-        funcs = extract_functions(formula)
-        if funcs.intersection({"IFERROR", "IFNA"}):
+        masks = parsed.functions.intersection({"IFERROR", "IFNA"})
+        if masks:
             findings.append(
                 Finding(
                     rule_id="IFERROR_MASK",
@@ -367,12 +430,12 @@ def detect_reference_issues(formula_wb, value_wb, formulas: list[dict], unsuppor
                     location=cell["location"],
                     title="Formula may be masking an error",
                     formula=formula,
-                    evidence=[f"Formula uses {', '.join(sorted(funcs.intersection({'IFERROR', 'IFNA'})))}."],
+                    evidence=[f"Formula uses {', '.join(sorted(masks))}."],
                     suggested_fix="Inspect the wrapped expression and confirm the error case is intentional.",
                 )
             )
 
-        for ref in extract_references(formula):
+        for ref in parsed.references:
             ok, reason = reference_in_bounds(ref, cell["sheet"], formula_wb)
             if not ok:
                 findings.append(
@@ -389,23 +452,34 @@ def detect_reference_issues(formula_wb, value_wb, formulas: list[dict], unsuppor
                     )
                 )
                 continue
-            if not ref.is_range:
-                refs = expand_reference(ref, cell["sheet"], limit=1)
-                for ref_loc, ref_cell in cells_from_locations(formula_wb, refs):
-                    if ref_cell.value is None:
-                        findings.append(
-                            Finding(
-                                rule_id="BLANK_PRECEDENT",
-                                severity="Medium",
-                                error_confidence="Review",
-                                detection_mode="DET",
-                                location=cell["location"],
-                                title="Formula references a blank precedent",
-                                formula=formula,
-                                evidence=[f"Referenced cell {ref_loc} is blank."],
-                                suggested_fix="Confirm the blank precedent is intentional or update the formula to the correct input.",
-                            )
-                        )
+            if ref.is_range or not ref.bounded:
+                continue
+            box = boundaries(ref.ref)
+            if box is None:
+                continue
+            title = find_sheet(formula_wb, ref.sheet or cell["sheet"])
+            if title is None:
+                continue
+            target = existing_cell(formula_wb[title], box[1], box[0])
+            if target is None or target.value is None:
+                occupied_rows, occupied_cols = occupied(title)
+                if box[1] not in occupied_rows or box[0] not in occupied_cols:
+                    # An entirely empty row or column is unused space (future
+                    # periods, spare inputs), not a broken link.
+                    continue
+                findings.append(
+                    Finding(
+                        rule_id="BLANK_PRECEDENT",
+                        severity="Medium",
+                        error_confidence="Review",
+                        detection_mode="DET",
+                        location=cell["location"],
+                        title="Formula references a blank precedent",
+                        formula=formula,
+                        evidence=[f"Referenced cell {title}!{ref.ref} is blank."],
+                        suggested_fix="Confirm the blank precedent is intentional or update the formula to the correct input.",
+                    )
+                )
     return findings
 
 
@@ -416,10 +490,6 @@ def _dedupe_range_length_with_drift(findings: list[Finding]) -> list[Finding]:
         for f in findings
         if not (f.rule_id == "RANGE_LENGTH_MISMATCH" and f.location in drift_locations)
     ]
-
-
-def _location_matches(location: str, target: str) -> bool:
-    return bool(target) and (location == target or location.startswith(target) or target in location)
 
 
 def apply_impact_escalation(findings: list[Finding], config: dict) -> list[Finding]:
@@ -439,7 +509,7 @@ def apply_impact_escalation(findings: list[Finding], config: dict) -> list[Findi
     for finding in findings:
         should_escalate = False
 
-        if any(_location_matches(finding.location, target) for target in headline_outputs):
+        if any(location_matches(finding.location, target) for target in headline_outputs):
             finding.impact["feeds_headline_output"] = True
             should_escalate = True
 
@@ -454,29 +524,41 @@ def apply_impact_escalation(findings: list[Finding], config: dict) -> list[Findi
     return findings
 
 
-def reuses_structured_reference(formula: str) -> bool:
-    text = formula.upper()
-    return "[" in text and "]" in text and "!" not in text
+def detect_cycles(
+    formulas: list[dict],
+    expansion_limit: int | None = None,
+    names=None,
+    extents: dict[str, tuple[int, int]] | None = None,
+    budget=None,
+) -> list[Finding]:
+    """Report one CIRCULAR_REFERENCE finding per cyclic dependency component.
 
-
-def detect_cycles(formulas: list[dict], expansion_limit: int = 500) -> list[Finding]:
+    ``expansion_limit`` is accepted for backward compatibility and ignored; see
+    :func:`spreadsheet_auditor.dependency_graph.build_dependency_graph`.
+    """
     from .dependency_graph import build_dependency_graph, find_cycles
 
-    graph = build_dependency_graph(formulas, expansion_limit=expansion_limit)
-    cycles = find_cycles(graph)
+    graph = build_dependency_graph(formulas, names=names, extents=extents, budget=budget)
     findings: list[Finding] = []
-    for cycle in cycles:
-        if len(cycle) < 2:
-            continue
+    for members in find_cycles(graph):
+        if len(members) == 1:
+            title = "Formula references its own cell"
+            evidence = [
+                f"{members[0]} depends on itself, for example a total whose range includes the total cell."
+            ]
+        else:
+            title = "Formula dependency cycle detected"
+            shown = " -> ".join(members[:8]) + (" -> ..." if len(members) > 8 else "")
+            evidence = [f"{len(members)} cells depend on each other in a cycle: {shown}"]
         findings.append(
             Finding(
                 rule_id="CIRCULAR_REFERENCE",
                 severity="High",
                 error_confidence="Likely defect",
                 detection_mode="DET",
-                location=cycle[0],
-                title="Formula dependency cycle detected",
-                evidence=[" -> ".join(cycle[:8])],
+                location=members[0],
+                title=title,
+                evidence=evidence,
                 suggested_fix="Confirm whether iterative calculation is intentional; otherwise break the circular dependency.",
             )
         )
@@ -580,7 +662,24 @@ def _summary_lines(payload: dict, fail_on: str) -> list[str]:
     return lines
 
 
+def _configure_streams() -> None:
+    """Never let a non-ASCII cell label crash report output on a legacy console encoding."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        encoding = (getattr(stream, "encoding", "") or "").replace("-", "").lower()
+        try:
+            if encoding == "utf8":
+                reconfigure(errors="replace")
+            else:
+                reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):  # pragma: no cover - exotic streams
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _configure_streams()
     parser = argparse.ArgumentParser(
         prog="spreadsheet-auditor",
         description="Audit an existing spreadsheet for correctness defects.",
@@ -690,6 +789,9 @@ def main(argv: list[str] | None = None) -> int:
                 from .annotate import annotate_workbook
 
                 annotate_workbook(args.workbook, args.annotated, payload["findings"])
+                for note in payload.get("coverage", {}).get("limitations", []):
+                    if note.startswith("The annotated copy"):
+                        print(f"Warning: {note}", file=sys.stderr)
         except Exception as exc:
             print(f"Failed to write output: {exc}", file=sys.stderr)
             return 5

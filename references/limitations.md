@@ -30,13 +30,21 @@ Calc implements the vast majority of Excel functions, but differences remain:
 
 ## Value-dependent checks
 
-`TOTAL_MISMATCH` and `CROSS_FOOT_FAILURE` need cached or recalculated values:
+`CROSS_FOOT_FAILURE` and the cached-value form of `TOTAL_MISMATCH` need cached
+or recalculated values. The double-count form of `TOTAL_MISMATCH` and
+`LIVE_ERROR` for a formula that carries an error literal are inferred
+statically and never wait for recalculation.
 
 - **Excel users**: open the workbook, press `F9`, save. The auditor reads the
   fresh cached values and runs all value-dependent checks.
-- **CI / headless users**: install LibreOffice. The audit invokes
-  `soffice --headless --calc --convert-to xlsx` to refresh values inside an
-  isolated profile.
+- **CI / headless users**: install LibreOffice. The audit converts the
+  workbook headless inside a throwaway profile that is seeded to force a full
+  recalculation on load (`OOXMLRecalcMode = 0`; LibreOffice's own default for
+  Excel files is "never recalculate", which would silently keep stale cached
+  values) and to never run macros (`MacroSecurityLevel = 3`). Only cached
+  values are taken from the converted copy; formula text always comes from
+  the original file, so LibreOffice's re-serialized formulas never reach the
+  static checks.
 - Without either, the report records:
   > Limitation: Recalculation did not run; value-dependent checks
   > (`TOTAL_MISMATCH`, `CROSS_FOOT_FAILURE`) rely on cached values and may be
@@ -47,8 +55,29 @@ Calc implements the vast majority of Excel functions, but differences remain:
 - The audit is bounded by the `limits` block in your config:
   `max_cells`, `max_formulas`, `max_reported_findings`, `timeout_seconds`.
   Exceeded limits surface in `coverage.truncated`.
-- Very large dependency graphs may exceed `max_range_expansion_cells` for
-  `CIRCULAR_REFERENCE`; expand the limit or accept the truncation note.
+- `timeout_seconds` defaults to 120 and is polled inside every check. When it
+  expires, the check in progress stops, the remaining checks are skipped, and
+  the report carries a limitation note naming the check. Set it to 0 to
+  disable the budget.
+- Checks only visit cells the workbook actually contains, and references are
+  resolved without materializing cells, so a formula that points far away
+  from the data does not grow the scan.
+- When `max_cells` is exceeded, the checks that walk the cell grid
+  (`HARDCODE_IN_FORMULA_BLOCK`, `CROSS_FOOT_FAILURE`, the data-hygiene rules)
+  are skipped and the limitation note says so; formula-based checks still run.
+- `max_range_expansion_cells` is accepted for backward compatibility but no
+  longer does anything: `CIRCULAR_REFERENCE` resolves ranges, including
+  whole-column references, against an index of formula cells and never drops
+  a reference for being large. Setting it produces a deprecation note in the
+  report.
+
+## Annotated copies
+
+`--annotated` writes a separate copy through openpyxl, which does not
+preserve drawings, charts, images, form controls, or embedded objects. The
+audit counts those parts during preflight and, when any exist, records a
+limitation and prints a warning so the copy is never mistaken for a
+replacement of the original workbook.
 
 ## Always disclose when
 
@@ -62,7 +91,9 @@ Calc implements the vast majority of Excel functions, but differences remain:
 - Suppressions hide findings; the report's summary always shows the
   suppressed count. Every suppression requires a reason; malformed
   suppressions (missing reason, unparseable line) are ignored and reported as
-  a coverage limitation so a dropped suppression is never silent.
+  a coverage limitation so a dropped suppression is never silent. Suppression
+  targets are matched by location (a cell, range, whole column/row, or sheet
+  name), never by text prefix.
 
 Never execute macros. Never follow external links without explicit user
 approval and sandbox controls.

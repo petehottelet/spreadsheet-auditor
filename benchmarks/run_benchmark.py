@@ -199,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         results.append(diff_workbook(entry["seeded"], payload, recalc_available))
 
     matrix = render_matrix(catalog, results)
-    Path(args.out).write_text(matrix, encoding="utf-8")
+    Path(args.out).write_text(matrix, encoding="utf-8", newline="\n")
     print(f"Wrote {args.out}")
 
     if args.strict:
