@@ -153,7 +153,7 @@ class FormulaDriftCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..formula_drift import detect_formula_drift
 
-        return detect_formula_drift(ctx.formulas, budget=ctx.budget, names=ctx.names)
+        return detect_formula_drift(ctx.formulas, budget=ctx.budget, names=ctx.names, formula_wb=ctx.formula_wb)
 
 
 @register
