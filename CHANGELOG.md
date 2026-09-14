@@ -87,6 +87,9 @@ to none, the demo from 63 findings to 13 (all seeded), and the benchmark from
   LibreOffice-backed demo and benchmark outputs as a `regenerated-artifacts`
   bundle so the committed copies can always come from a run with
   recalculation available.
+- The release workflow's PyPI publish job now grants `actions: read` and
+  `contents: read`; its job-level `permissions` block had reset them to none,
+  so `actions/download-artifact` failed with 403 before anything was uploaded.
 - **Formula parsing no longer invents cell references.** The regex parser read
   function names such as `LOG10`, `DAYS360`, or `ATAN2` and the tails of names
   such as `EBITDA2025` as cell addresses, then materialized those cells while
