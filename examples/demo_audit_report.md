@@ -2,8 +2,8 @@
 
 ## Executive Summary
 
-- Tool version: `0.2.0` (run at 2026-09-14T03:31:29+00:00)
-- Workbook SHA-256: `4c44aa9fdea19e0d32ea796c9774cf7a628746d7d7749a87ceaa8d8bfd0d23ce`
+- Tool version: `0.2.0` (run at 2026-09-14T07:32:19+00:00)
+- Workbook SHA-256: `c656540f0af5ef59636a503c6e6813b623191e3856914c2e412fc44c7bd911a3`
 - Sheets analyzed: 2
 - Formulas scanned: 30
 - Recalculation status: completed
@@ -108,7 +108,7 @@ _Strong defect candidates; review and confirm._
 - ID: `NUMBERS_STORED_AS_TEXT-001`
 - Location: `Budget!B20`
 - Detection: DET; confidence: Likely defect
-- Evidence: Cell contains text value '1,250' and is referenced by a formula; numeric functions such as SUM ignore text.
+- Evidence: Cell contains text value '1,250' and a formula consumes it as a number; SUM-style functions skip text and arithmetic on it fails.
 - Suggested fix: Convert the value to a number or confirm it is intentionally text.
 
 ### [HIGH] Total double-counts a cell inside its own range - TOTAL_MISMATCH
@@ -146,7 +146,7 @@ _Heuristic flags; worth a second look but may be intentional._
 - ID: `WHITESPACE_KEY-001`
 - Location: `Budget!A18`
 - Detection: DET; confidence: Review
-- Evidence: Raw value is ' North '.
+- Evidence: Raw value is ' North '; the other text values in this column are not padded.
 - Suggested fix: Trim the value if it is used as a lookup key or label.
 
 ## Suppressed Findings Summary

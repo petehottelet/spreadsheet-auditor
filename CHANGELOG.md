@@ -25,7 +25,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   each. Against 0.2.0 as released the overall precision was 36% (Wilson 95%
   interval 32% to 41%), with `LIVE_ERROR` and `BROKEN_REFERENCE` at 100% and
   `BLANK_PRECEDENT`, `CIRCULAR_REFERENCE`, `FORMULA_DRIFT`, `WHITESPACE_KEY`
-  and `MERGED_CELL_IN_DATA_RANGE` at 8% or below.
+  and `MERGED_CELL_IN_DATA_RANGE` at 8% or below. After the changes below the
+  same corpus yields 11,126 findings (from 48,281) at 76% precision (71% to
+  81%), judged on a fresh sample of 337 findings with the same protocol; the
+  report carries a per-rule before/after table.
 
 ### Changed
 
@@ -88,6 +91,24 @@ false positives had in common; the seeded benchmark is unchanged.
   `WHOLE_COLUMN_REFERENCE` report once per formula pattern per sheet, at the
   first cell, with the other cells listed as evidence, instead of once per
   cell.
+- **Second pass**, from labeling the re-audited corpus: `CELL("filename",A1)`
+  in A1 is not a cycle; a compared column inside `SUMPRODUCT` is not numeric
+  consumption; an input column keeps its status when the neighbouring
+  formula line holds a plug or a SUM row; a label column that links every
+  second row of another sheet, and a totals row mixing `SUM` and `AVERAGE`,
+  are not drift; merged formulas (title formulas, net lines) are
+  presentation; a header under a lone title row and two-space indentation
+  are not padded keys while a single stray leading space still is; an array
+  formula that only hands a whole column to `INDEX` is quiet; `COUNTIF`-style
+  criteria literals are not assumptions; `BLANK_PRECEDENT` skips rows whose
+  inputs are all blank and needs three of four surrounding cells filled.
+- **Google Sheets placeholders**: formulas of the form
+  `IFERROR(__xludf.DUMMYFUNCTION("..."), cached value)` set the coverage flag
+  `google_sheets_placeholders` and a limitation note, since those cells are
+  frozen values.
+- **Performance**: `parse_formula` results are cached per name table, so the
+  checks parse each formula once instead of once per check (the slowest
+  corpus workbook spent 88 of 113 seconds parsing).
 
 ## [0.2.0] - 2026-09-13
 
