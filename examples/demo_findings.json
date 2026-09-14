@@ -1,7 +1,7 @@
 {
   "audit_version": "0.1.0",
   "tool_version": "0.1.0",
-  "timestamp": "2026-09-14T03:18:18+00:00",
+  "timestamp": "2026-09-14T03:19:49+00:00",
   "runtime": {
     "python": "3.12.10",
     "platform": "Windows-11-10.0.26200-SP0",
@@ -11,7 +11,7 @@
   },
   "workbook": {
     "path": "examples/demo_bad_budget.xlsx",
-    "sha256": "1c710d64f19dc5de99caf03d2cc1824928ff93851b7253d61a181df27e58c4a3",
+    "sha256": "545d04b80babb03857af991311570257cd0b84345756a6eb0251e9b8425257da",
     "sheets_analyzed": 2,
     "formulas_scanned": 30,
     "recalc_status": "unavailable"
