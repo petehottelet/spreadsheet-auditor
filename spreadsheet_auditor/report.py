@@ -80,7 +80,7 @@ def build_payload(audit_version: str, workbook_meta: dict, coverage: dict, findi
 
 
 def write_json(payload: dict, path: str | Path) -> None:
-    Path(path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    Path(path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 CONFIDENCE_BUCKETS = [
@@ -177,7 +177,9 @@ def render_markdown(payload: dict, show_suppressed: bool = False) -> str:
 
 
 def write_markdown(payload: dict, path: str | Path, show_suppressed: bool = False) -> None:
-    Path(path).write_text(render_markdown(payload, show_suppressed=show_suppressed), encoding="utf-8")
+    Path(path).write_text(
+        render_markdown(payload, show_suppressed=show_suppressed), encoding="utf-8", newline="\n"
+    )
 
 
 def _html_escape(value: object) -> str:
@@ -376,7 +378,9 @@ def render_html(payload: dict, show_suppressed: bool = False) -> str:
 
 
 def write_html(payload: dict, path: str | Path, show_suppressed: bool = False) -> None:
-    Path(path).write_text(render_html(payload, show_suppressed=show_suppressed), encoding="utf-8")
+    Path(path).write_text(
+        render_html(payload, show_suppressed=show_suppressed) + "\n", encoding="utf-8", newline="\n"
+    )
 
 
 def _render_finding(finding: dict) -> list[str]:

@@ -51,6 +51,31 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   except its seeded defects, and both catalogs now list every finding the
   auditor reports against them. A new test fails CI when a seeded workbook
   produces any uncatalogued static finding or misses a seeded one.
+- **Recalculation is real, and it cannot corrupt the static checks.**
+  LibreOffice defaults to "never recalculate" for Excel files, so a headless
+  conversion kept whatever Excel had cached. The isolated profile is now
+  seeded with `OOXMLRecalcMode = 0` (force recalculation) and
+  `MacroSecurityLevel = 3` (macros never run). Static checks read formula text
+  from the original workbook; the converted copy only supplies cached values,
+  so LibreOffice's re-serialized `=SUM(#ref!)` no longer reaches the parser.
+  Lower-case error literals parse in any case.
+- **`LIVE_ERROR` no longer waits for recalculation** when a formula carries
+  an error literal outside any error-handling function: `=SUM(#REF!)`
+  evaluates to an error whatever its inputs, so it is reported statically.
+- **`limits.max_cells` now does what it says.** Exceeding it skips the checks
+  that walk the cell grid and the limitation note names them; before, the
+  note claimed a cap that never happened. Setting the deprecated
+  `limits.max_range_expansion_cells` produces a note instead of silence.
+- **Annotated copies warn about what they drop.** Preflight counts drawings,
+  charts, images, and controls; when `--annotated` would lose any, the report
+  carries a limitation and the CLI prints a warning.
+- Generated reports, JSON, SARIF, the benchmark matrix, and the corpus
+  expectations are written with LF newlines on every platform, and the demo
+  outputs use repository-relative paths instead of a maintainer's directory.
+- CI lints for unused imports and undefined names, and uploads the
+  LibreOffice-backed demo and benchmark outputs as a `regenerated-artifacts`
+  bundle so the committed copies can always come from a run with
+  recalculation available.
 - **Formula parsing no longer invents cell references.** The regex parser read
   function names such as `LOG10`, `DAYS360`, or `ATAN2` and the tails of names
   such as `EBITDA2025` as cell addresses, then materialized those cells while

@@ -12,11 +12,20 @@ from .formula_parser import formula_text
 ERROR_VALUES = {"#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"}
 
 
-def load_workbooks(path: str | Path):
+def load_workbook_formulas(path: str | Path):
+    """Load the workbook with formula text intact (``data_only=False``)."""
     keep_vba = Path(path).suffix.lower() == ".xlsm"
-    formula_wb = load_workbook(path, data_only=False, keep_vba=keep_vba)
-    value_wb = load_workbook(path, data_only=True, keep_vba=keep_vba)
-    return formula_wb, value_wb
+    return load_workbook(path, data_only=False, keep_vba=keep_vba)
+
+
+def load_workbook_values(path: str | Path):
+    """Load the workbook with cached values in place of formulas (``data_only=True``)."""
+    keep_vba = Path(path).suffix.lower() == ".xlsm"
+    return load_workbook(path, data_only=True, keep_vba=keep_vba)
+
+
+def load_workbooks(path: str | Path):
+    return load_workbook_formulas(path), load_workbook_values(path)
 
 
 def location(sheet: str, row: int, col: int) -> str:
@@ -101,7 +110,7 @@ def inventory(path: str | Path, formula_wb, value_wb, preflight: dict) -> dict[s
         defined_names = 0
 
     return {
-        "path": str(path),
+        "path": Path(path).as_posix(),
         "sha256": preflight["sha256"],
         "extension": preflight["extension"],
         "sheets": sheets,

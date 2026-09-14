@@ -27,6 +27,10 @@ class CheckContext:
     #: loops should call ``budget.tick()`` once per row or formula; it raises
     #: ``AuditTimeout`` when the audit's deadline has passed. May be None.
     budget: Any = None
+    #: False when ``limits.max_cells`` was exceeded: checks that walk the cell
+    #: grid (hardcodes, cross-foot, data hygiene) must return nothing and let
+    #: the orchestrator's limitation note explain why.
+    grid_scan_allowed: bool = True
 
 
 class Check:

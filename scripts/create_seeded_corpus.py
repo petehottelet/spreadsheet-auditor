@@ -110,7 +110,7 @@ def build_seeded_defects() -> None:
     expected = {
         "workbook": "seeded-defects.xlsx",
         "static_expected": {
-            "LIVE_ERROR": ["Model!B44"],
+            "LIVE_ERROR": ["Model!B44", "Model!B28"],
             "BROKEN_REFERENCE": ["Model!B28"],
             "FORMULA_DRIFT": ["Model!D4", "Model!B70"],
             "RANGE_EXCLUSION": ["Model!B11", "Model!B17", "Model!B70"],
@@ -127,10 +127,11 @@ def build_seeded_defects() -> None:
         },
         "value_dependent_expected": {
             "CROSS_FOOT_FAILURE": ["Model!E70"],
-            "LIVE_ERROR": ["Model!B28"],
         },
     }
-    (expected_dir / "seeded-defects.json").write_text(json.dumps(expected, indent=2), encoding="utf-8")
+    (expected_dir / "seeded-defects.json").write_text(
+        json.dumps(expected, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     print(out_file)
 
 

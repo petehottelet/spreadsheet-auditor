@@ -123,12 +123,29 @@ def is_formula(value: object) -> bool:
     return DataTableFormula is not None and isinstance(value, DataTableFormula)
 
 
-@lru_cache(maxsize=65536)
-def _tokenize(formula: str) -> tuple[tuple[str, str, str], ...] | None:
+_ERROR_LITERAL_RE = re.compile(
+    r"#(?:REF!|DIV/0!|VALUE!|NAME\?|NUM!|N/A|NULL!|GETTING_DATA|SPILL!|CALC!)", re.IGNORECASE
+)
+
+
+def _run_tokenizer(formula: str) -> tuple[tuple[str, str, str], ...] | None:
     try:
         return tuple((tok.value, tok.type, tok.subtype) for tok in Tokenizer(formula).items)
     except (TokenizerError, IndexError, ValueError):
         return None
+
+
+@lru_cache(maxsize=65536)
+def _tokenize(formula: str) -> tuple[tuple[str, str, str], ...] | None:
+    result = _run_tokenizer(formula)
+    if result is not None:
+        return result
+    # LibreOffice and some other writers serialize error literals in lower
+    # case (``=SUM(#ref!)``), which openpyxl's tokenizer rejects outright.
+    fixed = _ERROR_LITERAL_RE.sub(lambda match: match.group(0).upper(), formula)
+    if fixed == formula:
+        return None
+    return _run_tokenizer(fixed)
 
 
 def tokens(formula: str) -> tuple[tuple[str, str, str], ...] | None:

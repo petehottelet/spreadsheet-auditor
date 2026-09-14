@@ -29,4 +29,6 @@ class CrossFootCheck(Check):
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..reconcile import detect_cross_foot_failures
 
+        if not ctx.grid_scan_allowed:
+            return []
         return detect_cross_foot_failures(ctx.formula_wb, ctx.value_wb, ctx.allowed_sheet_names, budget=ctx.budget)
