@@ -1,0 +1,386 @@
+{
+  "generated": "2026-09-14T06:34:13+00:00",
+  "source": "spreadsheetbench",
+  "run": {
+    "source": "spreadsheetbench",
+    "data_dir": "C:\\Users\\PeteHottelet\\Projects\\skills\\spreadsheet-auditor\\benchmarks\\corpus\\data\\spreadsheetbench\\files",
+    "include_glob": "*_input.*",
+    "seed": 7,
+    "limit": null,
+    "generated": "2026-09-14T06:05:57+00:00",
+    "auditor_version": "0.2.0",
+    "workbooks": 2729,
+    "ok": 2729,
+    "errors": 0,
+    "timeouts": 0,
+    "formulas": 532858,
+    "recalc": {
+      "unavailable": 2729
+    },
+    "findings_total": 48281,
+    "workbooks_with_findings": 979,
+    "severities": {
+      "Medium": 36303,
+      "High": 6914,
+      "Critical": 5064
+    },
+    "rules": {
+      "BLANK_PRECEDENT": {
+        "findings": 15300,
+        "workbooks": 295,
+        "per_1k_formulas": 28.71
+      },
+      "BROKEN_REFERENCE": {
+        "findings": 1913,
+        "workbooks": 74,
+        "per_1k_formulas": 3.59
+      },
+      "CIRCULAR_REFERENCE": {
+        "findings": 1656,
+        "workbooks": 38,
+        "per_1k_formulas": 3.11
+      },
+      "DUPLICATE_KEY": {
+        "findings": 2475,
+        "workbooks": 203,
+        "per_1k_formulas": 4.64
+      },
+      "FORMULA_DRIFT": {
+        "findings": 1323,
+        "workbooks": 124,
+        "per_1k_formulas": 2.48
+      },
+      "HARDCODE_IN_FORMULA_BLOCK": {
+        "findings": 568,
+        "workbooks": 36,
+        "per_1k_formulas": 1.07
+      },
+      "HIDDEN_STRUCTURE_IN_TOTAL": {
+        "findings": 1000,
+        "workbooks": 37,
+        "per_1k_formulas": 1.88
+      },
+      "IFERROR_MASK": {
+        "findings": 4751,
+        "workbooks": 125,
+        "per_1k_formulas": 8.92
+      },
+      "LITERAL_CONSTANT": {
+        "findings": 3999,
+        "workbooks": 273,
+        "per_1k_formulas": 7.5
+      },
+      "LIVE_ERROR": {
+        "findings": 5057,
+        "workbooks": 205,
+        "per_1k_formulas": 9.49
+      },
+      "MERGED_CELL_IN_DATA_RANGE": {
+        "findings": 274,
+        "workbooks": 52,
+        "per_1k_formulas": 0.51
+      },
+      "NUMBERS_STORED_AS_TEXT": {
+        "findings": 2205,
+        "workbooks": 43,
+        "per_1k_formulas": 4.14
+      },
+      "RANGE_EXCLUSION": {
+        "findings": 7,
+        "workbooks": 5,
+        "per_1k_formulas": 0.01
+      },
+      "RANGE_INCLUDES_SUBTOTAL": {
+        "findings": 3,
+        "workbooks": 3,
+        "per_1k_formulas": 0.01
+      },
+      "RANGE_LENGTH_MISMATCH": {
+        "findings": 102,
+        "workbooks": 6,
+        "per_1k_formulas": 0.19
+      },
+      "VOLATILE_FUNCTION": {
+        "findings": 2134,
+        "workbooks": 80,
+        "per_1k_formulas": 4.0
+      },
+      "WHITESPACE_KEY": {
+        "findings": 2510,
+        "workbooks": 181,
+        "per_1k_formulas": 4.71
+      },
+      "WHOLE_COLUMN_REFERENCE": {
+        "findings": 3004,
+        "workbooks": 98,
+        "per_1k_formulas": 5.64
+      }
+    },
+    "unsupported_features": {
+      "array_formulas": 215,
+      "unresolved_defined_names": 19,
+      "external_workbook_links": 45,
+      "structured_references": 3
+    },
+    "elapsed": {
+      "median": 0.765,
+      "p95": 2.282,
+      "max": 69.735
+    },
+    "wall_clock_seconds": 512.2
+  },
+  "rules": [
+    {
+      "rule": "BLANK_PRECEDENT",
+      "findings": 15300,
+      "workbooks": 295,
+      "per_1k_formulas": 28.71,
+      "sampled": 25,
+      "tp": 1,
+      "fp": 24,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.04,
+      "ci_low": 0.007096050386699165,
+      "ci_high": 0.19544472405022525
+    },
+    {
+      "rule": "BROKEN_REFERENCE",
+      "findings": 1913,
+      "workbooks": 74,
+      "per_1k_formulas": 3.59,
+      "sampled": 25,
+      "tp": 25,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.8668035060468213,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "CIRCULAR_REFERENCE",
+      "findings": 1656,
+      "workbooks": 38,
+      "per_1k_formulas": 3.11,
+      "sampled": 25,
+      "tp": 2,
+      "fp": 23,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.08,
+      "ci_low": 0.02221993369109193,
+      "ci_high": 0.24966512122957818
+    },
+    {
+      "rule": "DUPLICATE_KEY",
+      "findings": 2475,
+      "workbooks": 203,
+      "per_1k_formulas": 4.64,
+      "sampled": 25,
+      "tp": 6,
+      "fp": 18,
+      "unsure": 1,
+      "unlabeled": 0,
+      "precision": 0.25,
+      "ci_low": 0.1199920347934233,
+      "ci_high": 0.4489982531210644
+    },
+    {
+      "rule": "FORMULA_DRIFT",
+      "findings": 1323,
+      "workbooks": 124,
+      "per_1k_formulas": 2.48,
+      "sampled": 25,
+      "tp": 0,
+      "fp": 24,
+      "unsure": 1,
+      "unlabeled": 0,
+      "precision": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.13798057582897535
+    },
+    {
+      "rule": "HARDCODE_IN_FORMULA_BLOCK",
+      "findings": 568,
+      "workbooks": 36,
+      "per_1k_formulas": 1.07,
+      "sampled": 25,
+      "tp": 2,
+      "fp": 23,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.08,
+      "ci_low": 0.02221993369109193,
+      "ci_high": 0.24966512122957818
+    },
+    {
+      "rule": "HIDDEN_STRUCTURE_IN_TOTAL",
+      "findings": 1000,
+      "workbooks": 37,
+      "per_1k_formulas": 1.88,
+      "sampled": 25,
+      "tp": 19,
+      "fp": 6,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.76,
+      "ci_low": 0.5656994004476144,
+      "ci_high": 0.8850384226967327
+    },
+    {
+      "rule": "IFERROR_MASK",
+      "findings": 4751,
+      "workbooks": 125,
+      "per_1k_formulas": 8.92,
+      "sampled": 25,
+      "tp": 11,
+      "fp": 13,
+      "unsure": 1,
+      "unlabeled": 0,
+      "precision": 0.4583333333333333,
+      "ci_low": 0.2789105835168143,
+      "ci_high": 0.6492544644689336
+    },
+    {
+      "rule": "LITERAL_CONSTANT",
+      "findings": 3999,
+      "workbooks": 273,
+      "per_1k_formulas": 7.5,
+      "sampled": 25,
+      "tp": 9,
+      "fp": 14,
+      "unsure": 2,
+      "unlabeled": 0,
+      "precision": 0.391304347826087,
+      "ci_low": 0.22157377982382145,
+      "ci_high": 0.5921482039625402
+    },
+    {
+      "rule": "LIVE_ERROR",
+      "findings": 5057,
+      "workbooks": 205,
+      "per_1k_formulas": 9.49,
+      "sampled": 25,
+      "tp": 25,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.8668035060468213,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "MERGED_CELL_IN_DATA_RANGE",
+      "findings": 274,
+      "workbooks": 52,
+      "per_1k_formulas": 0.51,
+      "sampled": 25,
+      "tp": 0,
+      "fp": 25,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.13319649395317873
+    },
+    {
+      "rule": "NUMBERS_STORED_AS_TEXT",
+      "findings": 2205,
+      "workbooks": 43,
+      "per_1k_formulas": 4.14,
+      "sampled": 25,
+      "tp": 10,
+      "fp": 15,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.4,
+      "ci_low": 0.23403057664190918,
+      "ci_high": 0.5926087221487266
+    },
+    {
+      "rule": "RANGE_EXCLUSION",
+      "findings": 7,
+      "workbooks": 5,
+      "per_1k_formulas": 0.01,
+      "sampled": 7,
+      "tp": 4,
+      "fp": 3,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.5714285714285714,
+      "ci_low": 0.2504542304090258,
+      "ci_high": 0.8417830777373732
+    },
+    {
+      "rule": "RANGE_INCLUDES_SUBTOTAL",
+      "findings": 3,
+      "workbooks": 3,
+      "per_1k_formulas": 0.01,
+      "sampled": 3,
+      "tp": 0,
+      "fp": 3,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.5615060804490177
+    },
+    {
+      "rule": "RANGE_LENGTH_MISMATCH",
+      "findings": 102,
+      "workbooks": 6,
+      "per_1k_formulas": 0.19,
+      "sampled": 9,
+      "tp": 3,
+      "fp": 6,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.3333333333333333,
+      "ci_low": 0.12058159868274293,
+      "ci_high": 0.6458026525009102
+    },
+    {
+      "rule": "VOLATILE_FUNCTION",
+      "findings": 2134,
+      "workbooks": 80,
+      "per_1k_formulas": 4.0,
+      "sampled": 25,
+      "tp": 16,
+      "fp": 9,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.64,
+      "ci_low": 0.44518154601046633,
+      "ci_high": 0.7975234356826436
+    },
+    {
+      "rule": "WHITESPACE_KEY",
+      "findings": 2510,
+      "workbooks": 181,
+      "per_1k_formulas": 4.71,
+      "sampled": 25,
+      "tp": 2,
+      "fp": 23,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.08,
+      "ci_low": 0.02221993369109193,
+      "ci_high": 0.24966512122957818
+    },
+    {
+      "rule": "WHOLE_COLUMN_REFERENCE",
+      "findings": 3004,
+      "workbooks": 98,
+      "per_1k_formulas": 5.64,
+      "sampled": 25,
+      "tp": 6,
+      "fp": 19,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.24,
+      "ci_low": 0.11496157730326725,
+      "ci_high": 0.43430059955238565
+    }
+  ]
+}

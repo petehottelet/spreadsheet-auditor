@@ -259,6 +259,11 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
                 )
 
         findings = _dedupe_range_length_with_drift(findings)
+        if "google_sheets_placeholders" in unsupported_features:
+            limitations.append(
+                "Some formulas are Google Sheets placeholders (IFERROR(__xludf.DUMMYFUNCTION(...), cached value)); "
+                "those cells are frozen values, not live calculations."
+            )
         if recalc_status != "completed":
             limitations.append(
                 "Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) "
@@ -354,24 +359,57 @@ def detect_reference_issues(
     names=None,
     budget=None,
 ) -> list[Finding]:
-    from .formula_parser import parse_formula
+    from bisect import bisect_left
+
+    from .formula_parser import external_source, is_formula, parse_formula
+    from .grouping import group_by_pattern, pattern_note
     from .reference_resolver import boundaries, existing_cell, find_sheet, reference_in_bounds
     from .workbook_inventory import iter_existing_cells
 
-    occupancy: dict[str, tuple[set[int], set[int]]] = {}
+    # Per sheet: rows holding at least one constant, and per column the sorted
+    # rows holding constants. Formulas are not constants: a template row whose
+    # only content is formulas is unused space.
+    layout: dict[str, tuple[set[int], dict[int, list[int]]]] = {}
 
-    def occupied(title: str) -> tuple[set[int], set[int]]:
-        if title not in occupancy:
+    def constants_layout(title: str) -> tuple[set[int], dict[int, list[int]]]:
+        if title not in layout:
             rows: set[int] = set()
-            cols: set[int] = set()
+            cols: dict[int, list[int]] = {}
             for existing in iter_existing_cells(formula_wb[title]):
-                if existing.value is not None:
-                    rows.add(existing.row)
-                    cols.add(existing.column)
-            occupancy[title] = (rows, cols)
-        return occupancy[title]
+                value = existing.value
+                if value is None or is_formula(value):
+                    continue
+                rows.add(existing.row)
+                cols.setdefault(existing.column, []).append(existing.row)
+            layout[title] = (rows, {col: sorted(found) for col, found in cols.items()})
+        return layout[title]
+
+    def anomalous_blank(title: str, row: int, col: int, window: int = 10) -> bool:
+        """A blank is anomalous when it is a gap in a filled column of a filled row.
+
+        Its row must hold a constant somewhere, its column must hold constants
+        both above and below it, and the column must be mostly filled around
+        it; a sparse ledger column or the tail of a template is not a gap.
+        """
+        rows, cols = constants_layout(title)
+        if row not in rows:
+            return False
+        column_rows = cols.get(col)
+        if not column_rows:
+            return False
+        idx = bisect_left(column_rows, row)
+        if idx == 0 or idx >= len(column_rows):
+            return False
+        low = max(column_rows[0], row - window)
+        high = min(column_rows[-1], row + window)
+        filled = bisect_left(column_rows, high + 1) - bisect_left(column_rows, low)
+        # Three in four cells around the blank must be filled: a ledger with a
+        # debit and a credit column is half blank by design.
+        return filled * 4 >= (high - low + 1) * 3
 
     findings: list[Finding] = []
+    masked: list[tuple[dict, set[str]]] = []
+    external: dict[tuple[str, str], list[dict]] = {}
     for cell in formulas:
         if budget is not None:
             budget.tick()
@@ -396,20 +434,8 @@ def detect_reference_issues(
             )
         if parsed.external_references:
             unsupported_features.add("external_workbook_links")
-            shown = ", ".join(parsed.external_references[:5])
-            findings.append(
-                Finding(
-                    rule_id="BROKEN_REFERENCE",
-                    severity="High",
-                    error_confidence="Review",
-                    detection_mode="DET",
-                    location=cell["location"],
-                    title="Formula references external workbook",
-                    formula=formula,
-                    evidence=[f"External workbook links are inventoried but not followed by default: {shown}."],
-                    suggested_fix="Provide linked workbooks or confirm the cached linked value is current.",
-                )
-            )
+            for source in sorted({external_source(raw) for raw in parsed.external_references}):
+                external.setdefault((cell["sheet"], source), []).append(cell)
         if parsed.unresolved_structured:
             unsupported_features.add("structured_references")
         if parsed.three_d_references:
@@ -418,23 +444,24 @@ def detect_reference_issues(
             unsupported_features.add("structured_or_dynamic_references")
         if parsed.unresolved_names and not parsed.functions.intersection({"LET", "LAMBDA"}):
             unsupported_features.add("unresolved_defined_names")
+        if "DUMMYFUNCTION" in parsed.functions:
+            # Google Sheets exports functions Excel lacks as
+            # IFERROR(__xludf.DUMMYFUNCTION("..."), <cached value>).
+            unsupported_features.add("google_sheets_placeholders")
 
         masks = parsed.functions.intersection({"IFERROR", "IFNA"})
         if masks:
-            findings.append(
-                Finding(
-                    rule_id="IFERROR_MASK",
-                    severity="Medium",
-                    error_confidence="Review",
-                    detection_mode="HEUR",
-                    location=cell["location"],
-                    title="Formula may be masking an error",
-                    formula=formula,
-                    evidence=[f"Formula uses {', '.join(sorted(masks))}."],
-                    suggested_fix="Inspect the wrapped expression and confirm the error case is intentional.",
-                )
-            )
+            masked.append((cell, masks))
 
+        # A cell the formula tests for blank anywhere (=""; ISBLANK; a
+        # comparison; inside IFERROR) is handled wherever else it appears.
+        tested = {
+            ((ref.sheet or cell["sheet"]).casefold(), ref.ref) for ref in parsed.references if ref.guarded
+        }
+        # A row whose inputs are all blank (a day off on a timesheet, an
+        # unused template row) is not a broken link; only a lone blank among
+        # filled inputs is.
+        row_inputs_blank = _row_inputs_all_blank(formula_wb, cell, parsed)
         for ref in parsed.references:
             ok, reason = reference_in_bounds(ref, cell["sheet"], formula_wb)
             if not ok:
@@ -452,7 +479,9 @@ def detect_reference_issues(
                     )
                 )
                 continue
-            if ref.is_range or not ref.bounded:
+            if ref.is_range or not ref.bounded or ref.positional or not ref.sensitive or row_inputs_blank:
+                continue
+            if ((ref.sheet or cell["sheet"]).casefold(), ref.ref) in tested:
                 continue
             box = boundaries(ref.ref)
             if box is None:
@@ -462,10 +491,7 @@ def detect_reference_issues(
                 continue
             target = existing_cell(formula_wb[title], box[1], box[0])
             if target is None or target.value is None:
-                occupied_rows, occupied_cols = occupied(title)
-                if box[1] not in occupied_rows or box[0] not in occupied_cols:
-                    # An entirely empty row or column is unused space (future
-                    # periods, spare inputs), not a broken link.
+                if not anomalous_blank(title, box[1], box[0]):
                     continue
                 findings.append(
                     Finding(
@@ -476,11 +502,82 @@ def detect_reference_issues(
                         location=cell["location"],
                         title="Formula references a blank precedent",
                         formula=formula,
-                        evidence=[f"Referenced cell {title}!{ref.ref} is blank."],
+                        evidence=[
+                            f"Referenced cell {title}!{ref.ref} is blank although the cells around it in its column hold data, "
+                            "and the formula uses it without testing for a blank."
+                        ],
                         suggested_fix="Confirm the blank precedent is intentional or update the formula to the correct input.",
                     )
                 )
+
+    for (sheet, source), cells in sorted(external.items()):
+        shown = ", ".join(c["location"] for c in cells[:8]) + (", ..." if len(cells) > 8 else "")
+        findings.append(
+            Finding(
+                rule_id="BROKEN_REFERENCE",
+                severity="Low",
+                error_confidence="Info",
+                detection_mode="DET",
+                location=cells[0]["location"],
+                title="Formulas reference an external workbook",
+                formula=cells[0]["formula"],
+                evidence=[
+                    f"{len(cells)} cell(s) on {sheet} link to {source}; external links are inventoried but not "
+                    f"followed, so their cached values are taken as given: {shown}."
+                ],
+                suggested_fix="Provide the linked workbook or confirm the cached linked values are current.",
+            )
+        )
+
+    masks_of = {id(cell): masks for cell, masks in masked}
+    for members in group_by_pattern([cell for cell, _ in masked]):
+        lead = members[0]
+        evidence = [f"Formula uses {', '.join(sorted(masks_of[id(lead)]))}."]
+        note = pattern_note(members)
+        if note:
+            evidence.append(note)
+        findings.append(
+            Finding(
+                rule_id="IFERROR_MASK",
+                severity="Medium",
+                error_confidence="Review",
+                detection_mode="HEUR",
+                location=lead["location"],
+                title="Formula may be masking an error",
+                formula=lead["formula"],
+                evidence=evidence,
+                suggested_fix="Inspect the wrapped expression and confirm the error case is intentional.",
+            )
+        )
     return findings
+
+
+def _row_inputs_all_blank(formula_wb, cell: dict, parsed) -> bool:
+    """True when the formula reads two or more single cells from its own row and all are blank.
+
+    A timesheet day with neither an in nor an out time, or a template row
+    with every input empty, is unused space; a lone blank input among filled
+    ones is what BLANK_PRECEDENT is for.
+    """
+    from .reference_resolver import boundaries, existing_cell, find_sheet
+
+    inputs = 0
+    for ref in parsed.references:
+        if ref.is_range or not ref.bounded or ref.positional:
+            continue
+        if ref.sheet is not None and ref.sheet.casefold() != cell["sheet"].casefold():
+            continue
+        box = boundaries(ref.ref)
+        if box is None or box[1] != cell["row"] or box[0] == cell["col"]:
+            continue
+        title = find_sheet(formula_wb, cell["sheet"])
+        if title is None:
+            return False
+        target = existing_cell(formula_wb[title], box[1], box[0])
+        if target is not None and target.value is not None:
+            return False
+        inputs += 1
+    return inputs >= 2
 
 
 def _dedupe_range_length_with_drift(findings: list[Finding]) -> list[Finding]:

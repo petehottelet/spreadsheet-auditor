@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from bisect import bisect_left
 from collections import Counter, defaultdict
 
@@ -24,9 +25,13 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> 
 
     by_row: dict[tuple[str, int], list[dict]] = defaultdict(list)
     by_col: dict[tuple[str, int], list[dict]] = defaultdict(list)
+    pattern_at: dict[tuple[str, int, int], str] = {}
     for cell in formula_cells:
         by_row[(cell["sheet"], cell["row"])].append(cell)
         by_col[(cell["sheet"], cell["col"])].append(cell)
+        pattern_at[(cell["sheet"], cell["row"], cell["col"])] = normalize_formula(
+            cell["formula"], cell["row"], cell["col"]
+        )
 
     groups = [(values, "row") for values in by_row.values()]
     groups += [(values, "column") for values in by_col.values()]
@@ -41,16 +46,30 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> 
             members = [c for c in segment if not is_total_of_segment(c, axis, fixed, low, high, names)]
             if len(members) < 3:
                 continue
-            patterns = [normalize_formula(c["formula"], c["row"], c["col"]) for c in members]
+            patterns = [pattern_at[(c["sheet"], c["row"], c["col"])] for c in members]
             counts = Counter(patterns)
             majority, count = counts.most_common(1)[0]
-            if count < len(members) - 1:
+            if "#REF!" in majority:
                 continue
-            for idx, (cell, pattern) in enumerate(zip(members, patterns)):
+            pairs = list(zip(members, patterns))
+            # The seed of a chain (an opening balance, year 0 of a projection)
+            # links to its source while every later cell builds on the
+            # previous one; it is expected to differ and is not a member.
+            if pairs[0][1] != majority and _chain_step(majority, axis, -1):
+                pairs = pairs[1:]
+            if pairs and pairs[-1][1] != majority and _chain_step(majority, axis, 1):
+                pairs = pairs[:-1]
+            if len(pairs) < 3 or count < len(pairs) - 1:
+                continue
+            for cell, pattern in pairs:
                 if pattern == majority or cell["location"] in seen:
                     continue
+                if _AGG_RE.sub("AGG(", pattern) == _AGG_RE.sub("AGG(", majority):
+                    continue  # a totals row where one column sums and the next averages the same block
+                if _conforms_across(cell, pattern, majority, axis, pattern_at):
+                    continue
                 seen.add(cell["location"])
-                neighbors = _drift_neighbors(members, idx)
+                neighbors = _drift_neighbors(members, members.index(cell))
                 evidence = [
                     f"Formula differs from the dominant relative pattern in this {axis}.",
                     f"Dominant pattern (n={count}): {majority}",
@@ -72,6 +91,55 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> 
                     )
                 )
     return findings
+
+
+_OFFSET_RE = re.compile(r"\[-?\d+\]")
+_AGG_RE = re.compile(r"\b(?:SUM|AVERAGE|AVERAGEA|COUNT|COUNTA|MIN|MAX|MEDIAN|SUBTOTAL)\(")
+
+
+def _shape(pattern: str) -> str:
+    """A pattern with its relative offsets blanked: what the formula does, not where it points."""
+    return _OFFSET_RE.sub("[]", pattern)
+
+
+def _conforms_across(
+    cell: dict, pattern: str, majority: str, axis: str, pattern_at: dict[tuple[str, int, int], str]
+) -> bool:
+    """True when the cell's formula matches a formula neighbour on the other axis.
+
+    A row of unrelated columns (a label link, a derived column, a mirror
+    column) is not a fill. The cell that differs from the two beside it but
+    agrees with the cell above or below it is a different column by design,
+    not a broken pattern. When the cell is a structurally different formula
+    from the majority (not the same formula with a slipped offset), agreeing
+    in shape with its neighbour is enough: a label column that links every
+    second row of another sheet never repeats an exact pattern. The price is
+    a column filled down wrongly in every row, which then reads as
+    consistent; the column scan still sees it when its own pattern breaks.
+    """
+    if axis == "row":
+        keys = [(cell["sheet"], cell["row"] - 1, cell["col"]), (cell["sheet"], cell["row"] + 1, cell["col"])]
+    else:
+        keys = [(cell["sheet"], cell["row"], cell["col"] - 1), (cell["sheet"], cell["row"], cell["col"] + 1)]
+    found = [pattern_at[key] for key in keys if key in pattern_at]
+    if any(other == pattern for other in found):
+        return True
+    shape = _shape(pattern)
+    return shape != _shape(majority) and any(_shape(other) == shape for other in found)
+
+
+def _chain_step(majority: str, axis: str, direction: int) -> bool:
+    """True when the dominant pattern reads the neighbouring cell one step back along the axis.
+
+    ``direction`` -1 means each cell builds on its predecessor (a running
+    balance, a projection), so the first cell of the run is the seed; 1 means
+    the run chains the other way and the last cell is the seed.
+    """
+    if axis == "row":
+        token = "RC[-1]" if direction < 0 else "RC[1]"
+    else:
+        token = "R[-1]C" if direction < 0 else "R[1]C"
+    return token in majority
 
 
 def _drift_neighbors(segment: list[dict], idx: int, radius: int = 1) -> list[str]:
@@ -130,11 +198,51 @@ def detect_hardcode_breaks(
             by_col[cell.column][cell.row] = cell.value
         for row, values in by_row.items():
             tick(budget)
-            _hardcode_breaks_in_line(values, ws.title, row, None, seen, findings, names)
+            _hardcode_breaks_in_line(values, ws.title, row, None, seen, findings, names, by_row)
         for col, values in by_col.items():
             tick(budget)
-            _hardcode_breaks_in_line(values, ws.title, None, col, seen, findings, names)
+            _hardcode_breaks_in_line(values, ws.title, None, col, seen, findings, names, by_row)
     return findings
+
+
+def _is_input_line(
+    by_row: dict[int, dict[int, object]],
+    cell_pos: tuple[int, int],
+    left_pos: tuple[int, int],
+    right_pos: tuple[int, int],
+) -> bool:
+    """True when the constant belongs to a line of inputs between two lines of formulas.
+
+    An input column between two running-sum columns, or an input row between
+    two ratio rows, puts a constant between two formulas that share a pattern
+    on every line. The tell is the other axis: the constant's neighbours
+    there are constants too, while the formulas' neighbours are formulas.
+    """
+
+    def at(row: int, col: int):
+        return by_row.get(row, {}).get(col)
+
+    row, col = cell_pos
+    across = left_pos[0] == row  # the formula pair lies in this row
+    evaluated = 0
+    formulas = 0
+    for step in (-1, 1):
+        if across:  # look up and down
+            beside = at(row + step, col)
+            corners = [at(row + step, left_pos[1]), at(row + step, right_pos[1])]
+        else:  # look left and right
+            beside = at(row, col + step)
+            corners = [at(left_pos[0], col + step), at(right_pos[0], col + step)]
+        # A header, a label, a total row or the edge of the block beside the
+        # constant says nothing either way; a constant beside it does, when
+        # the formula lines continue there too.
+        if _is_plain_number(beside):
+            evaluated += len(corners)
+            formulas += sum(1 for v in corners if is_formula(v))
+    if evaluated == 0:
+        return False
+    # One of four corners may itself hold a plug in the neighbouring formula line.
+    return formulas == evaluated or (evaluated >= 4 and formulas >= evaluated - 1)
 
 
 def _hardcode_breaks_in_line(
@@ -145,6 +253,7 @@ def _hardcode_breaks_in_line(
     seen: set[str],
     findings: list[Finding],
     names,
+    by_row: dict[int, dict[int, object]],
 ) -> None:
     keys = sorted(values)
     formula_keys = [key for key in keys if is_formula(values[key])]
@@ -164,6 +273,8 @@ def _hardcode_breaks_in_line(
         left, right = formula_keys[idx - 1], formula_keys[idx]
         if right - left - 1 > MAX_PLUG_GAP:
             continue
+        if any(isinstance(values.get(k), str) and not is_formula(values[k]) for k in range(left + 1, right)):
+            continue  # a text label between the two formulas ends one block and starts another
         left_pos, right_pos, cell_pos = position(left), position(right), position(key)
         left_text = formula_text(values[left])
         right_text = formula_text(values[right])
@@ -175,6 +286,8 @@ def _hardcode_breaks_in_line(
         if _aggregates_over(left_text, left_pos, sheet, cell_pos, names) or _aggregates_over(
             right_text, right_pos, sheet, cell_pos, names
         ):
+            continue
+        if _is_input_line(by_row, cell_pos, left_pos, right_pos):
             continue
         loc = location(sheet, *cell_pos)
         if loc in seen:

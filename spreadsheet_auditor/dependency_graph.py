@@ -55,6 +55,10 @@ def build_dependency_graph(
         deps = graph[item["location"]]
         origin = (item["sheet"], item["row"], item["col"])
         for ref in extract_references(item["formula"], names=names, origin=origin):
+            if ref.positional:
+                # ROWS(A$1:A3), COLUMN(B7): the reference's shape is read, not
+                # its value, so it is not an edge (and never a cycle).
+                continue
             key = (ref.sheet or item["sheet"]).casefold()
             cols = index.get(key)
             if not cols:

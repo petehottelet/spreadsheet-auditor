@@ -1,0 +1,350 @@
+{
+  "generated": "2026-09-14T07:48:00+00:00",
+  "source": "spreadsheetbench",
+  "run": {
+    "source": "spreadsheetbench",
+    "data_dir": "C:\\Users\\PeteHottelet\\Projects\\skills\\spreadsheet-auditor\\benchmarks\\corpus\\data\\spreadsheetbench\\files",
+    "include_glob": "*_input.*",
+    "seed": 7,
+    "limit": null,
+    "generated": "2026-09-14T07:37:43+00:00",
+    "auditor_version": "0.2.0",
+    "workbooks": 2729,
+    "ok": 2729,
+    "errors": 0,
+    "timeouts": 0,
+    "formulas": 532858,
+    "recalc": {
+      "unavailable": 2729
+    },
+    "findings_total": 11126,
+    "workbooks_with_findings": 664,
+    "severities": {
+      "Medium": 4991,
+      "Low": 131,
+      "Critical": 5061,
+      "High": 943
+    },
+    "rules": {
+      "BLANK_PRECEDENT": {
+        "findings": 29,
+        "workbooks": 15,
+        "per_1k_formulas": 0.05
+      },
+      "BROKEN_REFERENCE": {
+        "findings": 479,
+        "workbooks": 71,
+        "per_1k_formulas": 0.9
+      },
+      "CIRCULAR_REFERENCE": {
+        "findings": 171,
+        "workbooks": 6,
+        "per_1k_formulas": 0.32
+      },
+      "DUPLICATE_KEY": {
+        "findings": 647,
+        "workbooks": 45,
+        "per_1k_formulas": 1.21
+      },
+      "FORMULA_DRIFT": {
+        "findings": 127,
+        "workbooks": 76,
+        "per_1k_formulas": 0.24
+      },
+      "HARDCODE_IN_FORMULA_BLOCK": {
+        "findings": 145,
+        "workbooks": 28,
+        "per_1k_formulas": 0.27
+      },
+      "HIDDEN_STRUCTURE_IN_TOTAL": {
+        "findings": 154,
+        "workbooks": 40,
+        "per_1k_formulas": 0.29
+      },
+      "IFERROR_MASK": {
+        "findings": 1763,
+        "workbooks": 146,
+        "per_1k_formulas": 3.31
+      },
+      "LITERAL_CONSTANT": {
+        "findings": 1015,
+        "workbooks": 170,
+        "per_1k_formulas": 1.9
+      },
+      "LIVE_ERROR": {
+        "findings": 5057,
+        "workbooks": 205,
+        "per_1k_formulas": 9.49
+      },
+      "NUMBERS_STORED_AS_TEXT": {
+        "findings": 847,
+        "workbooks": 22,
+        "per_1k_formulas": 1.59
+      },
+      "RANGE_EXCLUSION": {
+        "findings": 4,
+        "workbooks": 2,
+        "per_1k_formulas": 0.01
+      },
+      "RANGE_LENGTH_MISMATCH": {
+        "findings": 54,
+        "workbooks": 3,
+        "per_1k_formulas": 0.1
+      },
+      "VOLATILE_FUNCTION": {
+        "findings": 120,
+        "workbooks": 96,
+        "per_1k_formulas": 0.23
+      },
+      "WHITESPACE_KEY": {
+        "findings": 490,
+        "workbooks": 124,
+        "per_1k_formulas": 0.92
+      },
+      "WHOLE_COLUMN_REFERENCE": {
+        "findings": 24,
+        "workbooks": 15,
+        "per_1k_formulas": 0.05
+      }
+    },
+    "unsupported_features": {
+      "array_formulas": 215,
+      "unresolved_defined_names": 19,
+      "external_workbook_links": 45,
+      "structured_references": 3,
+      "google_sheets_placeholders": 3
+    },
+    "elapsed": {
+      "median": 0.469,
+      "p95": 1.079,
+      "max": 46.844
+    },
+    "wall_clock_seconds": 476.2
+  },
+  "rules": [
+    {
+      "rule": "BLANK_PRECEDENT",
+      "findings": 29,
+      "workbooks": 15,
+      "per_1k_formulas": 0.05,
+      "sampled": 25,
+      "tp": 0,
+      "fp": 25,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.0,
+      "ci_low": 0.0,
+      "ci_high": 0.13319649395317873
+    },
+    {
+      "rule": "BROKEN_REFERENCE",
+      "findings": 479,
+      "workbooks": 71,
+      "per_1k_formulas": 0.9,
+      "sampled": 25,
+      "tp": 25,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.8668035060468213,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "CIRCULAR_REFERENCE",
+      "findings": 171,
+      "workbooks": 6,
+      "per_1k_formulas": 0.32,
+      "sampled": 9,
+      "tp": 9,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.7008472464490407,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "DUPLICATE_KEY",
+      "findings": 647,
+      "workbooks": 45,
+      "per_1k_formulas": 1.21,
+      "sampled": 25,
+      "tp": 18,
+      "fp": 6,
+      "unsure": 1,
+      "unlabeled": 0,
+      "precision": 0.75,
+      "ci_low": 0.5510017468789357,
+      "ci_high": 0.8800079652065766
+    },
+    {
+      "rule": "FORMULA_DRIFT",
+      "findings": 127,
+      "workbooks": 76,
+      "per_1k_formulas": 0.24,
+      "sampled": 25,
+      "tp": 12,
+      "fp": 6,
+      "unsure": 7,
+      "unlabeled": 0,
+      "precision": 0.6666666666666666,
+      "ci_low": 0.4374906934425036,
+      "ci_high": 0.8372144563633714
+    },
+    {
+      "rule": "HARDCODE_IN_FORMULA_BLOCK",
+      "findings": 145,
+      "workbooks": 28,
+      "per_1k_formulas": 0.27,
+      "sampled": 25,
+      "tp": 15,
+      "fp": 10,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.6,
+      "ci_low": 0.40739127785127344,
+      "ci_high": 0.7659694233580909
+    },
+    {
+      "rule": "HIDDEN_STRUCTURE_IN_TOTAL",
+      "findings": 154,
+      "workbooks": 40,
+      "per_1k_formulas": 0.29,
+      "sampled": 25,
+      "tp": 25,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.8668035060468213,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "IFERROR_MASK",
+      "findings": 1763,
+      "workbooks": 146,
+      "per_1k_formulas": 3.31,
+      "sampled": 25,
+      "tp": 7,
+      "fp": 18,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.28,
+      "ci_low": 0.1428367383738157,
+      "ci_high": 0.47576971896558296
+    },
+    {
+      "rule": "LITERAL_CONSTANT",
+      "findings": 1015,
+      "workbooks": 170,
+      "per_1k_formulas": 1.9,
+      "sampled": 25,
+      "tp": 17,
+      "fp": 8,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.68,
+      "ci_low": 0.48409913734576715,
+      "ci_high": 0.8279501248310887
+    },
+    {
+      "rule": "LIVE_ERROR",
+      "findings": 5057,
+      "workbooks": 205,
+      "per_1k_formulas": 9.49,
+      "sampled": 25,
+      "tp": 25,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.8668035060468213,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "NUMBERS_STORED_AS_TEXT",
+      "findings": 847,
+      "workbooks": 22,
+      "per_1k_formulas": 1.59,
+      "sampled": 25,
+      "tp": 24,
+      "fp": 1,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.96,
+      "ci_low": 0.8045552759497747,
+      "ci_high": 0.9929039496133008
+    },
+    {
+      "rule": "RANGE_EXCLUSION",
+      "findings": 4,
+      "workbooks": 2,
+      "per_1k_formulas": 0.01,
+      "sampled": 4,
+      "tp": 4,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.5100999795960008,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "RANGE_LENGTH_MISMATCH",
+      "findings": 54,
+      "workbooks": 3,
+      "per_1k_formulas": 0.1,
+      "sampled": 6,
+      "tp": 6,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.6096569663469354,
+      "ci_high": 0.9999999999999999
+    },
+    {
+      "rule": "VOLATILE_FUNCTION",
+      "findings": 120,
+      "workbooks": 96,
+      "per_1k_formulas": 0.23,
+      "sampled": 25,
+      "tp": 25,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.8668035060468213,
+      "ci_high": 1.0
+    },
+    {
+      "rule": "WHITESPACE_KEY",
+      "findings": 490,
+      "workbooks": 124,
+      "per_1k_formulas": 0.92,
+      "sampled": 25,
+      "tp": 21,
+      "fp": 4,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 0.84,
+      "ci_low": 0.6534598601976183,
+      "ci_high": 0.9359665239142201
+    },
+    {
+      "rule": "WHOLE_COLUMN_REFERENCE",
+      "findings": 24,
+      "workbooks": 15,
+      "per_1k_formulas": 0.05,
+      "sampled": 18,
+      "tp": 18,
+      "fp": 0,
+      "unsure": 0,
+      "unlabeled": 0,
+      "precision": 1.0,
+      "ci_low": 0.8241154494176252,
+      "ci_high": 1.0
+    }
+  ]
+}
