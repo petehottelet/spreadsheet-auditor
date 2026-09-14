@@ -13,6 +13,7 @@ report are committed.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import random
@@ -269,11 +270,34 @@ def load_findings(results_dir: Path) -> list[dict]:
             if finding.get("suppressed"):
                 continue
             items.append({"workbook": rel, "sha256": record["sha256"], "finding": finding})
+    assign_keys(items)
     return items
 
 
 def finding_key(sha256: str, rule_id: str, location: str) -> str:
     return f"{sha256[:12]}|{rule_id}|{location.replace(' ', '')}"
+
+
+def assign_keys(items: list[dict]) -> None:
+    """Give every finding of a run a label key.
+
+    The key is workbook hash, rule and location, which is stable across runs
+    as long as the finding itself does not move. Rules that report one finding
+    per hidden row or column can put several findings at the same location;
+    those get a short hash of their evidence appended so labels stay attached
+    to the right one.
+    """
+    base_of = {
+        id(item): finding_key(item["sha256"], item["finding"]["rule_id"], item["finding"]["location"]) for item in items
+    }
+    counts = Counter(base_of.values())
+    for item in items:
+        base = base_of[id(item)]
+        if counts[base] > 1:
+            evidence = "\n".join(item["finding"].get("evidence") or [])
+            item["key"] = base + "|" + hashlib.sha1(evidence.encode("utf-8")).hexdigest()[:6]
+        else:
+            item["key"] = base
 
 
 def stratified_sample(items: list[dict], per_rule: int, max_per_workbook: int, seed: int) -> list[dict]:
@@ -326,7 +350,22 @@ class WorkbookCache:
         return self._cache[path]
 
 
+def _cell_text(cell):
+    """A cell's formula or value; array formulas come back as their formula text."""
+    if cell is None:
+        return None
+    value = cell.value
+    text = getattr(value, "text", None)
+    if isinstance(text, str):
+        ref = getattr(value, "ref", None)
+        return f"{text} {{array {ref}}}" if ref else text
+    return value
+
+
 def _short(value, limit: int = 60) -> str:
+    text_attr = getattr(value, "text", None)
+    if isinstance(text_attr, str):
+        value = text_attr
     text = repr(value) if isinstance(value, str) else str(value)
     return text if len(text) <= limit else text[: limit - 3] + "..."
 
@@ -351,8 +390,7 @@ def build_context(workbook_path: Path, finding: dict, cache: WorkbookCache, wind
     vcells = getattr(vws, "_cells", {})
 
     def fval(r, c):
-        cell = fcells.get((r, c))
-        return None if cell is None else cell.value
+        return _cell_text(fcells.get((r, c)))
 
     def vval(r, c):
         cell = vcells.get((r, c))
@@ -420,18 +458,51 @@ def build_context(workbook_path: Path, finding: dict, cache: WorkbookCache, wind
                 for label, r in (("above", min_row - 1), ("below", max_row + 1)):
                     if r >= 1:
                         fcell, vcell = rf.get((r, min_col)), rv.get((r, min_col))
+                        ftext = _cell_text(fcell)
                         beyond[label] = f"{get_column_letter(min_col)}{r}: " + _short(
-                            (fcell.value if fcell is not None and isinstance(fcell.value, str) and fcell.value.startswith('=') else (vcell.value if vcell is not None else None)), 40
+                            (ftext if isinstance(ftext, str) and ftext.startswith("=") else (vcell.value if vcell is not None else None)), 40
                         )
             if min_row == max_row:
                 for label, c in (("left", min_col - 1), ("right", max_col + 1)):
                     if c >= 1:
                         fcell, vcell = rf.get((min_row, c)), rv.get((min_row, c))
+                        ftext = _cell_text(fcell)
                         beyond[label] = f"{get_column_letter(c)}{min_row}: " + _short(
-                            (fcell.value if fcell is not None and isinstance(fcell.value, str) and fcell.value.startswith('=') else (vcell.value if vcell is not None else None)), 40
+                            (ftext if isinstance(ftext, str) and ftext.startswith("=") else (vcell.value if vcell is not None else None)), 40
                         )
             context["first_range"] = {"ref": ranges[0], "values": values, "beyond": beyond}
     return context
+
+
+def render_compact_cards(sample: dict, neighbours: int = 6) -> str:
+    """One line per sampled finding: enough to judge most rules at a glance."""
+    lines = [f"# Compact finding cards: {sample['source']}", ""]
+    current_rule = None
+    for item in sample["items"]:
+        finding = item["finding"]
+        if finding["rule_id"] != current_rule:
+            current_rule = finding["rule_id"]
+            lines += ["", f"## {current_rule}", ""]
+        context = item.get("context", {})
+        parts = [f"`{item['key']}`", f"loc {finding['location']}"]
+        if finding.get("formula"):
+            parts.append("f " + _short(finding["formula"], 110))
+        parts.append("ev " + _short((finding.get("evidence") or [""])[0], 120))
+        if context.get("note"):
+            parts.append("ctx " + context["note"])
+        else:
+            parts.append(f"val {context.get('cached_value')}")
+            if context.get("row_labels"):
+                parts.append(f"labels {context['row_labels']}")
+            if context.get("column_header"):
+                parts.append(f"hdr {context['column_header']!r}")
+            first_range = context.get("first_range")
+            if first_range:
+                parts.append(f"range {first_range['ref']} vals {first_range['values'][:6]} beyond {first_range['beyond']}")
+            if context.get("neighbourhood"):
+                parts.append("nb " + " | ".join(_short(n, 48) for n in context["neighbourhood"][:neighbours]))
+        lines.append("- " + " ;; ".join(parts))
+    return "\n".join(lines) + "\n"
 
 
 def render_cards(sample: dict) -> str:

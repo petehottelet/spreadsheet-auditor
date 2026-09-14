@@ -7,6 +7,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- **Real-world corpus harness** (`benchmarks/corpus/`): a registry of public
+  spreadsheet corpora, a parallel runner that audits every workbook and
+  records crashes and timeouts, a seeded stratified sampler that renders each
+  finding as a context card, a labels file, and a report generator that
+  publishes per-rule precision with Wilson 95% intervals to
+  `benchmarks/real_world_precision.md`. `recall.py` measures recall on the
+  modified EUSES corpus, whose workbooks each carry one injected formula fault
+  at a known cell, attributing a hit only when the finding is absent from the
+  unmodified original. A manual `corpus.yml` workflow runs either corpus in CI
+  with LibreOffice installed.
+
 ## [0.2.0] - 2026-09-13
 
 The precision release. The formula parser, cycle detection, suppressions, and

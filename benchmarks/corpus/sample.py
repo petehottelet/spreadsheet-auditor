@@ -21,11 +21,11 @@ from corpuslib import (  # noqa: E402
     SAMPLES_DIR,
     WorkbookCache,
     build_context,
-    finding_key,
     load_findings,
     load_sources,
     now_iso,
     render_cards,
+    render_compact_cards,
     stratified_sample,
     write_json,
     write_text,
@@ -53,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         finding = item["finding"]
         sample_items.append(
             {
-                "key": finding_key(item["sha256"], finding["rule_id"], finding["location"]),
+                "key": item["key"],
                 "workbook": item["workbook"],
                 "finding": {
                     key: finding.get(key)
@@ -74,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     write_json(SAMPLES_DIR / f"{args.source}.json", sample)
     write_text(SAMPLES_DIR / f"{args.source}.md", render_cards(sample))
+    write_text(SAMPLES_DIR / f"{args.source}.compact.md", render_compact_cards(sample))
     rules = sorted({item["finding"]["rule_id"] for item in sample_items})
     print(f"sampled {len(sample_items)} of {len(items)} findings across {len(rules)} rules -> {SAMPLES_DIR / (args.source + '.md')}")
     return 0
