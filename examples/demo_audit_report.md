@@ -2,8 +2,8 @@
 
 ## Executive Summary
 
-- Tool version: `0.1.0` (run at 2026-09-14T03:12:10+00:00)
-- Workbook SHA-256: `7b10374b2199fc3a0e47e26956b40be1c71a47af9284c007496d4f48f29fc8bc`
+- Tool version: `0.1.0` (run at 2026-09-14T03:18:18+00:00)
+- Workbook SHA-256: `1c710d64f19dc5de99caf03d2cc1824928ff93851b7253d61a181df27e58c4a3`
 - Sheets analyzed: 2
 - Formulas scanned: 30
 - Recalculation status: unavailable

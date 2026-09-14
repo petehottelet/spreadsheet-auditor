@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from collections import defaultdict
+
 from openpyxl.formula.tokenizer import Token
 from openpyxl.utils.cell import get_column_letter
 
 from .budget import tick
 from .finding import Finding
 from .formula_parser import extract_functions, formula_text, split_sheet, tokens
-from .range_checks import AGG_FUNCS
+from .range_checks import AGG_FUNCS, aggregate_ranges
 from .reference_resolver import (
     EXCEL_MAX_COL,
     EXCEL_MAX_ROW,
@@ -15,6 +17,7 @@ from .reference_resolver import (
     find_sheet,
     raw_boundaries,
 )
+from .workbook_inventory import iter_existing_cells
 
 Box = tuple[int, int, int, int]
 TokenTriple = tuple[str, str, str]
@@ -291,20 +294,56 @@ def detect_total_mismatches(
     return findings
 
 
+def _single_aggregate_box(formula: str, sheet: str, row: int, col: int, names) -> Box | None:
+    ranges = aggregate_ranges(formula, names=names, origin=(sheet, row, col))
+    if len(ranges) != 1 or not ranges[0].bounded:
+        return None
+    ref = ranges[0]
+    if ref.sheet is not None and ref.sheet.casefold() != sheet.casefold():
+        return None
+    return boundaries(ref.ref)
+
+
+def _column_total_rows(formula: str, sheet: str, row: int, col: int, names) -> tuple[int, int] | None:
+    """Row span when the formula is one vertical aggregate over its own column, ending above ``row``."""
+    box = _single_aggregate_box(formula, sheet, row, col, names)
+    if box is None:
+        return None
+    min_col, min_row, max_col, max_row = box
+    if min_col != col or max_col != col or max_row >= row:
+        return None
+    return (min_row, max_row)
+
+
+def _row_total_cols(formula: str, sheet: str, row: int, col: int, names) -> tuple[int, int] | None:
+    """Column span when the formula is one horizontal aggregate over its own row, ending left of ``col``."""
+    box = _single_aggregate_box(formula, sheet, row, col, names)
+    if box is None:
+        return None
+    min_col, min_row, max_col, max_row = box
+    if min_row != row or max_row != row or max_col >= col:
+        return None
+    return (min_col, max_col)
+
+
 def detect_cross_foot_failures(
     formula_wb,
     value_wb,
     allowed_sheet_names: set[str] | None = None,
     tolerance: float = 1e-6,
     budget=None,
+    names=None,
 ) -> list[Finding]:
-    """Compare a grand total reached down a totals column vs across a totals row.
+    """Compare a table's grand total reached down its row totals vs across its column totals.
 
-    Scoped to explicit rectangular tables: the grand-total corner must have a
-    vertical run of >=2 aggregate formulas directly above it (row totals) and a
-    horizontal run of >=2 aggregate formulas directly to its left (column
-    totals). Value-gated: skips silently when cached/recalculated values are
-    unavailable rather than emitting false positives.
+    A table is recognized from its formulas, not from adjacency, so stacked
+    blocks that share a total column are not confused with one another: a run
+    of two or more column totals (each a single vertical SUM over its own
+    column, ending above the totals row) defines the columns, the union of
+    their row spans defines the rows, and every one of those rows must carry
+    a row total in the column just right of the run spanning exactly those
+    columns. The corner cell's own value is never used. Value-gated: skips
+    when any needed cached value is missing rather than guessing.
     """
     findings: list[Finding] = []
     for ws in formula_wb.worksheets:
@@ -314,47 +353,68 @@ def detect_cross_foot_failures(
         if value_title is None:
             continue
         value_ws = value_wb[value_title]
-        for gr in range(2, (ws.max_row or 0) + 1):
+        formulas: dict[int, dict[int, str]] = defaultdict(dict)
+        for cell in iter_existing_cells(ws):
+            text = formula_text(cell.value)
+            if text is not None:
+                formulas[cell.row][cell.column] = text
+
+        for gr in sorted(formulas):
             tick(budget)
-            for gc in range(2, (ws.max_column or 0) + 1):
-                rows: list[int] = []
-                r = gr - 1
-                while r >= 1 and _is_aggregate_formula(cell_value(ws, r, gc)):
-                    rows.append(r)
-                    r -= 1
-                if len(rows) < 2:
+            spans = {
+                col: span
+                for col, text in formulas[gr].items()
+                if (span := _column_total_rows(text, ws.title, gr, col, names)) is not None
+            }
+            if len(spans) < 2:
+                continue
+            columns = sorted(spans)
+            runs: list[list[int]] = [[columns[0]]]
+            for col in columns[1:]:
+                if col == runs[-1][-1] + 1:
+                    runs[-1].append(col)
+                else:
+                    runs.append([col])
+            for run in runs:
+                if len(run) < 2:
                     continue
-                cols: list[int] = []
-                c = gc - 1
-                while c >= 1 and _is_aggregate_formula(cell_value(ws, gr, c)):
-                    cols.append(c)
-                    c -= 1
-                if len(cols) < 2:
+                first_col, last_col = run[0], run[-1]
+                corner_col = last_col + 1
+                first_row = min(spans[col][0] for col in run)
+                last_row = max(spans[col][1] for col in run)
+                if last_row - first_row + 1 < 2:
                     continue
-
-                down = [v for v in (_numeric(cell_value(value_ws, rr, gc)) for rr in rows) if v is not None]
-                across = [v for v in (_numeric(cell_value(value_ws, gr, cc)) for cc in cols) if v is not None]
-                if len(down) < 2 or len(across) < 2:
+                table_rows = range(first_row, last_row + 1)
+                if any(
+                    _row_total_cols(formulas.get(r, {}).get(corner_col, ""), ws.title, r, corner_col, names)
+                    != (first_col, last_col)
+                    for r in table_rows
+                ):
                     continue
-
+                down = [_numeric(cell_value(value_ws, r, corner_col)) for r in table_rows]
+                across = [_numeric(cell_value(value_ws, gr, col)) for col in run]
+                if any(v is None for v in down) or any(v is None for v in across):
+                    continue
                 down_sum = sum(down)
                 across_sum = sum(across)
-                if abs(down_sum - across_sum) > max(tolerance, 1e-9 * abs(down_sum)):
-                    corner = f"{ws.title}!{get_column_letter(gc)}{gr}"
-                    findings.append(
-                        Finding(
-                            rule_id="CROSS_FOOT_FAILURE",
-                            severity="Critical",
-                            error_confidence="Defect",
-                            detection_mode="DET",
-                            location=corner,
-                            title="Row totals and column totals disagree",
-                            evidence=[
-                                f"Sum of row totals down column {get_column_letter(gc)} is {down_sum}; "
-                                f"sum of column totals across row {gr} is {across_sum}."
-                            ],
-                            impact={"estimated_delta": down_sum - across_sum},
-                            suggested_fix="Reconcile the totals row and totals column; one of the contributing aggregates is likely wrong.",
-                        )
+                if abs(down_sum - across_sum) <= max(tolerance, 1e-9 * abs(down_sum)):
+                    continue
+                corner_letter = get_column_letter(corner_col)
+                findings.append(
+                    Finding(
+                        rule_id="CROSS_FOOT_FAILURE",
+                        severity="Critical",
+                        error_confidence="Defect",
+                        detection_mode="DET",
+                        location=f"{ws.title}!{corner_letter}{gr}",
+                        title="Row totals and column totals disagree",
+                        evidence=[
+                            f"Row totals {corner_letter}{first_row}:{corner_letter}{last_row} sum to {down_sum}; "
+                            f"column totals {get_column_letter(first_col)}{gr}:{get_column_letter(last_col)}{gr} "
+                            f"sum to {across_sum}."
+                        ],
+                        impact={"estimated_delta": down_sum - across_sum},
+                        suggested_fix="Reconcile the totals row and totals column; one of the contributing aggregates is likely wrong.",
                     )
+                )
     return findings

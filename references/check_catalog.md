@@ -46,7 +46,7 @@ Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 | Rule ID | Mode | Default severity | Description |
 |---|---:|---:|---|
 | TOTAL_MISMATCH | DET | Critical | Either a total adds a cell that its own `SUM` range already covers (`=SUM(B2:B5)+B5`, static, High/Likely defect), or a bare `=SUM(range)` has a cached value that differs from its numeric components (stale or inconsistent calculation, Critical/Defect). Other aggregates such as `AVERAGE` or `SUM(...)/1000` are never compared. |
-| CROSS_FOOT_FAILURE | DET | Critical | Row totals and column totals disagree in an explicit rectangular table. Value-dependent; requires cached or recalculated values. |
+| CROSS_FOOT_FAILURE | DET | Critical | Row totals and column totals disagree in a rectangular table recognized from its formulas: a run of column totals defines the columns and rows, and each of those rows must carry a row total spanning exactly those columns. Stacked blocks sharing a total column are not confused. Value-dependent; requires cached or recalculated values. |
 
 ## Logic, Structure, And Data Hygiene
 

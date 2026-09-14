@@ -80,7 +80,9 @@ def test_function_names_and_far_names_do_not_inflate_the_scan(tmp_path):
 
     started = time.monotonic()
     payload = _run(path)
-    assert time.monotonic() - started < 15
+    # Generous bound: a LibreOffice cold start on CI takes a few seconds; the
+    # regression this guards against ran for ten minutes.
+    assert time.monotonic() - started < 60
     assert payload["workbook"]["formulas_scanned"] == 4
     assert not [f for f in payload["findings"] if f["rule_id"] == "BLANK_PRECEDENT"]
     assert "unresolved_defined_names" in payload["coverage"]["unsupported_features"]
@@ -190,8 +192,9 @@ def test_budget_interrupts_a_check_and_zero_disables_it():
     ws["B1"] = "=A1"
     ws["B49"] = "=A49"
 
-    expired = Budget(seconds=1e-9)
-    time.sleep(0.01)
+    # Deadline firmly in the past: time.monotonic() ticks every ~16 ms on
+    # Windows before Python 3.13, so a sleep-based expiry is flaky there.
+    expired = Budget(seconds=1, start=time.monotonic() - 5)
     with pytest.raises(AuditTimeout):
         detect_hardcode_breaks(wb, budget=expired)
     assert detect_hardcode_breaks(wb, budget=Budget(seconds=0)) == []
