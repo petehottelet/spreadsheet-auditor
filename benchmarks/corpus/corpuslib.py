@@ -305,9 +305,11 @@ def stratified_sample(items: list[dict], per_rule: int, max_per_workbook: int, s
     by_rule: dict[str, list[dict]] = defaultdict(list)
     for item in items:
         by_rule[item["finding"]["rule_id"]].append(item)
-    rng = random.Random(seed)
     chosen: list[dict] = []
     for rule in sorted(by_rule):
+        # One generator per rule, so a code change that alters one rule's
+        # findings does not reshuffle every other rule's sample.
+        rng = random.Random(f"{seed}:{rule}")
         pool = sorted(by_rule[rule], key=lambda it: (it["workbook"], it["finding"]["location"]))
         rng.shuffle(pool)
         taken_per_workbook: Counter = Counter()

@@ -20,6 +20,18 @@ python benchmarks/corpus/report.py spreadsheetbench         # -> benchmarks/real
 are committed, so the numbers are reproducible and the judgment calls are
 reviewable.
 
+To measure a code change against the previous release, run the corpus into
+a second results directory, sample it under its own name, and hand the
+previous report's JSON (kept under `baselines/`) to the report:
+
+```bash
+python benchmarks/corpus/run_corpus.py spreadsheetbench --out-dir benchmarks/corpus/results/spreadsheetbench-next
+python benchmarks/corpus/sample.py spreadsheetbench --results-dir benchmarks/corpus/results/spreadsheetbench-next --name spreadsheetbench-next
+#   ... label the new cards; labels of unchanged findings carry over by key ...
+python benchmarks/corpus/report.py spreadsheetbench --results-dir benchmarks/corpus/results/spreadsheetbench-next \
+    --sample spreadsheetbench-next --baseline-report benchmarks/corpus/baselines/spreadsheetbench-0.2.0.json
+```
+
 ## Corpora
 
 See [`sources.json`](sources.json). SpreadsheetBench (CC BY-SA 4.0) is the

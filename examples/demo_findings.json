@@ -1,7 +1,7 @@
 {
   "audit_version": "0.2.0",
   "tool_version": "0.2.0",
-  "timestamp": "2026-09-14T03:31:29+00:00",
+  "timestamp": "2026-09-14T07:32:19+00:00",
   "runtime": {
     "python": "3.11.16",
     "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
@@ -11,7 +11,7 @@
   },
   "workbook": {
     "path": "examples/demo_bad_budget.xlsx",
-    "sha256": "4c44aa9fdea19e0d32ea796c9774cf7a628746d7d7749a87ceaa8d8bfd0d23ce",
+    "sha256": "c656540f0af5ef59636a503c6e6813b623191e3856914c2e412fc44c7bd911a3",
     "sheets_analyzed": 2,
     "formulas_scanned": 30,
     "recalc_status": "completed"
@@ -28,7 +28,7 @@
       "cells": false,
       "timeout": false
     },
-    "elapsed_seconds": 1.563,
+    "elapsed_seconds": 1.148,
     "recalculation": {
       "status": "completed",
       "limitations": []
@@ -254,7 +254,7 @@
       "title": "Numeric-looking value stored as text",
       "formula": null,
       "evidence": [
-        "Cell contains text value '1,250' and is referenced by a formula; numeric functions such as SUM ignore text."
+        "Cell contains text value '1,250' and a formula consumes it as a number; SUM-style functions skip text and arithmetic on it fails."
       ],
       "impact": {},
       "limitations": [],
@@ -346,7 +346,7 @@
       "title": "Text has leading or trailing whitespace",
       "formula": null,
       "evidence": [
-        "Raw value is ' North '."
+        "Raw value is ' North '; the other text values in this column are not padded."
       ],
       "impact": {},
       "limitations": [],

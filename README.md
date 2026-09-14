@@ -88,8 +88,10 @@ methodology at
 
 Precision on real workbooks is measured on 2,729 public forum workbooks
 (SpreadsheetBench) and published, per rule with confidence intervals, at
-[`benchmarks/real_world_precision.md`](benchmarks/real_world_precision.md).
-The harness, the labeled sample, and the labeling protocol live in
+[`benchmarks/real_world_precision.md`](benchmarks/real_world_precision.md):
+76% of sampled findings point at something a reviewer would want to look
+at (up from 36% for 0.2.0, with a quarter of the finding volume). The
+harness, the labeled samples, and the labeling protocol live in
 [`benchmarks/corpus/`](benchmarks/corpus/README.md).
 
 ## Install
