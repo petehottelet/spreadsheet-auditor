@@ -86,6 +86,12 @@ The seeded-defect benchmark is published at
 methodology at
 [`references/benchmark_methodology.md`](references/benchmark_methodology.md).
 
+Precision on real workbooks is measured on 2,729 public forum workbooks
+(SpreadsheetBench) and published, per rule with confidence intervals, at
+[`benchmarks/real_world_precision.md`](benchmarks/real_world_precision.md).
+The harness, the labeled sample, and the labeling protocol live in
+[`benchmarks/corpus/`](benchmarks/corpus/README.md).
+
 ## Install
 
 ```bash

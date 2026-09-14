@@ -111,3 +111,20 @@ def test_run_records_crashes_instead_of_dying(tmp_path):
     record = next(iter(summary["records"].values()))
     assert record["exit_code"] == 4
     assert "not a valid" in record["stderr"].lower() or "preflight" in record["stderr"].lower()
+
+
+def test_assign_keys_disambiguates_findings_that_share_a_location():
+    sha = "a" * 64
+    items = [
+        {"sha256": sha, "finding": {"rule_id": "HIDDEN_STRUCTURE_IN_TOTAL", "location": "S!B1", "evidence": ["Hidden row 3 on S feeds 1 visible formula(s): S!B1."]}},
+        {"sha256": sha, "finding": {"rule_id": "HIDDEN_STRUCTURE_IN_TOTAL", "location": "S!B1", "evidence": ["Hidden row 7 on S feeds 1 visible formula(s): S!B1."]}},
+        {"sha256": sha, "finding": {"rule_id": "LITERAL_CONSTANT", "location": "S!B1", "evidence": ["Non-trivial numeric literal(s) found: 9."]}},
+    ]
+    corpuslib.assign_keys(items)
+    keys = [item["key"] for item in items]
+    assert len(set(keys)) == 3
+    assert keys[2] == corpuslib.finding_key(sha, "LITERAL_CONSTANT", "S!B1")
+    base = corpuslib.finding_key(sha, "HIDDEN_STRUCTURE_IN_TOTAL", "S!B1")
+    assert keys[0].startswith(base + "|") and keys[1].startswith(base + "|")
+    corpuslib.assign_keys(items)
+    assert [item["key"] for item in items] == keys
