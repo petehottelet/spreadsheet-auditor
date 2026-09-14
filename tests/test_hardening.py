@@ -254,7 +254,7 @@ def test_non_ascii_labels_do_not_crash_redirected_output(tmp_path):
     wb = Workbook()
     ws = wb.active
     ws.title = "S"
-    ws["A1"] = "总计 Σ"
+    ws["A1"] = " 总计 Σ "  # whitespace-padded first-column label -> WHITESPACE_KEY evidence
     ws["B1"] = 5
     ws["C1"] = "=SUM(B1:B1)"
     path = tmp_path / "unicode.xlsx"

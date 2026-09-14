@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+from openpyxl.formula.tokenizer import Token
 from openpyxl.utils.cell import get_column_letter
 
 from .budget import tick
 from .finding import Finding
-from .formula_parser import extract_functions, formula_text
-from .range_checks import AGG_FUNCS, aggregate_ranges
-from .reference_resolver import boundaries, cell_value, find_sheet
+from .formula_parser import extract_functions, formula_text, split_sheet, tokens
+from .range_checks import AGG_FUNCS
+from .reference_resolver import (
+    EXCEL_MAX_COL,
+    EXCEL_MAX_ROW,
+    boundaries,
+    cell_value,
+    find_sheet,
+    raw_boundaries,
+)
+
+Box = tuple[int, int, int, int]
+TokenTriple = tuple[str, str, str]
 
 
 def _numeric(value) -> float | None:
@@ -22,6 +33,176 @@ def _is_aggregate_formula(value) -> bool:
     return bool(text) and bool(extract_functions(text).intersection(AGG_FUNCS))
 
 
+# --- token helpers -----------------------------------------------------------
+
+
+def _significant(toks) -> list[TokenTriple]:
+    return [tok for tok in toks if tok[1] != Token.WSPACE]
+
+
+def _opens(tok: TokenTriple) -> bool:
+    return tok[2] == Token.OPEN and tok[1] in (Token.FUNC, Token.PAREN, Token.ARRAY)
+
+
+def _closes(tok: TokenTriple) -> bool:
+    return tok[2] == Token.CLOSE and tok[1] in (Token.FUNC, Token.PAREN, Token.ARRAY)
+
+
+def _bare_sum_range(toks) -> str | None:
+    """Return the range text when ``toks`` is exactly ``SUM(<range>)`` (optionally ``+SUM(...)``)."""
+    sig = _significant(toks)
+    if sig and sig[0][1] == Token.OP_PRE and sig[0][0] == "+":
+        sig = sig[1:]
+    if (
+        len(sig) == 3
+        and sig[0][1] == Token.FUNC
+        and sig[0][2] == Token.OPEN
+        and sig[0][0].upper() == "SUM("
+        and sig[1][1] == Token.OPERAND
+        and sig[1][2] == Token.RANGE
+        and sig[2][1] == Token.FUNC
+        and sig[2][2] == Token.CLOSE
+    ):
+        return sig[1][0]
+    return None
+
+
+def _ref_box(text: str, default_sheet: str) -> tuple[str, Box] | None:
+    sheet, rest = split_sheet(text.lstrip("@"))
+    raw = raw_boundaries(rest)
+    if raw is None:
+        return None
+    min_col, min_row, max_col, max_row = raw
+    return (
+        (sheet or default_sheet).casefold(),
+        (
+            min_col or 1,
+            min_row or 1,
+            EXCEL_MAX_COL if max_col is None else max_col,
+            EXCEL_MAX_ROW if max_row is None else max_row,
+        ),
+    )
+
+
+def _is_single_cell(box: Box) -> bool:
+    return box[0] == box[2] and box[1] == box[3]
+
+
+def _inside(inner: Box, outer: Box) -> bool:
+    return outer[0] <= inner[0] and outer[1] <= inner[1] and outer[2] >= inner[2] and outer[3] >= inner[3]
+
+
+def _additive_terms(toks) -> list[tuple[str, list[TokenTriple]]]:
+    """Split a formula into top-level ``+``/``-`` terms as ``(sign, tokens)``."""
+    terms: list[tuple[str, list[TokenTriple]]] = []
+    current: list[TokenTriple] = []
+    sign = "+"
+    depth = 0
+    for tok in _significant(toks):
+        value, ttype, _subtype = tok
+        if _opens(tok):
+            depth += 1
+            current.append(tok)
+            continue
+        if _closes(tok):
+            depth -= 1
+            current.append(tok)
+            continue
+        if depth == 0 and ttype == Token.OP_IN and value in ("+", "-"):
+            terms.append((sign, current))
+            current = []
+            sign = value
+            continue
+        if depth == 0 and ttype == Token.OP_PRE and value in ("+", "-") and not current:
+            if value == "-":
+                sign = "-" if sign == "+" else "+"
+            continue
+        current.append(tok)
+    terms.append((sign, current))
+    return [(term_sign, term) for term_sign, term in terms if term]
+
+
+def _sum_call_args(toks) -> list[list[list[TokenTriple]]]:
+    """Argument token lists of every ``SUM(...)`` call in the formula."""
+    sig = _significant(toks)
+    calls: list[list[list[TokenTriple]]] = []
+    for start, tok in enumerate(sig):
+        if not (tok[1] == Token.FUNC and tok[2] == Token.OPEN and tok[0].upper() == "SUM("):
+            continue
+        depth = 1
+        args: list[list[TokenTriple]] = [[]]
+        for inner in sig[start + 1 :]:
+            if _opens(inner):
+                depth += 1
+            elif _closes(inner):
+                depth -= 1
+                if depth == 0:
+                    break
+            elif depth == 1 and inner[1] == Token.SEP and inner[2] == Token.ARG:
+                args.append([])
+                continue
+            args[-1].append(inner)
+        calls.append([arg for arg in args if arg])
+    return calls
+
+
+def _single_operand(term: list[TokenTriple]) -> str | None:
+    if len(term) == 1 and term[0][1] == Token.OPERAND and term[0][2] == Token.RANGE:
+        return term[0][0]
+    return None
+
+
+def double_counted_cells(formula: str, default_sheet: str) -> list[tuple[str, str]]:
+    """Return ``(cell, range)`` pairs where the formula adds a cell that a SUM already covers.
+
+    Catches both ``=SUM(B2:B5)+B5`` and ``=SUM(B2:B5,B5)``. Subtraction is left
+    alone: ``=SUM(B2:B5)-B3`` is a normal "total excluding X".
+    """
+    toks = tokens(formula)
+    if toks is None:
+        return []
+    hits: list[tuple[str, str]] = []
+
+    sum_ranges: list[str] = []
+    plus_cells: list[str] = []
+    for sign, term in _additive_terms(toks):
+        range_text = _bare_sum_range(term)
+        if range_text is not None:
+            if sign == "+":
+                sum_ranges.append(range_text)
+            continue
+        operand = _single_operand(term)
+        if sign == "+" and operand is not None:
+            plus_cells.append(operand)
+    for range_text in sum_ranges:
+        resolved_range = _ref_box(range_text, default_sheet)
+        if resolved_range is None or _is_single_cell(resolved_range[1]):
+            continue
+        for cell_text in plus_cells:
+            resolved_cell = _ref_box(cell_text, default_sheet)
+            if (
+                resolved_cell is not None
+                and _is_single_cell(resolved_cell[1])
+                and resolved_cell[0] == resolved_range[0]
+                and _inside(resolved_cell[1], resolved_range[1])
+            ):
+                hits.append((cell_text, range_text))
+
+    for args in _sum_call_args(toks):
+        operands = [text for text in (_single_operand(arg) for arg in args) if text is not None]
+        resolved = [(text, _ref_box(text, default_sheet)) for text in operands]
+        ranges = [(text, box) for text, box in resolved if box is not None and not _is_single_cell(box[1])]
+        cells = [(text, box) for text, box in resolved if box is not None and _is_single_cell(box[1])]
+        for cell_text, cell_box in cells:
+            for range_text, range_box in ranges:
+                if cell_box[0] == range_box[0] and _inside(cell_box[1], range_box[1]):
+                    hits.append((cell_text, range_text))
+    return hits
+
+
+# --- detectors ---------------------------------------------------------------
+
+
 def detect_total_mismatches(
     formula_wb,
     value_wb,
@@ -30,26 +211,55 @@ def detect_total_mismatches(
     names=None,
     budget=None,
 ) -> list[Finding]:
+    """Two flavours of TOTAL_MISMATCH.
+
+    * A total that adds a cell its own SUM range already covers is a double
+      count; this is static and needs no cached values.
+    * A bare ``=SUM(range)`` whose cached value disagrees with the numeric
+      components is a stale or inconsistent calculation. Only bare sums are
+      compared: ``AVERAGE``, ``COUNT``, or ``SUM(...)/1000`` legitimately differ
+      from the component sum and must never be reported as defects.
+    """
     findings: list[Finding] = []
     for cell in formula_cells:
         tick(budget)
-        ranges = aggregate_ranges(cell["formula"], names=names, origin=(cell["sheet"], cell["row"], cell["col"]))
-        if len(ranges) != 1:
+        formula = cell["formula"]
+        for cell_text, range_text in double_counted_cells(formula, cell["sheet"]):
+            findings.append(
+                Finding(
+                    rule_id="TOTAL_MISMATCH",
+                    severity="High",
+                    error_confidence="Likely defect",
+                    detection_mode="DET",
+                    location=cell["location"],
+                    title="Total double-counts a cell inside its own range",
+                    formula=formula,
+                    evidence=[f"{formula} adds {cell_text}, which is already inside {range_text}."],
+                    suggested_fix="Remove the duplicated term or shrink the range so each component is counted once.",
+                )
+            )
+
+        toks = tokens(formula)
+        range_text = _bare_sum_range(toks) if toks is not None else None
+        if range_text is None:
             continue
-        ref = ranges[0]
-        if not ref.bounded:
+        sheet_name, rest = split_sheet(range_text)
+        box = boundaries(rest)
+        if box is None and names is not None:
+            resolved = names.resolve(rest, sheet_name or cell["sheet"])
+            if len(resolved) == 1:
+                sheet_name, resolved_ref = resolved[0]
+                box = boundaries(resolved_ref)
+        if box is None:
             continue
-        range_sheet = find_sheet(value_wb, ref.sheet or cell["sheet"])
+        range_sheet = find_sheet(value_wb, sheet_name or cell["sheet"])
         home_sheet = find_sheet(value_wb, cell["sheet"])
         if range_sheet is None or home_sheet is None:
             continue
-        value_ws = value_wb[range_sheet]
         cached_total = _numeric(cell_value(value_wb[home_sheet], cell["row"], cell["col"]))
         if cached_total is None:
             continue
-        box = boundaries(ref.ref)
-        if box is None:
-            continue
+        value_ws = value_wb[range_sheet]
         min_col, min_row, max_col, max_row = box
         component_sum = 0.0
         numeric_count = 0
@@ -59,7 +269,8 @@ def detect_total_mismatches(
                 if value is not None:
                     component_sum += value
                     numeric_count += 1
-        if numeric_count and abs(cached_total - component_sum) > tolerance:
+        allowed = max(tolerance, 1e-9 * abs(cached_total))
+        if numeric_count and abs(cached_total - component_sum) > allowed:
             findings.append(
                 Finding(
                     rule_id="TOTAL_MISMATCH",
@@ -68,8 +279,11 @@ def detect_total_mismatches(
                     detection_mode="DET",
                     location=cell["location"],
                     title="Stated total differs from referenced components",
-                    formula=cell["formula"],
-                    evidence=[f"Cached value is {cached_total}; recomputed referenced components sum to {component_sum}."],
+                    formula=formula,
+                    evidence=[
+                        f"Cached value is {cached_total}; the numeric components of {range_text} sum to {component_sum}. "
+                        "The cached value is stale (workbook saved without recalculation) or the calculation is inconsistent."
+                    ],
                     impact={"estimated_delta": cached_total - component_sum},
                     suggested_fix="Recalculate the workbook and review the aggregate formula and referenced component range.",
                 )
@@ -125,7 +339,7 @@ def detect_cross_foot_failures(
 
                 down_sum = sum(down)
                 across_sum = sum(across)
-                if abs(down_sum - across_sum) > tolerance:
+                if abs(down_sum - across_sum) > max(tolerance, 1e-9 * abs(down_sum)):
                     corner = f"{ws.title}!{get_column_letter(gc)}{gr}"
                     findings.append(
                         Finding(

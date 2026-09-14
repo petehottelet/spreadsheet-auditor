@@ -1,14 +1,24 @@
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import Counter, defaultdict
 
 from .budget import tick
 from .finding import Finding
-from .formula_parser import is_formula, normalize_formula
+from .formula_parser import formula_text, is_formula, normalize_formula, parse_formula
+from .range_checks import is_total_of_segment
+from .reference_resolver import boundaries
 from .workbook_inventory import iter_existing_cells, location
 
+# A plug is a few constants interrupting a formula run, not a block of inputs.
+MAX_PLUG_GAP = 3
 
-def detect_formula_drift(formula_cells: list[dict], budget=None) -> list[Finding]:
+
+def _is_plain_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> list[Finding]:
     findings: list[Finding] = []
     seen: set[str] = set()
 
@@ -26,16 +36,21 @@ def detect_formula_drift(formula_cells: list[dict], budget=None) -> list[Finding
             tick(budget)
             if len(segment) < 3:
                 continue
-            patterns = [normalize_formula(c["formula"], c["row"], c["col"]) for c in segment]
+            fixed = segment[0]["row"] if axis == "row" else segment[0]["col"]
+            low, high = segment[0][key], segment[-1][key]
+            members = [c for c in segment if not is_total_of_segment(c, axis, fixed, low, high, names)]
+            if len(members) < 3:
+                continue
+            patterns = [normalize_formula(c["formula"], c["row"], c["col"]) for c in members]
             counts = Counter(patterns)
             majority, count = counts.most_common(1)[0]
-            if count < len(segment) - 1:
+            if count < len(members) - 1:
                 continue
-            for idx, (cell, pattern) in enumerate(zip(segment, patterns)):
+            for idx, (cell, pattern) in enumerate(zip(members, patterns)):
                 if pattern == majority or cell["location"] in seen:
                     continue
                 seen.add(cell["location"])
-                neighbors = _drift_neighbors(segment, idx)
+                neighbors = _drift_neighbors(members, idx)
                 evidence = [
                     f"Formula differs from the dominant relative pattern in this {axis}.",
                     f"Dominant pattern (n={count}): {majority}",
@@ -72,7 +87,35 @@ def _drift_neighbors(segment: list[dict], idx: int, radius: int = 1) -> list[str
     return neighbors
 
 
-def detect_hardcode_breaks(formula_wb, allowed_sheet_names: set[str] | None = None, budget=None) -> list[Finding]:
+def _aggregates_over(text: str, origin: tuple[int, int], sheet: str, target: tuple[int, int], names) -> bool:
+    """True when the formula at ``origin`` sums a range that contains ``target``."""
+    parsed = parse_formula(text, names=names, origin=(sheet, origin[0], origin[1]))
+    for ref in parsed.references:
+        if not ref.is_range or not ref.bounded:
+            continue
+        if (ref.sheet or sheet).casefold() != sheet.casefold():
+            continue
+        box = boundaries(ref.ref)
+        if box is None:
+            continue
+        min_col, min_row, max_col, max_row = box
+        if min_row <= target[0] <= max_row and min_col <= target[1] <= max_col:
+            return True
+    return False
+
+
+def detect_hardcode_breaks(
+    formula_wb,
+    allowed_sheet_names: set[str] | None = None,
+    budget=None,
+    names=None,
+) -> list[Finding]:
+    """Flag constants that interrupt a run of formulas sharing one relative pattern.
+
+    A plug replaces a formula: the formulas on either side of it (within a
+    short gap) normalize to the same pattern. Inputs that an adjacent subtotal
+    sums are not plugs, however many formulas surround them.
+    """
     findings: list[Finding] = []
     seen: set[str] = set()
     for ws in formula_wb.worksheets:
@@ -87,27 +130,53 @@ def detect_hardcode_breaks(formula_wb, allowed_sheet_names: set[str] | None = No
             by_col[cell.column][cell.row] = cell.value
         for row, values in by_row.items():
             tick(budget)
-            _hardcode_breaks_in_line(values, ws.title, row, None, seen, findings)
+            _hardcode_breaks_in_line(values, ws.title, row, None, seen, findings, names)
         for col, values in by_col.items():
             tick(budget)
-            _hardcode_breaks_in_line(values, ws.title, None, col, seen, findings)
+            _hardcode_breaks_in_line(values, ws.title, None, col, seen, findings, names)
     return findings
 
 
-def _hardcode_breaks_in_line(values: dict[int, object], sheet: str, row: int | None, col: int | None, seen, findings) -> None:
-    formula_keys = [key for key, value in values.items() if is_formula(value)]
+def _hardcode_breaks_in_line(
+    values: dict[int, object],
+    sheet: str,
+    row: int | None,
+    col: int | None,
+    seen: set[str],
+    findings: list[Finding],
+    names,
+) -> None:
+    keys = sorted(values)
+    formula_keys = [key for key in keys if is_formula(values[key])]
     if len(formula_keys) < 2:
         return
-    start, end = min(formula_keys), max(formula_keys)
-    for key in sorted(values):
-        if key <= start or key >= end:
-            continue
+
+    def position(key: int) -> tuple[int, int]:
+        return (row, key) if row is not None else (key, col)  # type: ignore[return-value]
+
+    for key in keys:
         value = values[key]
-        if is_formula(value) or isinstance(value, str):
+        if not _is_plain_number(value):
             continue
-        r = row if row is not None else key
-        c = col if col is not None else key
-        loc = location(sheet, r, c)
+        idx = bisect_left(formula_keys, key)
+        if idx == 0 or idx >= len(formula_keys):
+            continue
+        left, right = formula_keys[idx - 1], formula_keys[idx]
+        if right - left - 1 > MAX_PLUG_GAP:
+            continue
+        left_pos, right_pos, cell_pos = position(left), position(right), position(key)
+        left_text = formula_text(values[left])
+        right_text = formula_text(values[right])
+        if left_text is None or right_text is None:
+            continue
+        pattern = normalize_formula(left_text, *left_pos)
+        if pattern != normalize_formula(right_text, *right_pos):
+            continue
+        if _aggregates_over(left_text, left_pos, sheet, cell_pos, names) or _aggregates_over(
+            right_text, right_pos, sheet, cell_pos, names
+        ):
+            continue
+        loc = location(sheet, *cell_pos)
         if loc in seen:
             continue
         seen.add(loc)
@@ -120,7 +189,10 @@ def _hardcode_breaks_in_line(values: dict[int, object], sheet: str, row: int | N
                 location=loc,
                 title="Hardcoded value inside formula block",
                 formula=None,
-                evidence=[f"Value {value!r} sits between formulas in the same row or column."],
+                evidence=[
+                    f"Value {value!r} sits between {location(sheet, *left_pos)} and {location(sheet, *right_pos)}, "
+                    f"which share the pattern {pattern}."
+                ],
                 suggested_fix="Confirm whether this is an intentional plug. If not, restore the formula pattern.",
             )
         )

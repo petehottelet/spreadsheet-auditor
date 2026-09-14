@@ -71,7 +71,7 @@ the resulting report/JSON/HTML/annotated outputs ready to inspect.
 | Formula integrity | live errors (`#REF!`, `#DIV/0!`, `#VALUE!`, `#N/A`, ...), broken/deleted references, references to blank precedents, circular references, formula drift across a row/column, `IFERROR`/`IFNA` error masking |
 | Hardcodes & inputs | numeric literals embedded in formulas, hardcoded plug values inside a formula block |
 | Ranges | aggregate ranges that exclude adjacent data (off-by-one), ranges that include subtotal/total rows, inconsistent aggregate range lengths across peers, hidden rows/columns/sheets inside totals |
-| Reconciliation | stated totals that differ from their components, row totals vs column totals that don't cross-foot |
+| Reconciliation | totals that double-count a component (`=SUM(B2:B5)+B5`), bare `SUM` totals whose cached value differs from their components, row totals vs column totals that don't cross-foot |
 | Logic & structure | volatile/fragile functions (`OFFSET`, `INDIRECT`, `NOW`, `RAND`, ...), whole-column references |
 | Data hygiene | numbers stored as text, leading/trailing whitespace in keys/labels, duplicate lookup keys, merged cells inside data ranges |
 | Finance (opt-in HEUR) | balance-sheet balance, sign convention on revenue/expense rows, quarterly period sequencing |

@@ -1,4 +1,4 @@
-"""Range-shape checks: off-by-one, length mismatches, embedded literals, volatile functions."""
+"""Range-shape checks: off-by-one, subtotal double counts, hidden inputs, length mismatches, literals, volatile functions."""
 
 from __future__ import annotations
 
@@ -9,14 +9,29 @@ from .base import Check, CheckContext, register
 @register
 class RangeIssueCheck(Check):
     name = "range_issues"
-    description = "Detects ranges that exclude adjacent data rows/columns or straddle subtotals."
-    rule_ids = ("RANGE_EXCLUSION", "RANGE_INCLUDES_SUBTOTAL", "HIDDEN_STRUCTURE_IN_TOTAL", "WHOLE_COLUMN_REFERENCE")
+    description = (
+        "Detects totals that stop short of an adjacent input, ranges that sum a subtotal "
+        "together with its components, and hidden rows/columns/sheets that feed visible formulas."
+    )
+    rule_ids = ("RANGE_EXCLUSION", "RANGE_INCLUDES_SUBTOTAL", "HIDDEN_STRUCTURE_IN_TOTAL")
     mode = "DET"
 
     def run(self, ctx: CheckContext) -> list[Finding]:
-        from ..range_checks import detect_range_issues
+        from ..range_checks import detect_hidden_structure, detect_range_issues
 
-        return detect_range_issues(ctx.formula_wb, ctx.value_wb, ctx.formulas, names=ctx.names, budget=ctx.budget)
+        findings = detect_range_issues(
+            ctx.formula_wb, ctx.value_wb, ctx.formulas, names=ctx.names, budget=ctx.budget
+        )
+        findings.extend(
+            detect_hidden_structure(
+                ctx.formula_wb,
+                ctx.formulas,
+                names=ctx.names,
+                budget=ctx.budget,
+                allowed_sheet_names=ctx.allowed_sheet_names,
+            )
+        )
+        return findings
 
 
 @register

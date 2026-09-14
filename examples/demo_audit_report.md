@@ -2,12 +2,12 @@
 
 ## Executive Summary
 
-- Tool version: `0.1.0` (run at 2026-06-17T04:10:41+00:00)
-- Workbook SHA-256: `3d9e77727a2216071b068f468f54580b4aa3653c71ca196bde7360c0565c5062`
+- Tool version: `0.1.0` (run at 2026-09-14T02:52:10+00:00)
+- Workbook SHA-256: `9fcd67e466bbfbda3686e8f22a151b4186538f599654e526fafbf351c69e369e`
 - Sheets analyzed: 2
-- Formulas scanned: 28
-- Recalculation status: completed
-- Findings: 25 Critical, 35 High, 3 Medium, 0 Low, 0 Info
+- Formulas scanned: 30
+- Recalculation status: unavailable
+- Findings: 1 Critical, 7 High, 3 Medium, 0 Low, 0 Info
 - Suppressed findings: 0
 
 ## Coverage And Limitations
@@ -15,45 +15,19 @@
 - Macros present: False
 - Macros executed: False
 - External links present: False
-- Limitation: defusedxml is not available; XML parsing relies on workbook library defaults in this runtime.
+- Limitation: LibreOffice/soffice not available; using static analysis and cached values only.
+- Limitation: Recalculation did not run; value-dependent checks (TOTAL_MISMATCH, CROSS_FOOT_FAILURE) rely on cached values and may be incomplete.
 
 ## Confirmed Findings
 
 _Hard defects: the auditor is certain this is wrong._
-
-### [CRITICAL] Row totals and column totals disagree - CROSS_FOOT_FAILURE
-
-- ID: `CROSS_FOOT_FAILURE-001`
-- Location: `Budget!E6`
-- Detection: DET; confidence: Defect
-- Evidence: Sum of row totals down column E is 13505.0; sum of column totals across row 6 is 13655.0.
-- Impact: {"estimated_delta": -150.0}
-- Suggested fix: Reconcile the totals row and totals column; one of the contributing aggregates is likely wrong.
-
-### [CRITICAL] Cell contains live spreadsheet error - LIVE_ERROR
-
-- ID: `LIVE_ERROR-001`
-- Location: `Budget!B14`
-- Detection: DET; confidence: Defect
-- Evidence: Cell contains #NAME?.
-- Suggested fix: Trace the formula precedent chain and resolve the underlying spreadsheet error.
-
-### [CRITICAL] Stated total differs from referenced components - TOTAL_MISMATCH
-
-- ID: `TOTAL_MISMATCH-001`
-- Location: `Budget!B6`
-- Detection: DET; confidence: Defect
-- Formula: `=SUM(B2:B5)+B5`
-- Evidence: Cached value is 4300.0; recomputed referenced components sum to 4150.0.
-- Impact: {"estimated_delta": 150.0}
-- Suggested fix: Recalculate the workbook and review the aggregate formula and referenced component range.
 
 ### [HIGH] Formula contains deleted reference - BROKEN_REFERENCE
 
 - ID: `BROKEN_REFERENCE-001`
 - Location: `Budget!B14`
 - Detection: DET; confidence: Defect
-- Formula: `=SUM(#ref!)`
+- Formula: `=SUM(#REF!)`
 - Evidence: Formula text contains #REF!.
 - Suggested fix: Restore the deleted reference or rebuild the formula from intended source cells.
 
@@ -64,375 +38,54 @@ _Strong defect candidates; review and confirm._
 ### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
 
 - ID: `RANGE_EXCLUSION-001`
-- Location: `Budget!B11`
+- Location: `Budget!B10`
 - Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:B8)`
-- Evidence: Budget!B2:B8 excludes adjacent above cell Budget!B1 with value 'Jan'.
-- Suggested fix: Confirm whether Budget!B1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-002`
-- Location: `Budget!B11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:B8)`
-- Evidence: Budget!B2:B8 excludes adjacent below cell Budget!B9 with value 300.
+- Formula: `=SUM(B7:B8)`
+- Evidence: Budget!B7:B8 stops short of Budget!B9 (value 300), which sits below the range, between it and the total.
 - Suggested fix: Confirm whether Budget!B9 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-003`
-- Location: `Budget!B4`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:B3)`
-- Evidence: Budget!B2:B3 excludes adjacent above cell Budget!B1 with value 'Jan'.
-- Suggested fix: Confirm whether Budget!B1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-004`
-- Location: `Budget!B6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:B5)+B5`
-- Evidence: Budget!B2:B5 excludes adjacent above cell Budget!B1 with value 'Jan'.
-- Suggested fix: Confirm whether Budget!B1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-005`
-- Location: `Budget!C11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(C2:C9)`
-- Evidence: Budget!C2:C9 excludes adjacent above cell Budget!C1 with value 'Feb'.
-- Suggested fix: Confirm whether Budget!C1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-006`
-- Location: `Budget!C4`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(C2:C3)`
-- Evidence: Budget!C2:C3 excludes adjacent above cell Budget!C1 with value 'Feb'.
-- Suggested fix: Confirm whether Budget!C1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-007`
-- Location: `Budget!C6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(C2:C5)`
-- Evidence: Budget!C2:C5 excludes adjacent above cell Budget!C1 with value 'Feb'.
-- Suggested fix: Confirm whether Budget!C1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-008`
-- Location: `Budget!D11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(D2:D9)`
-- Evidence: Budget!D2:D9 excludes adjacent above cell Budget!D1 with value 'Mar'.
-- Suggested fix: Confirm whether Budget!D1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-009`
-- Location: `Budget!D4`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(D2:D3)`
-- Evidence: Budget!D2:D3 excludes adjacent above cell Budget!D1 with value 'Mar'.
-- Suggested fix: Confirm whether Budget!D1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data row - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-010`
-- Location: `Budget!D6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(D2:D5)`
-- Evidence: Budget!D2:D5 excludes adjacent above cell Budget!D1 with value 'Mar'.
-- Suggested fix: Confirm whether Budget!D1 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-011`
-- Location: `Budget!E10`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B10:D10)`
-- Evidence: Budget!B10:D10 excludes adjacent left cell Budget!A10 with value 'COGS total'.
-- Suggested fix: Confirm whether Budget!A10 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-012`
-- Location: `Budget!E11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B11:D11)`
-- Evidence: Budget!B11:D11 excludes adjacent left cell Budget!A11 with value 'Grand total'.
-- Suggested fix: Confirm whether Budget!A11 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-013`
-- Location: `Budget!E12`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B12:D12)`
-- Evidence: Budget!B12:D12 excludes adjacent left cell Budget!A12 with value 'Adjustment (hidden)'.
-- Suggested fix: Confirm whether Budget!A12 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-014`
-- Location: `Budget!E13`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B13:D13)`
-- Evidence: Budget!B13:D13 excludes adjacent left cell Budget!A13 with value 'With adjustment'.
-- Suggested fix: Confirm whether Budget!A13 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-015`
-- Location: `Budget!E2`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:D2)`
-- Evidence: Budget!B2:D2 excludes adjacent left cell Budget!A2 with value 'Subscriptions'.
-- Suggested fix: Confirm whether Budget!A2 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-016`
-- Location: `Budget!E3`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B3:D3)`
-- Evidence: Budget!B3:D3 excludes adjacent left cell Budget!A3 with value 'Services'.
-- Suggested fix: Confirm whether Budget!A3 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-017`
-- Location: `Budget!E4`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B4:D4)`
-- Evidence: Budget!B4:D4 excludes adjacent left cell Budget!A4 with value 'Subtotal'.
-- Suggested fix: Confirm whether Budget!A4 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-018`
-- Location: `Budget!E5`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B5:D5)`
-- Evidence: Budget!B5:D5 excludes adjacent left cell Budget!A5 with value 'Other revenue'.
-- Suggested fix: Confirm whether Budget!A5 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-019`
-- Location: `Budget!E6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B6:C6)`
-- Evidence: Budget!B6:C6 excludes adjacent left cell Budget!A6 with value 'Revenue total'.
-- Suggested fix: Confirm whether Budget!A6 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-020`
-- Location: `Budget!E6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B6:C6)`
-- Evidence: Budget!B6:C6 excludes adjacent right cell Budget!D6 with value '=SUM(D2:D5)'.
-- Suggested fix: Confirm whether Budget!D6 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-021`
-- Location: `Budget!E7`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B7:D7)`
-- Evidence: Budget!B7:D7 excludes adjacent left cell Budget!A7 with value 'Hosting'.
-- Suggested fix: Confirm whether Budget!A7 belongs in the aggregate, then extend the range if appropriate.
-
-### [CRITICAL] Aggregation range appears to exclude adjacent data column - RANGE_EXCLUSION
-
-- ID: `RANGE_EXCLUSION-022`
-- Location: `Budget!E8`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B8:D8)`
-- Evidence: Budget!B8:D8 excludes adjacent left cell Budget!A8 with value 'Support staff'.
-- Suggested fix: Confirm whether Budget!A8 belongs in the aggregate, then extend the range if appropriate.
 
 ### [HIGH] Formula breaks neighboring pattern - FORMULA_DRIFT
 
 - ID: `FORMULA_DRIFT-001`
-- Location: `Budget!E10`
+- Location: `Budget!B10`
 - Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B10:D10)`
+- Formula: `=SUM(B7:B8)`
 - Evidence: Formula differs from the dominant relative pattern in this row.
-- Evidence: Dominant pattern (n=3): =SUM(R-3C+0:R-1C+0)
-- Evidence: This cell: =SUM(R+0C-3:R+0C-1)
-- Evidence: Neighboring formulas: Budget!D10==SUM(D7:D9)
+- Evidence: Dominant pattern (n=2): =SUM(R[-3]C:R[-1]C)
+- Evidence: This cell: =SUM(R[-3]C:R[-2]C)
+- Evidence: Neighboring formulas: Budget!C10==SUM(C7:C9)
 - Suggested fix: Compare this formula to adjacent formulas and restore the intended relative references.
 
 ### [HIGH] Formula breaks neighboring pattern - FORMULA_DRIFT
 
 - ID: `FORMULA_DRIFT-002`
-- Location: `Budget!E13`
+- Location: `Budget!B6`
 - Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B13:D13)`
+- Formula: `=SUM(B4:B5)+B5`
 - Evidence: Formula differs from the dominant relative pattern in this row.
-- Evidence: Dominant pattern (n=3): =R-2C+0+R-1C+0
-- Evidence: This cell: =SUM(R+0C-3:R+0C-1)
-- Evidence: Neighboring formulas: Budget!D13==D11+D12
+- Evidence: Dominant pattern (n=2): =SUM(R[-2]C:R[-1]C)
+- Evidence: This cell: =SUM(R[-2]C:R[-1]C)+R[-1]C
+- Evidence: Neighboring formulas: Budget!C6==SUM(C4:C5)
 - Suggested fix: Compare this formula to adjacent formulas and restore the intended relative references.
 
 ### [HIGH] Formula breaks neighboring pattern - FORMULA_DRIFT
 
 - ID: `FORMULA_DRIFT-003`
-- Location: `Budget!E4`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B4:D4)`
-- Evidence: Formula differs from the dominant relative pattern in this row.
-- Evidence: Dominant pattern (n=3): =SUM(R-2C+0:R-1C+0)
-- Evidence: This cell: =SUM(R+0C-3:R+0C-1)
-- Evidence: Neighboring formulas: Budget!D4==SUM(D2:D3)
-- Suggested fix: Compare this formula to adjacent formulas and restore the intended relative references.
-
-### [HIGH] Formula breaks neighboring pattern - FORMULA_DRIFT
-
-- ID: `FORMULA_DRIFT-004`
 - Location: `Budget!E6`
 - Detection: DET; confidence: Likely defect
 - Formula: `=SUM(B6:C6)`
 - Evidence: Formula differs from the dominant relative pattern in this column.
-- Evidence: Dominant pattern (n=6): =SUM(R+0C-3:R+0C-1)
-- Evidence: This cell: =SUM(R+0C-3:R+0C-2)
+- Evidence: Dominant pattern (n=6): =SUM(RC[-3]:RC[-1])
+- Evidence: This cell: =SUM(RC[-3]:RC[-2])
 - Evidence: Neighboring formulas: Budget!E5==SUM(B5:D5); Budget!E7==SUM(B7:D7)
 - Suggested fix: Compare this formula to adjacent formulas and restore the intended relative references.
 
 ### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
 
 - ID: `HARDCODE_IN_FORMULA_BLOCK-001`
-- Location: `Budget!B12`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 50 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-002`
-- Location: `Budget!B5`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 150 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-003`
-- Location: `Budget!B7`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 200 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-004`
-- Location: `Budget!B8`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 600 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-005`
-- Location: `Budget!B9`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 300 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-006`
-- Location: `Budget!C12`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 60 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-007`
-- Location: `Budget!C5`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 175 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-008`
-- Location: `Budget!C7`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 210 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-009`
-- Location: `Budget!C8`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 620 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-010`
-- Location: `Budget!C9`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 320 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-011`
-- Location: `Budget!D12`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 70 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-012`
-- Location: `Budget!D5`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 200 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-013`
-- Location: `Budget!D7`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 220 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-014`
-- Location: `Budget!D8`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 640 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-015`
-- Location: `Budget!D9`
-- Detection: DET; confidence: Likely defect
-- Evidence: Value 340 sits between formulas in the same row or column.
-- Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
-
-### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
-
-- ID: `HARDCODE_IN_FORMULA_BLOCK-016`
 - Location: `Budget!E9`
 - Detection: DET; confidence: Likely defect
-- Evidence: Value 999 sits between formulas in the same row or column.
+- Evidence: Value 999 sits between Budget!E8 and Budget!E10, which share the pattern =SUM(RC[-3]:RC[-1]).
 - Suggested fix: Confirm whether this is an intentional plug. If not, restore the formula pattern.
 
 ### [HIGH] Numeric-looking value stored as text - NUMBERS_STORED_AS_TEXT
@@ -440,145 +93,37 @@ _Strong defect candidates; review and confirm._
 - ID: `NUMBERS_STORED_AS_TEXT-001`
 - Location: `Budget!B20`
 - Detection: DET; confidence: Likely defect
-- Evidence: Cell contains text value '1,250', which may be ignored by numeric formulas.
+- Evidence: Cell contains text value '1,250' and is referenced by a formula; numeric functions such as SUM ignore text.
 - Suggested fix: Convert the value to a number or confirm it is intentionally text.
 
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
+### [HIGH] Total double-counts a cell inside its own range - TOTAL_MISMATCH
 
-- ID: `RANGE_INCLUDES_SUBTOTAL-001`
-- Location: `Budget!B11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:B8)`
-- Evidence: Budget!B2:B8 includes row 4, labeled 'subtotal'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-002`
-- Location: `Budget!B11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:B8)`
-- Evidence: Budget!B2:B8 includes row 6, labeled 'revenue total'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-003`
+- ID: `TOTAL_MISMATCH-001`
 - Location: `Budget!B6`
 - Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B2:B5)+B5`
-- Evidence: Budget!B2:B5 includes row 4, labeled 'subtotal'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-004`
-- Location: `Budget!C11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(C2:C9)`
-- Evidence: Budget!C2:C9 includes row 4, labeled 'subtotal =sum(b2:b3)'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-005`
-- Location: `Budget!C11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(C2:C9)`
-- Evidence: Budget!C2:C9 includes row 6, labeled 'revenue total =sum(b2:b5)+b5'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-006`
-- Location: `Budget!C6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(C2:C5)`
-- Evidence: Budget!C2:C5 includes row 4, labeled 'subtotal =sum(b2:b3)'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-007`
-- Location: `Budget!D11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(D2:D9)`
-- Evidence: Budget!D2:D9 includes row 4, labeled 'subtotal =sum(b2:b3) =sum(c2:c3)'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-008`
-- Location: `Budget!D11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(D2:D9)`
-- Evidence: Budget!D2:D9 includes row 6, labeled 'revenue total =sum(b2:b5)+b5 =sum(c2:c5)'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-009`
-- Location: `Budget!D6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(D2:D5)`
-- Evidence: Budget!D2:D5 includes row 4, labeled 'subtotal =sum(b2:b3) =sum(c2:c3)'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-010`
-- Location: `Budget!E10`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B10:D10)`
-- Evidence: Budget!B10:D10 includes row 10, labeled 'cogs total'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-011`
-- Location: `Budget!E11`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B11:D11)`
-- Evidence: Budget!B11:D11 includes row 11, labeled 'grand total'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-012`
-- Location: `Budget!E4`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B4:D4)`
-- Evidence: Budget!B4:D4 includes row 4, labeled 'subtotal'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
-
-### [HIGH] Aggregation range appears to include subtotal or total row - RANGE_INCLUDES_SUBTOTAL
-
-- ID: `RANGE_INCLUDES_SUBTOTAL-013`
-- Location: `Budget!E6`
-- Detection: DET; confidence: Likely defect
-- Formula: `=SUM(B6:C6)`
-- Evidence: Budget!B6:C6 includes row 6, labeled 'revenue total'.
-- Suggested fix: Review the aggregate range and exclude subtotal/total rows unless intentionally double-counting.
+- Formula: `=SUM(B4:B5)+B5`
+- Evidence: =SUM(B4:B5)+B5 adds B5, which is already inside B4:B5.
+- Suggested fix: Remove the duplicated term or shrink the range so each component is counted once.
 
 ## Review Findings
 
 _Heuristic flags; worth a second look but may be intentional._
 
-### [MEDIUM] Duplicate normalized key in first column - DUPLICATE_KEY
+### [MEDIUM] Duplicate key in lookup range - DUPLICATE_KEY
 
 - ID: `DUPLICATE_KEY-001`
 - Location: `Budget!A17, Budget!A18`
 - Detection: DET; confidence: Review
-- Evidence: Normalized key 'north' appears 2 times.
-- Suggested fix: Confirm duplicate labels are intentional, especially if lookup formulas depend on this column.
+- Evidence: Normalized key 'north' appears 2 times in a range searched by lookup formulas; only the first match is returned.
+- Suggested fix: Make the keys unique or confirm the lookup is meant to return the first match.
 
-### [MEDIUM] Aggregate includes hidden structure - HIDDEN_STRUCTURE_IN_TOTAL
+### [MEDIUM] Formula inputs include hidden structure - HIDDEN_STRUCTURE_IN_TOTAL
 
 - ID: `HIDDEN_STRUCTURE_IN_TOTAL-001`
-- Location: `Budget!E12`
+- Location: `Budget!B13`
 - Detection: DET; confidence: Review
-- Formula: `=SUM(B12:D12)`
-- Evidence: Budget!B12:D12 intersects hidden rows [12].
+- Formula: `=B11+B12`
+- Evidence: Hidden row 12 on Budget feeds 3 visible formula(s): Budget!B13, Budget!C13, Budget!D13.
 - Suggested fix: Confirm hidden inputs are intentional and disclosed in visible workbook documentation.
 
 ### [MEDIUM] Text has leading or trailing whitespace - WHITESPACE_KEY
