@@ -13,7 +13,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   formula, cached value and neighbours of every Critical or High candidate
   (or of named findings and cells), and what a one-cell link points at, so an
   agent can tell a mistake from a line that differs by design before
-  reporting it.
+  reporting it. A cell flagged by several rules gets one card naming them all.
 - **Skill evals** (`evals/evals.json`): three task prompts with expectations,
   on a household budget, the demo forecast and an inherited tracker.
 - **Skill workflow**: SKILL.md checks every non-certain finding in context
