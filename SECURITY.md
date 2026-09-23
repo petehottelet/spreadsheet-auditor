@@ -16,7 +16,7 @@ The auditor's defaults are designed to *never* trigger any of these.
 
 | Activity                                  | What the auditor does                                                                 |
 | ----------------------------------------- | ------------------------------------------------------------------------------------- |
-| **Macros (`.xlsm`)**                      | **Inventoried only.** Macro modules are listed in `coverage.macros_present` but never executed. The auditor opens the workbook with `keep_vba=False` semantics. |
+| **Macros (`.xlsm`)**                      | **Inventoried only.** Macro modules are listed in `coverage.macros_present` but never executed. openpyxl loads `.xlsm` files with `keep_vba=True`, which carries the VBA part as opaque bytes (so an annotated copy keeps it) and never runs it. |
 | **External links**                        | **Inventoried only.** Linked workbooks are not followed; cached values are read where present. |
 | **External data sources / Power Query**   | **Not refreshed.** Cached values are read; the connection is not opened.              |
 | **Web queries / data tables**             | Not refreshed. Cached values only.                                                    |

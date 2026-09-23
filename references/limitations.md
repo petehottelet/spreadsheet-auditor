@@ -4,6 +4,16 @@
 Excel calculation parity, does not certify business or accounting
 correctness, and is not a substitute for review by a human modeler.
 
+Contents: [Calculation parity](#calculation-parity) ·
+[Value-dependent checks](#value-dependent-checks) ·
+[Workbook size and performance](#workbook-size-and-performance) ·
+[Annotated copies](#annotated-copies) ·
+[Always disclose when](#always-disclose-when) ·
+[Security behavior](#security-behavior) ·
+[Heuristic vs deterministic](#heuristic-vs-deterministic) ·
+[Exit codes](#exit-codes) ·
+[What this tool is not](#what-this-tool-is-not)
+
 ## Calculation parity
 
 The auditor reads workbooks with [`openpyxl`](https://openpyxl.readthedocs.io/)
