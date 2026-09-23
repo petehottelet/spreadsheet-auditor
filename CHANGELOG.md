@@ -11,8 +11,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - **Context cards** (`scripts/context.py`): the row label, column header,
   formula, cached value and neighbours of every Critical or High candidate
-  (or of named findings and cells), so an agent can tell a mistake from a line
-  that differs by design before reporting it.
+  (or of named findings and cells), and what a one-cell link points at, so an
+  agent can tell a mistake from a line that differs by design before
+  reporting it.
 - **Skill evals** (`evals/evals.json`): three task prompts with expectations,
   on a household budget, the demo forecast and an inherited tracker.
 - **Skill workflow**: SKILL.md checks every non-certain finding in context
@@ -134,6 +135,11 @@ false positives had in common; the seeded benchmark is unchanged.
 - **`FORMULA_DRIFT`** suggests restoring the neighbours' pattern only when the
   cell is the same kind of line; a total, net or summary line is compared with
   the other totals. The old text led agents to rewrite correct total lines.
+  When a drifted total adds another column than the totals beside it (F123 =
+  `SUM(G65:G122)` next to E123 = `SUM(E65:E122)`), the fix names its own
+  column (`=SUM(F65:F122)`), the same across a totals column.
+- **`LIVE_ERROR`** findings carry the formula of the cell where the error is
+  born, so the report shows the cause.
 
 ### Fixed
 
@@ -147,6 +153,10 @@ false positives had in common; the seeded benchmark is unchanged.
   traceback; `.xls` and password-protected files get conversion advice.
 - openpyxl's read-time "will be lost" warnings no longer reach stderr; the
   audit never saves the workbook it reads.
+- LibreOffice gets its throwaway profile as a canonical file URL
+  (`file:///tmp/...`); on Linux the old string was `file:////tmp/...`, which
+  LibreOffice need not map to the profile that disables macros and forces
+  recalculation.
 
 ## [0.2.0] - 2026-09-13
 

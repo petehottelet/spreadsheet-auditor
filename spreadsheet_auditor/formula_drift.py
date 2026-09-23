@@ -4,6 +4,8 @@ import re
 from bisect import bisect_left
 from collections import Counter, defaultdict
 
+from openpyxl.utils.cell import column_index_from_string, get_column_letter
+
 from .budget import tick
 from .finding import Finding
 from .formula_parser import formula_text, is_formula, normalize_formula, parse_formula
@@ -84,6 +86,21 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, for
                 ]
                 if neighbors:
                     evidence.append("Neighboring formulas: " + "; ".join(neighbors))
+                suggested_fix = (
+                    "If this cell is the same kind of line as its neighbors, restore their pattern. "
+                    "A total, net or summary line differs by design: compare it with the other totals instead."
+                )
+                own = _own_line_total(
+                    cell, by_row[(cell["sheet"], cell["row"])], by_col[(cell["sheet"], cell["col"])]
+                )
+                if own is not None:
+                    peer, unit, fixed = own
+                    line = "row" if unit == "column" else "column"
+                    evidence.append(
+                        f"The other totals on this {line} add up their own {unit} "
+                        f"({peer['location']}={peer['formula']}); this one adds a different {unit}."
+                    )
+                    suggested_fix = f"Point the total at its own {unit}: {fixed}"
                 findings.append(
                     Finding(
                         rule_id="FORMULA_DRIFT",
@@ -94,10 +111,7 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, for
                         title="Formula breaks neighboring pattern",
                         formula=cell["formula"],
                         evidence=evidence,
-                        suggested_fix=(
-                            "If this cell is the same kind of line as its neighbors, restore their pattern. "
-                            "A total, net or summary line differs by design: compare it with the other totals instead."
-                        ),
+                        suggested_fix=suggested_fix,
                     )
                 )
     return findings
@@ -105,6 +119,50 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, for
 
 _OFFSET_RE = re.compile(r"\[-?\d+\]")
 _AGG_RE = re.compile(r"\b(?:SUM|AVERAGE|AVERAGEA|COUNT|COUNTA|MIN|MAX|MEDIAN|SUBTOTAL)\(")
+# A formula that is one aggregate over one same-sheet range, such as =SUM(G65:G122).
+_SIMPLE_AGG_RE = re.compile(
+    r"^=\s*(SUM|AVERAGE|AVERAGEA|COUNT|COUNTA|MIN|MAX|MEDIAN)\(\s*"
+    r"\$?([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _simple_aggregate(formula: str) -> tuple[str, int, int, int, int] | None:
+    """``(function, min_col, min_row, max_col, max_row)`` for ``=AGG(A1:B2)``, else None."""
+    match = _SIMPLE_AGG_RE.match(formula or "")
+    if not match:
+        return None
+    function, col1, row1, col2, row2 = match.groups()
+    c1, c2 = column_index_from_string(col1.upper()), column_index_from_string(col2.upper())
+    r1, r2 = int(row1), int(row2)
+    return function.upper(), min(c1, c2), min(r1, r2), max(c1, c2), max(r1, r2)
+
+
+def _own_line_total(cell: dict, same_row: list[dict], same_col: list[dict]) -> tuple[dict, str, str] | None:
+    """``(peer, unit, formula)`` when a drifted total adds another column (or row) than its peers do.
+
+    A totals row where E123 = SUM(E65:E122) adds its own column but
+    F123 = SUM(G65:G122) adds column G is one total pointed at the wrong
+    column; the fix is SUM(F65:F122), not the row sum that column F's
+    majority pattern would suggest. The same holds across a totals column.
+    """
+    agg = _simple_aggregate(cell["formula"])
+    if agg is None:
+        return None
+    function, c1, r1, c2, r2 = agg
+    if c1 == c2 != cell["col"] and r2 < cell["row"]:
+        for peer in same_row:
+            other = _simple_aggregate(peer["formula"]) if peer is not cell else None
+            if other and other[1] == other[3] == peer["col"] and (other[2], other[4]) == (r1, r2):
+                letter = get_column_letter(cell["col"])
+                return peer, "column", f"={function}({letter}{r1}:{letter}{r2})"
+    if r1 == r2 != cell["row"] and c2 < cell["col"]:
+        for peer in same_col:
+            other = _simple_aggregate(peer["formula"]) if peer is not cell else None
+            if other and other[2] == other[4] == peer["row"] and (other[1], other[3]) == (c1, c2):
+                first, last = get_column_letter(c1), get_column_letter(c2)
+                return peer, "row", f"={function}({first}{cell['row']}:{last}{cell['row']})"
+    return None
 _AGG_NAME_RE = re.compile(r"\b(SUM|AVERAGE|AVERAGEA|COUNT|COUNTA|MIN|MAX|MEDIAN)\(")
 # Words in a header or label that announce which aggregate a cell holds.
 _AGG_WORDS = {

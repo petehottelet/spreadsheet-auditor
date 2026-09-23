@@ -59,7 +59,10 @@ def recalc_if_available(path: str | Path, timeout_seconds: int = 60, work_dir: s
         "--nologo",
         "--nofirststartwizard",
         "--norestore",
-        f"-env:UserInstallation=file:///{profile_dir.as_posix()}",
+        # as_uri() gives file:///tmp/... on POSIX; prefixing file:/// to an
+        # absolute POSIX path produced file:////tmp/..., a URL LibreOffice need
+        # not map to the seeded profile that disables macros.
+        f"-env:UserInstallation={profile_dir.resolve().as_uri()}",
         "--convert-to",
         "xlsx",
         "--outdir",

@@ -4,23 +4,25 @@
 
 With no IDs, prints a card for every Critical or High finding that is not
 already a certain defect (confidence other than `Defect`), up to 25. Pass
-finding IDs (`FORMULA_DRIFT-002`) or cells (`Budget!B10`) to pick others.
+finding IDs (`FORMULA_DRIFT-002`) or cells (`P&L!F18`) to pick others.
 
 Each card shows the row label and column header of the flagged cell, its
-formula and cached value, and the formulas and values two cells around it,
-which is what decides whether a flagged cell is a mistake or a line that
-differs by design (a total, a net line, a summary row, an input column).
+formula and cached value, what a one-cell link points at, and the formulas
+and values two cells around it, which is what decides whether a flagged cell
+is a mistake or a line that differs by design (a total, a net line, a summary
+row, an input column).
 """
 
 from __future__ import annotations
 
 import json
+import re
 import sys
 import warnings
 from pathlib import Path
 
-MAX_CARDS = 25
-WINDOW = 2
+MAX_CARDS = 25  # about 100 lines of output; more is better read by rule from --summary
+WINDOW = 2  # cells each way: the 5x5 neighbourhood the corpus labels were judged from
 
 
 def _short(value, limit: int = 60) -> str:
@@ -39,6 +41,21 @@ def _anchor(location: str) -> tuple[str, str] | None:
 
 def _is_formula(value) -> bool:
     return (isinstance(value, str) and value.startswith("=")) or hasattr(value, "text")
+
+
+_LINK_RE = re.compile(
+    r"^=\+?\s*(?:(?:'(?P<quoted>(?:[^']|'')+)'|(?P<bare>[A-Za-z0-9_.]+))!)?"
+    r"\$?(?P<col>[A-Za-z]{1,3})\$?(?P<row>\d+)\s*$"
+)
+
+
+def _link_target(formula, sheet: str) -> tuple[str, str] | None:
+    """``(sheet, cell)`` when the formula is a single-cell link such as ``=C61`` or ``='Other'!M14``."""
+    match = _LINK_RE.match(formula) if isinstance(formula, str) else None
+    if match is None:
+        return None
+    target_sheet = match["quoted"].replace("''", "'") if match["quoted"] else match["bare"] or sheet
+    return target_sheet, f"{match['col'].upper()}{match['row']}"
 
 
 def card(formula_wb, value_wb, location: str) -> list[str]:
@@ -71,6 +88,16 @@ def card(formula_wb, value_wb, location: str) -> list[str]:
         f"  row label: {', '.join(labels) or '-'} | column header: {header or '-'}",
         f"  cell: {coord} {_short(f(row, col), 90)} -> {_short(v(row, col), 30)}",
     ]
+    link = _link_target(f(row, col), sheet)
+    if link is not None and link[0] in formula_wb.sheetnames:
+        # A one-cell link (=C61, ='Other sheet'!M14) is judged by what it points at.
+        target_sheet, target = link
+        trow, tcol = coordinate_to_tuple(target)
+        tcells, tvalues = formula_wb[target_sheet]._cells, value_wb[target_sheet]._cells
+        texts = [tcells[(trow, c)].value for c in range(1, tcol) if (trow, c) in tcells]
+        label = next((t for t in reversed(texts) if isinstance(t, str) and not _is_formula(t)), None)
+        value = tvalues[(trow, tcol)].value if (trow, tcol) in tvalues else None
+        lines.append(f"  links to: {target_sheet}!{target} (row label: {_short(label, 40) if label else '-'}) -> {_short(value, 30)}")
     around = []
     for r in range(max(1, row - WINDOW), row + WINDOW + 1):
         for c in range(max(1, col - WINDOW), col + WINDOW + 1):
