@@ -4,10 +4,12 @@ Usage:
     python scripts/quick_validate.py <skill-folder-or-zip>
 
 Checks:
-- `SKILL.md` exists with valid YAML frontmatter containing exactly `name` and
-  `description`.
-- Skill name is lowercase kebab-case (<= 63 chars).
-- Skill description is non-empty and <= 1024 characters (Claude limit).
+- `SKILL.md` exists with valid YAML frontmatter holding `name` and
+  `description`, plus only the optional fields the Agent Skills spec allows.
+- Skill name is lowercase kebab-case (<= 64 chars) without the reserved words
+  "anthropic" or "claude".
+- Skill description is non-empty, <= 1024 characters (Claude limit), and has
+  no XML tags.
 - Required reference files are present.
 - Either the legacy `scripts/audit.py` shim or the new
   `spreadsheet_auditor/cli.py` package entry point exists.
@@ -34,7 +36,12 @@ ENTRY_POINTS = [
     "spreadsheet_auditor/cli.py",
 ]
 
-NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,62}")
+NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
+RESERVED_NAME_WORDS = ("anthropic", "claude")
+XML_TAG_RE = re.compile(r"<[^>]+>")
+REQUIRED_KEYS = {"name", "description"}
+# The Agent Skills spec allows these next to the two required fields.
+OPTIONAL_KEYS = {"license", "compatibility", "metadata", "allowed-tools"}
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", re.S)
 
 
@@ -90,20 +97,24 @@ def _parse_frontmatter_fallback(raw: str) -> dict[str, Any] | None:
 
 def _validate_frontmatter(fields: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    extra = set(fields) - {"name", "description"}
-    missing = {"name", "description"} - set(fields)
+    extra = set(fields) - REQUIRED_KEYS - OPTIONAL_KEYS
+    missing = REQUIRED_KEYS - set(fields)
     if extra:
         errors.append(f"frontmatter has unexpected key(s): {sorted(extra)}")
     if missing:
         errors.append(f"frontmatter missing required key(s): {sorted(missing)}")
     name = str(fields.get("name", ""))
     if not NAME_RE.fullmatch(name):
-        errors.append(f"invalid skill name {name!r}; must be lowercase kebab-case, <=63 chars")
+        errors.append(f"invalid skill name {name!r}; must be lowercase kebab-case, <=64 chars")
+    elif any(word in name for word in RESERVED_NAME_WORDS):
+        errors.append(f"invalid skill name {name!r}; must not contain 'anthropic' or 'claude'")
     description = str(fields.get("description", "")).strip()
     if not description:
         errors.append("description must be non-empty")
     elif len(description) > 1024:
         errors.append(f"description must be <=1024 chars (got {len(description)})")
+    elif XML_TAG_RE.search(description):
+        errors.append("description must not contain XML tags")
     return errors
 
 

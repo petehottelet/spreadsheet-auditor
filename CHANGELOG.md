@@ -132,6 +132,15 @@ false positives had in common; the seeded benchmark is unchanged.
   ... / Average of ..." row does; that took function-swap recall to 56 of 93
   and overall recall from 0.68 to 0.76.
 - **`--summary`** counts findings by rule, severity and confidence.
+- **Skill packages** ship only what an agent reads: SKILL.md, the check
+  catalog, severity rubric, report template and limitations, the config
+  schema, `scripts/audit.py`, `scripts/context.py` and the engine. Contributor
+  docs, the test schemas, the seeded corpus and the maintainer scripts stay in
+  the repository.
+- **`scripts/quick_validate.py`** accepts the Agent Skills spec's optional
+  frontmatter fields (`license`, `compatibility`, `metadata`,
+  `allowed-tools`) and 64-character names, and rejects names containing
+  `anthropic` or `claude` and descriptions with XML tags.
 - **`FORMULA_DRIFT`** suggests restoring the neighbours' pattern only when the
   cell is the same kind of line; a total, net or summary line is compared with
   the other totals. The old text led agents to rewrite correct total lines.
