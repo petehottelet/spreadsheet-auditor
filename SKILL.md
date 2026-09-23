@@ -48,13 +48,13 @@ Each card shows the row label, column header, formula, cached value and neighbor
 - **By design**: the cell is a different kind of line (a total, net, variance, summary or header row, or an input column between formula columns), so differing from the rows it summarizes is the point. List it under "flagged but fine".
 - **Unclear**: say what the user would need to confirm.
 
-Judge a total against the other totals on its row or column, not against the rows it adds up. A one-cell link such as `=D40` in a header or summary row is usually a deliberate pointer to another total.
+Judge a total against the other totals on its row or column, not against the rows it adds up; cells beside it that do the same job with different arguments (counts of 1, 2 and 3) are a set, not drift. A one-cell link such as `=D40` in a header or summary row is usually a deliberate pointer to another total: the card's `links to:` line shows what it points at.
 
 Suggest "make it match its neighbors" only after the card shows the cell belongs to that series; on a total or net line that rewrite breaks a correct formula. One cell can carry several findings (`LIVE_ERROR` + `BROKEN_REFERENCE`, `FORMULA_DRIFT` + `TOTAL_MISMATCH`), so report each cell once. If the context reveals a problem the tool did not flag, report it as your own observation and cite the cells. `references/check_catalog.md` says what each rule checks, what it ignores, and how far to trust it.
 
 ### 4. Answer the user
 
-Lead with what is wrong and how to fix it, most consequential first. Then list what needs the user's confirmation, then a short "flagged but fine" list. End with the coverage limitations (no recalculation, capped or skipped checks, unsupported features) and the disclaimer from `references/report_template.md`. Raise or lower a severity when the cell feeds a headline output or the pattern is intentional (`references/severity_rubric.md`). For a written report file, follow the template's sections.
+Lead with what is wrong and how to fix it, most consequential first. Then list what needs the user's confirmation, then a short "flagged but fine" list. End with the coverage limitations (no recalculation, capped or skipped checks, unsupported features), even in a short answer: without them the user assumes every number was recalculated and checked. Then add the disclaimer from `references/report_template.md`. Raise or lower a severity when the cell feeds a headline output or the pattern is intentional (`references/severity_rubric.md`). For a written report file, follow the template's sections.
 
 Example item:
 
