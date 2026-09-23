@@ -178,15 +178,32 @@ fail a normal run. Use `--strict` to surface them as exit code `2` in CI.
 
 ## Agent Skill usage
 
-Drop the Claude/Codex zip from the release into your Skills folder, or load it
-directly with [Cursor](https://cursor.com/) Skills. Ask the agent something
-like:
+Install the zip from the
+[Releases page](https://github.com/petehottelet/spreadsheet-auditor/releases)
+for your surface:
+
+- **Claude Code**: unzip `spreadsheet-auditor-claude.zip` into
+  `~/.claude/skills/` (all projects) or a repository's `.claude/skills/`, so
+  that `spreadsheet-auditor/SKILL.md` sits directly under it. The machine
+  needs Python 3.11+ with `openpyxl`.
+- **claude.ai**: upload `spreadsheet-auditor-claude.zip` as a custom skill in
+  Settings, with code execution enabled.
+- **Claude API**: upload the zip through the Skills API and run it with the
+  code execution tool. That container has no network access, so `openpyxl`
+  must already be installed there.
+- **Codex**: use `spreadsheet-auditor-codex.zip`, which adds `agents/openai.yaml`.
+- **Cursor**: load the unzipped folder as a [Cursor](https://cursor.com/) Skill.
+
+Then ask in plain words, for example:
 
 > "Audit `Q3_Forecast.xlsx` and tell me what's wrong with it. Write the report
 > to `audit_report.md` and produce an annotated copy."
 
-The skill maps the request onto the bundled CLI invocation and surfaces the
-findings inline.
+> "I inherited this forecast from someone who left. Can I trust the numbers?"
+
+The agent runs the bundled CLI, checks each flagged cell in context with
+`scripts/context.py`, and reports what is actually wrong, with the cells and
+the fixes.
 
 ## Configuration
 
