@@ -108,3 +108,67 @@ def test_context_cards_accept_cells_and_report_unknown_ones(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "row label: 'Revenue total'" in result.stdout
     assert "no cell context for 'Nowhere!A1'" in result.stdout
+
+
+def test_context_card_shows_what_a_link_points_at(tmp_path):
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws["A5"], ws["B5"] = "Income", "=B9"
+    ws["A9"], ws["B9"] = "Total income", 100
+    path = tmp_path / "links.xlsx"
+    wb.save(path)
+    findings = tmp_path / "findings.json"
+    _run(AUDIT, str(path), "--json", str(findings), "--quiet")
+    result = _run(CONTEXT, str(path), str(findings), "S!B5")
+    assert result.returncode == 0, result.stderr
+    assert "links to: S!B9 (row label: 'Total income') -> 100" in result.stdout
+
+
+def test_drift_on_a_totals_row_points_at_its_own_column(tmp_path):
+    import json
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws.append(["Bill", None, None, None, "Paid", "Total spent", "Day 1", "Day 2", "Day 3"])
+    for row in range(2, 7):
+        ws.append([f"Bill {row}", None, None, None, row * 10, f"=SUM(G{row}:I{row})", 1, 2, 3])
+    ws["A7"], ws["E7"], ws["F7"] = "Total", "=SUM(E2:E6)", "=SUM(G2:G6)"  # F7 adds column G, not F
+    path = tmp_path / "totals.xlsx"
+    wb.save(path)
+    payload = json.loads(_run(AUDIT, str(path), "--json", "-").stdout)
+    drift = next(f for f in payload["findings"] if f["rule_id"] == "FORMULA_DRIFT" and f["location"] == "S!F7")
+    # The column's majority is a row sum; the other total on row 7 says what F7 should be.
+    assert drift["suggested_fix"] == "Point the total at its own column: =SUM(F2:F6)"
+    assert any("S!E7==SUM(E2:E6)" in line for line in drift["evidence"])
+
+
+def test_live_error_finding_carries_its_formula():
+    import json
+
+    payload = json.loads(_run(AUDIT, str(DEMO), "--json", "-").stdout)
+    live = next(f for f in payload["findings"] if f["rule_id"] == "LIVE_ERROR" and f["location"] == "Budget!B14")
+    assert live["formula"] == "=SUM(#REF!)"
+
+
+def test_libreoffice_profile_is_a_canonical_file_url(tmp_path, monkeypatch):
+    from spreadsheet_auditor import recalc
+
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        raise FileNotFoundError("no LibreOffice in this test")
+
+    monkeypatch.setattr(recalc, "soffice_path", lambda: "soffice")
+    monkeypatch.setattr(recalc.subprocess, "run", fake_run)
+    result = recalc.recalc_if_available(DEMO, work_dir=tmp_path)
+    assert result["status"] == "failed"
+    arg = next(a for a in seen["cmd"] if a.startswith("-env:UserInstallation="))
+    assert arg == "-env:UserInstallation=" + (tmp_path / "profile").resolve().as_uri()
+    assert "file:////" not in arg

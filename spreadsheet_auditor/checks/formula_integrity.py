@@ -78,6 +78,9 @@ class LiveErrorCheck(Check):
         # A root is an error cell with no erroring precedent: a literal error
         # value, or the formula where the error is born.
         roots = [loc for loc in errors if not any(dep in errors for dep in graph.get(loc, ()))]
+        # The root's formula is where the error is born; the report shows it so
+        # the cause can be read without opening the workbook.
+        formula_at = {cell["location"]: cell["formula"] for cell in ctx.formulas}
         covered: set[str] = set()
         findings: list[Finding] = []
         for root in sorted(roots):
@@ -93,13 +96,17 @@ class LiveErrorCheck(Check):
                         stack.append(dependent)
             covered.add(root)
             covered.update(propagated)
-            findings.append(self._finding(root, errors[root], sorted(propagated), root in static))
+            findings.append(
+                self._finding(root, errors[root], sorted(propagated), root in static, formula_at.get(root))
+            )
         for loc in sorted(set(errors) - covered):  # error cycles with no root
-            findings.append(self._finding(loc, errors[loc], [], loc in static))
+            findings.append(self._finding(loc, errors[loc], [], loc in static, formula_at.get(loc)))
         return findings
 
     @staticmethod
-    def _finding(loc: str, error_value: str, propagated: list[str], static: bool = False) -> Finding:
+    def _finding(
+        loc: str, error_value: str, propagated: list[str], static: bool = False, formula: str | None = None
+    ) -> Finding:
         if static:
             evidence = [f"Formula contains {error_value}, so the cell evaluates to that error whatever its inputs."]
         else:
@@ -118,6 +125,7 @@ class LiveErrorCheck(Check):
             detection_mode="DET",
             location=loc,
             title="Cell contains live spreadsheet error",
+            formula=formula,
             evidence=evidence,
             suggested_fix="Trace the formula precedent chain and resolve the underlying spreadsheet error.",
         )
