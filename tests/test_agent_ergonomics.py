@@ -67,6 +67,9 @@ def test_context_cards_show_labels_and_neighbours(tmp_path):
     assert "A9 'Marketing'" in card
     # Certain defects (confidence Defect) are not re-checked by default.
     assert "LIVE_ERROR-001" not in result.stdout
+    # B10 carries RANGE_EXCLUSION and FORMULA_DRIFT: one card names both.
+    assert result.stdout.count("cell: B10 ") == 1
+    assert "FORMULA_DRIFT-001 FORMULA_DRIFT High Likely defect at Budget!B10" in result.stdout
 
 
 def test_annotated_copy_keeps_every_finding_on_a_cell(tmp_path):

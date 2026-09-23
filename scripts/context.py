@@ -124,9 +124,13 @@ def main(argv: list[str]) -> int:
     findings = [f for f in json.loads(findings_path.read_text(encoding="utf-8"))["findings"] if not f.get("suppressed")]
     if picks:
         by_id = {f["id"]: f for f in findings}
-        chosen = [by_id.get(p, {"id": p, "rule_id": "CELL", "location": p, "severity": "", "error_confidence": ""}) for p in picks]
+        chosen = [by_id.get(p, {"id": None, "location": p}) for p in picks]
     else:
         chosen = [f for f in findings if f["severity"] in ("Critical", "High") and f["error_confidence"] != "Defect"]
+    # One card per cell: a cell flagged by two rules is one thing to judge.
+    by_cell: dict[str, list[dict]] = {}
+    for finding in chosen:
+        by_cell.setdefault(finding["location"], []).append(finding)
     from openpyxl import load_workbook
 
     with warnings.catch_warnings():
@@ -134,11 +138,12 @@ def main(argv: list[str]) -> int:
         keep_vba = workbook.suffix.lower() == ".xlsm"
         formula_wb = load_workbook(workbook, data_only=False, keep_vba=keep_vba)
         value_wb = load_workbook(workbook, data_only=True, keep_vba=keep_vba)
-    for finding in chosen[:MAX_CARDS]:
-        print(f"{finding['id']} {finding['rule_id']} {finding['severity']} {finding['error_confidence']} at {finding['location']}")
-        print("\n".join(card(formula_wb, value_wb, finding["location"])))
-    if len(chosen) > MAX_CARDS:
-        print(f"... {len(chosen) - MAX_CARDS} more; pass their IDs to see them.")
+    for location, group in list(by_cell.items())[:MAX_CARDS]:
+        heads = [f"{f['id']} {f['rule_id']} {f['severity']} {f['error_confidence']}" for f in group if f.get("id")]
+        print(f"{', '.join(heads)} at {location}" if heads else location)
+        print("\n".join(card(formula_wb, value_wb, location)))
+    if len(by_cell) > MAX_CARDS:
+        print(f"... {len(by_cell) - MAX_CARDS} more cells; pass their IDs to see them.")
     if not chosen:
         print("No Critical or High finding needs a context check; pass IDs or cells to inspect others.")
     return 0
