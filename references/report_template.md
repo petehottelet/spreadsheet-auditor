@@ -1,6 +1,6 @@
 # Report Template
 
-Every audit report should contain these sections:
+A written audit report (a file the user will pass on) has these sections. A reply in chat can be shorter; SKILL.md step 4 gives its order.
 
 1. Executive summary.
 2. Coverage and limitations.
@@ -21,10 +21,11 @@ Formula:   =SUM(A1:A10)
 Evidence:  Why the cell was flagged.
 Impact:    Known or likely downstream impact.
 Detection: DET or HEUR; confidence: Defect, Likely defect, or Review.
+Verdict:   Mistake, Needs confirmation, or By design, from the context check.
 Fix:       Concrete suggested fix or review step.
 ```
 
-## Standing Coverage Language
+## Non-Certification Disclaimer
 
 ```text
 This audit inspected formulas, ranges, workbook structure, hidden rows/columns/sheets,

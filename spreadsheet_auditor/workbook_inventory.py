@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -12,16 +13,23 @@ from .formula_parser import formula_text
 ERROR_VALUES = {"#NULL!", "#DIV/0!", "#VALUE!", "#REF!", "#NAME?", "#NUM!", "#N/A", "#GETTING_DATA"}
 
 
+def _load(path: str | Path, data_only: bool):
+    keep_vba = Path(path).suffix.lower() == ".xlsm"
+    with warnings.catch_warnings():
+        # openpyxl warns that shapes and extensions "will be lost"; that happens only
+        # on save, and the audit never saves this workbook.
+        warnings.simplefilter("ignore", UserWarning)
+        return load_workbook(path, data_only=data_only, keep_vba=keep_vba)
+
+
 def load_workbook_formulas(path: str | Path):
     """Load the workbook with formula text intact (``data_only=False``)."""
-    keep_vba = Path(path).suffix.lower() == ".xlsm"
-    return load_workbook(path, data_only=False, keep_vba=keep_vba)
+    return _load(path, data_only=False)
 
 
 def load_workbook_values(path: str | Path):
     """Load the workbook with cached values in place of formulas (``data_only=True``)."""
-    keep_vba = Path(path).suffix.lower() == ".xlsm"
-    return load_workbook(path, data_only=True, keep_vba=keep_vba)
+    return _load(path, data_only=True)
 
 
 def load_workbooks(path: str | Path):

@@ -1,0 +1,48 @@
+{
+  "skill_name": "spreadsheet-auditor",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I put together our household budget in House_Budget.xlsx. Before I send it to my partner, can you check it for mistakes? Just tell me what's actually wrong and what I should fix.",
+      "expected_output": "Runs the audit, checks the four FORMULA_DRIFT findings in context, reports House Budget!F123 as the one real formula mistake with the right fix, and lists the other three as fine by design. The workbook is unchanged.",
+      "files": ["evals/files/House_Budget.xlsx"],
+      "expectations": [
+        "The answer says House Budget!F123 is wrong because it sums column G (G65:G122) instead of the Total Spent column F",
+        "The fix given for F123 is =SUM(F65:F122) or equivalent, not a row sum such as =SUM(G123:AE123)",
+        "The answer does not tell the user to change House Budget!C10 (the Total Income line)",
+        "The answer does not tell the user to change 'Money In Checking Next Month'!E61 (Total Left) or L2 (Total Tax)",
+        "The answer says the values were not recalculated (cached values only)",
+        "House_Budget.xlsx has the same SHA-256 after the run as before"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Audit Q3_Forecast.xlsx and tell me what's wrong with it. Write the report to audit_report.md and produce an annotated copy.",
+      "expected_output": "Writes audit_report.md and an annotated copy at a new path, leaves Q3_Forecast.xlsx untouched, and explains the seeded defects once per cell, with fixes, plus the checks that could not run because the file has no cached values.",
+      "files": ["evals/files/Q3_Forecast.xlsx"],
+      "expectations": [
+        "audit_report.md exists and contains the non-certification disclaimer",
+        "An annotated workbook exists at a path other than Q3_Forecast.xlsx",
+        "Q3_Forecast.xlsx has the same SHA-256 after the run as before",
+        "Budget!B10 is explained once, as a January total that stops before the Marketing row (B9), not once per rule",
+        "Budget!B6 is explained as counting B5 twice",
+        "Budget!B14 (#REF!) is presented as needing the user's input on the intended range, not repaired by guesswork",
+        "The answer says the value-dependent checks (cached totals, cross-foot) did not run because the workbook has no cached values or recalculation was unavailable"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I inherited Ops_Tracker.xlsx from a colleague who left. Can I trust the numbers in it? Give me the top issues in plain English, most important first.",
+      "expected_output": "Leads with the live errors (#VALUE! in Q9:Q11, #REF! in I10:I11) and their causes, folds the 31 hidden-structure findings into one point about hidden helper columns, does not call C5 an error, and states the coverage limits in plain language.",
+      "files": ["evals/files/Ops_Tracker.xlsx"],
+      "expectations": [
+        "The top issues include the #VALUE! errors in formamspnc (7)!Q9:Q11",
+        "The top issues include the #REF! errors in formamspnc (7)!I10:I11",
+        "The hidden-column findings appear as one point, not as a list of separate items",
+        "formamspnc (7)!C5 is not presented as an error",
+        "The answer says the audit used cached values without recalculation",
+        "Rule IDs such as FORMULA_DRIFT are not the main vocabulary of the answer"
+      ]
+    }
+  ]
+}
