@@ -28,6 +28,9 @@ def annotate_workbook(source_path: str | Path, output_path: str | Path, findings
     source = Path(source_path)
     keep_vba = source.suffix.lower() == ".xlsm"
     wb = load_workbook(source, keep_vba=keep_vba)
+    # One comment per cell listing every finding there, in payload order
+    # (most severe first); assigning a comment per finding kept only the last.
+    notes: dict[tuple[str, str], list[str]] = {}
     for finding in findings:
         if finding.get("suppressed"):
             continue
@@ -38,11 +41,11 @@ def annotate_workbook(source_path: str | Path, output_path: str | Path, findings
         sheet_name, coord = anchor
         if sheet_name not in wb.sheetnames:
             continue
-        cell = wb[sheet_name][coord]
-        text = (
+        notes.setdefault((sheet_name, coord), []).append(
             f"{finding.get('severity')} {finding.get('rule_id')}\n"
             f"{finding.get('title')}\n"
             f"Fix: {finding.get('suggested_fix')}"
         )
-        cell.comment = Comment(text, "Spreadsheet Auditor")
+    for (sheet_name, coord), texts in notes.items():
+        wb[sheet_name][coord].comment = Comment("\n\n".join(texts), "Spreadsheet Auditor")
     wb.save(output_path)

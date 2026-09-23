@@ -20,3 +20,6 @@ report.html
 report.sarif
 benchmarks/corpus/data/
 benchmarks/corpus/results/
+
+# Eval inputs are copied locally (see evals/files/README.md), never committed.
+evals/files/*.xlsx

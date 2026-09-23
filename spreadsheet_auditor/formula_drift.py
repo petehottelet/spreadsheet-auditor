@@ -94,7 +94,10 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, for
                         title="Formula breaks neighboring pattern",
                         formula=cell["formula"],
                         evidence=evidence,
-                        suggested_fix="Compare this formula to adjacent formulas and restore the intended relative references.",
+                        suggested_fix=(
+                            "If this cell is the same kind of line as its neighbors, restore their pattern. "
+                            "A total, net or summary line differs by design: compare it with the other totals instead."
+                        ),
                     )
                 )
     return findings
