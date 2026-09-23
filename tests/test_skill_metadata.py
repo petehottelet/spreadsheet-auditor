@@ -44,6 +44,8 @@ def test_skill_md_frontmatter_is_well_formed():
         ("name: ok-name\ndescription: \"\"", "non-empty"),
         ("name: ok-name\ndescription: ok\nextra: x", "unexpected key"),
         ("description: ok", "missing required key"),
+        ("name: claude-helper\ndescription: ok", "must not contain"),
+        ("name: ok-name\ndescription: Audits <b>workbooks</b>", "xml tags"),
     ],
 )
 def test_validator_rejects_invalid_frontmatter(frontmatter, expect_error_substring, tmp_path):
@@ -53,6 +55,11 @@ def test_validator_rejects_invalid_frontmatter(frontmatter, expect_error_substri
     errors = quick_validate._validate_frontmatter(fields or {})
     joined = " ".join(errors).lower()
     assert any(expect_error_substring in err.lower() for err in errors) or expect_error_substring in joined
+
+
+def test_spec_optional_fields_are_accepted():
+    fields = {"name": "ok-name", "description": "ok", "license": "MIT", "compatibility": "Python 3.11+"}
+    assert quick_validate._validate_frontmatter(fields) == []
 
 
 def test_folded_description_block_is_parsed():
