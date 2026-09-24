@@ -387,6 +387,26 @@ def test_drift_skips_label_links_that_step_and_totals_rows_that_mix_aggregates(t
     assert "FORMULA_DRIFT" not in _audit(path)
 
 
+def test_function_swapped_inside_a_run_of_totals_is_still_drift(tmp_path):
+    """The EUSES 'function replaced' fault: one SUM in a row of five became an
+    AVERAGE. A three-cell totals row mixing SUM and AVERAGE stays quiet."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws.append(["Item", "Q1", "Q2", "Q3", "Q4", "Q5"])
+    for row in range(2, 6):
+        ws.append([f"r{row}", row, row * 2, row * 3, row * 4, row * 5])
+    ws.append(["Total", "=SUM(B2:B5)", "=SUM(C2:C5)", "=AVERAGE(D2:D5)", "=SUM(E2:E5)", "=SUM(F2:F5)"])
+    pivot = wb.create_sheet("Pivot")  # headers announce the mix: design, not drift
+    pivot.append(["FY", "Sum of Gen.", "Average of PLF", "Average of Avail.", "Average of Grid"])
+    for row in range(2, 6):
+        pivot.append([f"y{row}", row * 100, row, row * 2, row * 3])
+    pivot.append([None, "=SUM(B2:B5)", "=AVERAGE(C2:C5)", "=AVERAGE(D2:D5)", "=AVERAGE(E2:E5)"])
+    path = tmp_path / "ffr.xlsx"
+    wb.save(path)
+    assert [f["location"] for f in _audit(path).get("FORMULA_DRIFT", [])] == ["S!D6"]
+
+
 def test_merged_formulas_in_totals_rows_are_presentation(tmp_path):
     wb = Workbook()
     ws = wb.active

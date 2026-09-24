@@ -8,7 +8,7 @@ from .budget import tick
 from .finding import Finding
 from .formula_parser import formula_text, is_formula, normalize_formula, parse_formula
 from .range_checks import is_total_of_segment
-from .reference_resolver import boundaries
+from .reference_resolver import boundaries, cell_value
 from .workbook_inventory import iter_existing_cells, location
 
 # A plug is a few constants interrupting a formula run, not a block of inputs.
@@ -19,7 +19,7 @@ def _is_plain_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> list[Finding]:
+def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, formula_wb=None) -> list[Finding]:
     findings: list[Finding] = []
     seen: set[str] = set()
 
@@ -64,8 +64,15 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> 
             for cell, pattern in pairs:
                 if pattern == majority or cell["location"] in seen:
                     continue
-                if _AGG_RE.sub("AGG(", pattern) == _AGG_RE.sub("AGG(", majority):
-                    continue  # a totals row where one column sums and the next averages the same block
+                if _AGG_RE.sub("AGG(", pattern) == _AGG_RE.sub("AGG(", majority) and (
+                    len(pairs) <= 3 or _header_names_function(formula_wb, cell, pattern, axis)
+                ):
+                    # A totals row where one column sums and the next averages
+                    # the same block is a design when the row is short or the
+                    # header says so ("Sum of ...", "Average of ..."); a SUM
+                    # among a run of SUMs that turned into an AVERAGE is the
+                    # classic function slip and stays reported.
+                    continue
                 if _conforms_across(cell, pattern, majority, axis, pattern_at):
                     continue
                 seen.add(cell["location"])
@@ -95,6 +102,51 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None) -> 
 
 _OFFSET_RE = re.compile(r"\[-?\d+\]")
 _AGG_RE = re.compile(r"\b(?:SUM|AVERAGE|AVERAGEA|COUNT|COUNTA|MIN|MAX|MEDIAN|SUBTOTAL)\(")
+_AGG_NAME_RE = re.compile(r"\b(SUM|AVERAGE|AVERAGEA|COUNT|COUNTA|MIN|MAX|MEDIAN)\(")
+# Words in a header or label that announce which aggregate a cell holds.
+_AGG_WORDS = {
+    "SUM": ("sum", "total"),
+    "AVERAGE": ("average", "avg", "mean"),
+    "AVERAGEA": ("average", "avg", "mean"),
+    "COUNT": ("count", "number of", "no. of", "no of"),
+    "COUNTA": ("count", "number of", "no. of", "no of"),
+    "MIN": ("min", "lowest", "smallest"),
+    "MAX": ("max", "highest", "largest", "peak"),
+    "MEDIAN": ("median",),
+}
+
+
+def _header_names_function(formula_wb, cell: dict, pattern: str, axis: str) -> bool:
+    """True when the header above (row scan) or the label beside (column scan) names the cell's aggregate.
+
+    A pivot-style totals row headed "Sum of Gen." beside "Average of %PLF"
+    mixes SUM and AVERAGE by design; the headers say which is which.
+    """
+    if formula_wb is None:
+        return False
+    functions = {name for name in _AGG_NAME_RE.findall(pattern)}
+    if not functions:
+        return False
+    try:
+        ws = formula_wb[cell["sheet"]]
+    except KeyError:
+        return False
+    texts: list[str] = []
+    if axis == "row":  # the deviant sits in a row of totals; its column header names it
+        # Walk to the top: stacked pivot blocks share one header row far above.
+        for row in range(cell["row"] - 1, 0, -1):
+            value = cell_value(ws, row, cell["col"])
+            if isinstance(value, str) and not is_formula(value) and value.strip():
+                texts.append(value)
+                break
+    else:  # the deviant sits in a column of totals; its row label names it
+        for col in range(cell["col"] - 1, 0, -1):
+            value = cell_value(ws, cell["row"], col)
+            if isinstance(value, str) and not is_formula(value) and value.strip():
+                texts.append(value)
+                break
+    label = " ".join(texts).lower()
+    return any(word in label for name in functions for word in _AGG_WORDS.get(name, ()))
 
 
 def _shape(pattern: str) -> str:

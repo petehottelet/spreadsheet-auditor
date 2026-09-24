@@ -6,7 +6,7 @@
     "BROKEN_REFERENCE": "Right every time: #REF! formulas, and external links now reported as one Info note per source workbook per sheet (was one High finding per cell).",
     "CIRCULAR_REFERENCE": "Positional idioms (ROWS(A$6:A8), COLUMNS($D7:AA7), ROW(A19)) and the CELL(\"filename\",Q2) sheet-name idiom were 23 of 25 findings on 0.2.0 and are gone. What remains is the deliberate IFERROR(1/(1/F8)) date-freeze self-reference (which needs iterative calculation) and a MAX(B$7:B377)+1 counter that includes its own cell; both are worth a reviewer's attention.",
     "DUPLICATE_KEY": "Only the searched column of a first-match lookup counts now (VLOOKUP first column, MATCH/XLOOKUP lookup array); SUMIF criteria columns and category grids no longer fire. True positives are duplicate postcodes in a MATCH column, duplicate product names in a list searched by name, and letters listed twice in a rate table. The remaining false positives are lookups that deliberately find the previous occurrence, composite keys where the match is on another column, and product labels repeated as section headers in a grid.",
-    "FORMULA_DRIFT": "0 of 25 on 0.2.0. Rows of unrelated columns, chain seeds, label-link columns that step through another sheet, and totals rows mixing SUM and AVERAGE are now exempt. What remains is mostly real: a first row whose SUMPRODUCT differs from the rows below and evaluates to #VALUE!, a DB() call missing an argument, a total that starts one row late, a typed input inside a fill (=525*1.5 beside =BF24*1.5), and a manual override link. Remaining false positives are summary header rows and example sheets where every cell is a different formula.",
+    "FORMULA_DRIFT": "0 of 25 on 0.2.0. Rows of unrelated columns, chain seeds, label-link columns that step through another sheet, and short or header-labelled totals rows mixing SUM and AVERAGE are exempt; a SUM that became an AVERAGE inside a longer run of totals is still reported, because that is the 'function replaced' fault the EUSES corpus injects. What remains is mostly real: a first row whose SUMPRODUCT differs from the rows below and evaluates to #VALUE!, a DB() call missing an argument, a typed threshold of 90120 where the rows around use 90, a total that starts one row late, a typed input inside a fill (=525*1.5 beside =BF24*1.5), and a manual override link. Remaining false positives are summary or totals rows whose different formula is the design (a ratio of totals, a 'planned' row that averages under rows that sum, a wins row that counts under an 'average' header) and example sheets where every cell is a different formula.",
     "HARDCODE_IN_FORMULA_BLOCK": "8% on 0.2.0: input columns between two formula columns sharing a pattern (running sums, unit x quantity). Those are now recognised from the other axis, and the true positives dominate: a constant typed over an IF, a difference, a rolling sum or a scaled copy in a column of identical formulas. Remaining false positives are input columns on sparse sheets or one-row tables, where the cells above and below the constant are empty and the check has nothing to compare, and input columns whose neighbouring formula lines hold plugs of their own.",
     "HIDDEN_STRUCTURE_IN_TOTAL": "Hidden helper columns feeding scores, hidden rows still counted by SUMIFS, hidden lookup tables and hidden source sheets: every sampled finding was a disclosure a reviewer wants. AGGREGATE and SUBTOTAL variants that skip hidden rows no longer count, and hidden rows feeding the same formulas are reported together.",
     "IFERROR_MASK": "Disclosure rule, now one finding per formula pattern per sheet. Judged TP when the fallback silently replaces a computational error with a value that feeds other cells: a lookup miss shown as an age or length of stay of 0, an average of 0 for no trades, IFNA(...,0) on an input sheet, a sliding VLOOKUP range whose misses are hidden, an exact-match tier lookup that can never match, and Google Sheets placeholder formulas. FP for the lookup-miss-to-blank idiom, end-of-list extraction, supplier fallback chains, and wrappers around functions that cannot error or whose inner IF already guards the case. Precision stays under a third; the rule is honest about being a review prompt.",
@@ -4197,6 +4197,70 @@
     "9ffa652c7e85|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!I2": {
       "label": "TP",
       "reason": "Array evaluation over whole columns (IF, LOOKUP(2,1/...), SUMPRODUCT); each recalculation scans a million rows."
+    },
+    "1ee00a60f590|FORMULA_DRIFT|Sheet1!N294": {
+      "label": "TP",
+      "reason": "The threshold reads 90120 where every neighbouring row uses 90; a typed-over constant inside the fill."
+    },
+    "74d967658eee|FORMULA_DRIFT|Sheet1!N294": {
+      "label": "TP",
+      "reason": "The threshold reads 90120 where every neighbouring row uses 90; a typed-over constant inside the fill."
+    },
+    "f8ace651bacd|FORMULA_DRIFT|EXCELHELP!O12": {
+      "label": "TP",
+      "reason": "The first cell of the row subtracts 17 from its input while the cells beside it use the input as is; a reviewer would want to confirm the adjustment."
+    },
+    "19dfd5dbcec5|FORMULA_DRIFT|formamspnc(7)!AT5": {
+      "label": "FP",
+      "reason": "Row 5 is a summary row with its own formula above a block of links; different by design."
+    },
+    "4ea284d68c01|FORMULA_DRIFT|Sheet1!Y4": {
+      "label": "TP",
+      "reason": "The fallback value differs from the rows around it; an inconsistency inside the fill worth a look."
+    },
+    "bc56a9f2824a|FORMULA_DRIFT|Total(2)!E31": {
+      "label": "unsure",
+      "reason": "The cells above are typed constants; the card cannot show what the column's dominant formula is."
+    },
+    "5c702dac6268|FORMULA_DRIFT|Tabelle1!Q17": {
+      "label": "FP",
+      "reason": "The 'planned' row averages across the row in every column (D17 averages too) below rows that sum; a different row by design."
+    },
+    "88d3a985a51a|FORMULA_DRIFT|Tabelle1!Q17": {
+      "label": "FP",
+      "reason": "The 'planned' row averages across the row in every column below rows that sum; a different row by design."
+    },
+    "1303e2ce7522|FORMULA_DRIFT|Summary!B2": {
+      "label": "unsure",
+      "reason": "The card does not show the formulas below B2, so the anchoring difference cannot be judged."
+    },
+    "fa447aaa15b1|FORMULA_DRIFT|Sheet1!C5": {
+      "label": "FP",
+      "reason": "The 'Wins (1=win)' row counts wins with SUM under a 'Weekly Average' header that describes the other rows; a different row by design."
+    },
+    "970db979d624|FORMULA_DRIFT|formamspnc(7)!CO5": {
+      "label": "FP",
+      "reason": "Row 5 is a summary row with its own formula; different by design."
+    },
+    "59dd5b78ebc8|FORMULA_DRIFT|results!J95": {
+      "label": "unsure",
+      "reason": "The card shows the same AVERAGEIFS shape in every column of the row; the difference is not visible."
+    },
+    "d3575a4dff7b|FORMULA_DRIFT|HouseBudget!C10": {
+      "label": "FP",
+      "reason": "A total row that links the grand total while the rows above link the detail sheet; different by design."
+    },
+    "c5ab9001d952|FORMULA_DRIFT|YTDBudget&Summary!G22": {
+      "label": "FP",
+      "reason": "The table's totals row computes a ratio of totals while the rows above compute per-row ratios; different by design."
+    },
+    "d216c973ba67|FORMULA_DRIFT|Malaga!Q5": {
+      "label": "FP",
+      "reason": "Golfer and non-golfer prices link different source cells by design."
+    },
+    "a1e653eaaddb|FORMULA_DRIFT|Sheet1!E9": {
+      "label": "TP",
+      "reason": "DB() call missing the month argument that the cells beside it pass."
     }
   }
 }
