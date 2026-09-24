@@ -2,8 +2,8 @@
 
 ## Executive Summary
 
-- Tool version: `0.2.0` (run at 2026-09-14T07:32:19+00:00)
-- Workbook SHA-256: `c656540f0af5ef59636a503c6e6813b623191e3856914c2e412fc44c7bd911a3`
+- Tool version: `0.2.0` (run at 2026-09-23T16:14:18+00:00)
+- Workbook SHA-256: `a776eaa8fe4ce8b6f4a6e8b42f686e01361fc7187bbfe20a39c67cd8ded2ad17`
 - Sheets analyzed: 2
 - Formulas scanned: 30
 - Recalculation status: completed
@@ -34,6 +34,7 @@ _Hard defects: the auditor is certain this is wrong._
 - ID: `LIVE_ERROR-001`
 - Location: `Budget!B14`
 - Detection: DET; confidence: Defect
+- Formula: `=SUM(#REF!)`
 - Evidence: Formula contains #REF!, so the cell evaluates to that error whatever its inputs.
 - Suggested fix: Trace the formula precedent chain and resolve the underlying spreadsheet error.
 
@@ -69,7 +70,7 @@ _Strong defect candidates; review and confirm._
 - Evidence: Dominant pattern (n=2): =SUM(R[-3]C:R[-1]C)
 - Evidence: This cell: =SUM(R[-3]C:R[-2]C)
 - Evidence: Neighboring formulas: Budget!C10==SUM(C7:C9)
-- Suggested fix: Compare this formula to adjacent formulas and restore the intended relative references.
+- Suggested fix: If this cell is the same kind of line as its neighbors, restore their pattern. A total, net or summary line differs by design: compare it with the other totals instead.
 
 ### [HIGH] Formula breaks neighboring pattern - FORMULA_DRIFT
 
@@ -81,7 +82,7 @@ _Strong defect candidates; review and confirm._
 - Evidence: Dominant pattern (n=2): =SUM(R[-2]C:R[-1]C)
 - Evidence: This cell: =SUM(R[-2]C:R[-1]C)+R[-1]C
 - Evidence: Neighboring formulas: Budget!C6==SUM(C4:C5)
-- Suggested fix: Compare this formula to adjacent formulas and restore the intended relative references.
+- Suggested fix: If this cell is the same kind of line as its neighbors, restore their pattern. A total, net or summary line differs by design: compare it with the other totals instead.
 
 ### [HIGH] Formula breaks neighboring pattern - FORMULA_DRIFT
 
@@ -93,7 +94,7 @@ _Strong defect candidates; review and confirm._
 - Evidence: Dominant pattern (n=6): =SUM(RC[-3]:RC[-1])
 - Evidence: This cell: =SUM(RC[-3]:RC[-2])
 - Evidence: Neighboring formulas: Budget!E5==SUM(B5:D5); Budget!E7==SUM(B7:D7)
-- Suggested fix: Compare this formula to adjacent formulas and restore the intended relative references.
+- Suggested fix: If this cell is the same kind of line as its neighbors, restore their pattern. A total, net or summary line differs by design: compare it with the other totals instead.
 
 ### [HIGH] Hardcoded value inside formula block - HARDCODE_IN_FORMULA_BLOCK
 

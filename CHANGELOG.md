@@ -9,6 +9,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- **Context cards** (`scripts/context.py`): the row label, column header,
+  formula, cached value and neighbours of every Critical or High candidate
+  (or of named findings and cells), and what a one-cell link points at, so an
+  agent can tell a mistake from a line that differs by design before
+  reporting it. A cell flagged by several rules gets one card naming them all.
+- **Skill evals** (`evals/evals.json`): three task prompts with expectations,
+  on a household budget, the demo forecast and an inherited tracker.
+- **Skill workflow**: SKILL.md checks every non-certain finding in context
+  instead of treating `findings.json` as ground truth, and `check_catalog.md`
+  says how far to trust each rule, from the real-world precision run.
 - **Real-world corpus harness** (`benchmarks/corpus/`): a registry of public
   spreadsheet corpora, a parallel runner that audits every workbook and
   records crashes and timeouts, a seeded stratified sampler that renders each
@@ -121,6 +131,41 @@ false positives had in common; the seeded benchmark is unchanged.
   label beside it) names the aggregate it holds, as a pivot-style "Sum of
   ... / Average of ..." row does; that took function-swap recall to 56 of 93
   and overall recall from 0.68 to 0.76.
+- **`--summary`** counts findings by rule, severity and confidence.
+- **Skill packages** ship only what an agent reads: SKILL.md, the check
+  catalog, severity rubric, report template and limitations, the config
+  schema, `scripts/audit.py`, `scripts/context.py` and the engine. Contributor
+  docs, the test schemas, the seeded corpus and the maintainer scripts stay in
+  the repository.
+- **`scripts/quick_validate.py`** accepts the Agent Skills spec's optional
+  frontmatter fields (`license`, `compatibility`, `metadata`,
+  `allowed-tools`) and 64-character names, and rejects names containing
+  `anthropic` or `claude` and descriptions with XML tags.
+- **`FORMULA_DRIFT`** suggests restoring the neighbours' pattern only when the
+  cell is the same kind of line; a total, net or summary line is compared with
+  the other totals. The old text led agents to rewrite correct total lines.
+  When a drifted total adds another column than the totals beside it (F123 =
+  `SUM(G65:G122)` next to E123 = `SUM(E65:E122)`), the fix names its own
+  column (`=SUM(F65:F122)`), the same across a totals column.
+- **`LIVE_ERROR`** findings carry the formula of the cell where the error is
+  born, so the report shows the cause.
+
+### Fixed
+
+- `--out`, `--json` and `--annotated` refuse the audited workbook's own path
+  (exit 4); before, each silently overwrote it.
+- The annotated copy lists every finding at a cell, most severe first; before,
+  only the last one survived, which dropped the Critical finding on shared cells.
+- `limits.max_cells` counts the cells a sheet holds, not its used-range
+  rectangle, so one stray cell far down no longer switches the grid checks off.
+- A runtime without openpyxl gets an install hint and exit 3 instead of a
+  traceback; `.xls` and password-protected files get conversion advice.
+- openpyxl's read-time "will be lost" warnings no longer reach stderr; the
+  audit never saves the workbook it reads.
+- LibreOffice gets its throwaway profile as a canonical file URL
+  (`file:///tmp/...`); on Linux the old string was `file:////tmp/...`, which
+  LibreOffice need not map to the profile that disables macros and forces
+  recalculation.
 
 ## [0.2.0] - 2026-09-13
 

@@ -21,8 +21,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-PACKAGE_DIRS = ["scripts", "spreadsheet_auditor", "references", "schemas", "assets"]
-EXCLUDED_SCRIPTS = {"build_dist.py"}
+PACKAGE_DIRS = ["scripts", "spreadsheet_auditor", "references", "schemas"]
+# Maintainer tools, contributor docs and test fixtures stay in the repository:
+# an agent running the skill never reads them, and every extra file is one more
+# thing to open by mistake when it lists the folder.
+EXCLUDED_SCRIPTS = {"build_dist.py", "quick_validate.py", "create_seeded_corpus.py"}
+EXCLUDED_FILES = {
+    "references/benchmark_methodology.md",
+    "references/conventions.md",
+    "references/custom_checks.md",
+    "references/excel_feature_coverage.md",
+    "references/google_sheets.md",
+    "schemas/findings.schema.json",
+    "schemas/sarif-2.1.0.schema.json",
+}
 
 SOURCE_INCLUDE_TOP_LEVEL = [
     "spreadsheet_auditor",
@@ -77,6 +89,8 @@ def copy_package(destination: Path, include_agents: bool) -> None:
                     shutil.copy2(script, target / script.name)
         else:
             shutil.copytree(source, destination / directory, ignore=_ignore_caches)
+    for relative in EXCLUDED_FILES:
+        (destination / relative).unlink(missing_ok=True)
 
     if include_agents and (ROOT / "agents").exists():
         shutil.copytree(ROOT / "agents", destination / "agents", ignore=_ignore_caches)
