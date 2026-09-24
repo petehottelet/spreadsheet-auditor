@@ -28,7 +28,14 @@ def _bootstrap() -> None:
 
 _bootstrap()
 
-from spreadsheet_auditor.cli import main  # noqa: E402
+try:
+    from spreadsheet_auditor.cli import main  # noqa: E402
+except ModuleNotFoundError as exc:
+    if exc.name != "openpyxl":
+        raise
+    # Exit 3 is the healthcheck's "required dependency missing"; say how to fix it.
+    print("spreadsheet-auditor needs openpyxl: pip install openpyxl", file=sys.stderr)
+    raise SystemExit(3)
 
 if __name__ == "__main__":
     raise SystemExit(main())

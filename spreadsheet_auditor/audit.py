@@ -194,19 +194,22 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
                 f"images, or form controls; this workbook contains {preflight_info['drawing_parts']} "
                 "such part(s) that the copy will drop. Keep the original workbook as the master."
             )
-        # Cell-count guardrail (cheap to compute).
+        # Cell-count guardrail. The grid checks walk only the cells a sheet holds,
+        # so count those, not the used-range rectangle: one stray cell at row
+        # 48,000 must not switch the grid checks off.
         max_cells = int(limits_config.get("max_cells", 1_000_000) or 0)
         total_cells = 0
         for ws in formula_wb.worksheets:
             if ws.title not in allowed_sheet_names:
                 continue
-            total_cells += int(ws.max_row or 0) * int(ws.max_column or 0)
+            held = getattr(ws, "_cells", None)
+            total_cells += len(held) if held is not None else int(ws.max_row or 0) * int(ws.max_column or 0)
         grid_scan_allowed = True
         if max_cells > 0 and total_cells > max_cells:
             truncated["cells"] = True
             grid_scan_allowed = False
             limitations.append(
-                f"Cell scan capped: workbook reports {total_cells} cells, exceeding the configured "
+                f"Cell scan capped: workbook holds {total_cells} cells, exceeding the configured "
                 f"max_cells={max_cells}; cell-grid checks (HARDCODE_IN_FORMULA_BLOCK, CROSS_FOOT_FAILURE, "
                 "data hygiene) were skipped. Formula-based checks still ran."
             )
@@ -751,6 +754,13 @@ def _summary_lines(payload: dict, fail_on: str) -> list[str]:
         ),
         f"fail_on    : {fail_on}",
     ]
+    by_rule = Counter((f["severity"], f["error_confidence"], f["rule_id"]) for f in findings)
+    if by_rule:
+        lines.append("by rule    :")
+        for (severity, confidence, rule), count in sorted(
+            by_rule.items(), key=lambda item: (FAIL_ORDER.get(item[0][0], 4), -item[1], item[0][2])
+        ):
+            lines.append(f"  {count:4d}  {rule} ({severity}, {confidence})")
     limitations = coverage.get("limitations") or []
     if limitations:
         lines.append("limitations:")
@@ -863,6 +873,12 @@ def main(argv: list[str] | None = None) -> int:
 
         if not args.workbook:
             parser.error("workbook is required unless --healthcheck or --demo is used")
+
+        source = Path(args.workbook)
+        for flag, target in (("--out", args.out), ("--json", args.json_out), ("--annotated", args.annotated)):
+            if target and target != "-" and source.exists() and Path(target).exists() and source.samefile(target):
+                print(f"Preflight failed: {flag} {target} is the workbook being audited; write to a new file.", file=sys.stderr)
+                return 4
 
         try:
             payload, code = audit_workbook(args)

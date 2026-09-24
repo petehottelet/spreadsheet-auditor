@@ -4,6 +4,16 @@
 Excel calculation parity, does not certify business or accounting
 correctness, and is not a substitute for review by a human modeler.
 
+Contents: [Calculation parity](#calculation-parity) ·
+[Value-dependent checks](#value-dependent-checks) ·
+[Workbook size and performance](#workbook-size-and-performance) ·
+[Annotated copies](#annotated-copies) ·
+[Always disclose when](#always-disclose-when) ·
+[Security behavior](#security-behavior) ·
+[Heuristic vs deterministic](#heuristic-vs-deterministic) ·
+[Exit codes](#exit-codes) ·
+[What this tool is not](#what-this-tool-is-not)
+
 ## Calculation parity
 
 The auditor reads workbooks with [`openpyxl`](https://openpyxl.readthedocs.io/)
@@ -114,12 +124,12 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 
 ## Heuristic vs deterministic
 
-- `DET` rules are deterministic: they fire on a structural pattern that is
-  almost always wrong. False positives are bugs and we will fix them.
-- `HEUR` rules require judgement. They default to `Review` confidence and
-  should be inspected before action; their false-positive rate is openly
-  documented in the seeded benchmark
-  ([`benchmarks/seeded_defects_matrix.md`](../benchmarks/seeded_defects_matrix.md)).
+- `DET` rules fire on a fixed structural pattern and `HEUR` rules on a
+  judgment call. Neither tag says how often a finding is right: on real
+  workbooks `FORMULA_DRIFT` and `HARDCODE_IN_FORMULA_BLOCK` are right a little
+  over half the time. The trust table in
+  [`check_catalog.md`](check_catalog.md) says how far to check each rule
+  before acting on it.
 - The opt-in `finance.*` checks (`BALANCE_SHEET_BALANCE`,
   `SIGN_CONVENTION`, `PERIOD_MISMATCH`) are label-driven heuristics; they are
   off unless you set `finance.enabled: true` in your config.

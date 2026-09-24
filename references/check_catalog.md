@@ -2,10 +2,21 @@
 
 Use this catalog to interpret `findings.json` emitted by `scripts/audit.py`.
 
+## How Far To Trust Each Rule
+
+Measured on 2,729 real workbooks (SpreadsheetBench; per-rule numbers in the repository's `benchmarks/real_world_precision.md`). Use it to decide how hard to check a finding before calling it a mistake.
+
+| Trust | Rules | What the false alarms look like |
+|---|---|---|
+| Report after reading the formula | `LIVE_ERROR`, `BROKEN_REFERENCE`, `CIRCULAR_REFERENCE`, `HIDDEN_STRUCTURE_IN_TOTAL`, `NUMBERS_STORED_AS_TEXT`, `VOLATILE_FUNCTION`, `WHOLE_COLUMN_REFERENCE`, `RANGE_EXCLUSION`, `RANGE_LENGTH_MISMATCH` | Rare. A cycle can be a deliberate iterative calculation, and a hidden input can be intentional (still worth disclosing). |
+| Check the context card | `FORMULA_DRIFT`, `HARDCODE_IN_FORMULA_BLOCK`, `LITERAL_CONSTANT`, `DUPLICATE_KEY`, `WHITESPACE_KEY` | Right between half and four-fifths of the time. Drift: a totals, ratio or summary row that differs by design. Hardcode: an input column between formula columns, or a one-row table. Literal: codes an `IF` returns, calendar offsets. Duplicate key: a lookup meant to take the first match. |
+| Usually intentional | `IFERROR_MASK`, `BLANK_PRECEDENT` | `IFERROR(..., "")` around a lookup is the normal way to blank a miss, and a blank in a debit/credit pair is a zero. Mention these as a count unless the card shows a real error being hidden. |
+| Not measured on real workbooks | `TOTAL_MISMATCH`, `CROSS_FOOT_FAILURE`, `RANGE_INCLUDES_SUBTOTAL`, `MERGED_CELL_IN_DATA_RANGE`, finance pack | Check the context card. |
+
 ## Detection Modes
 
-- `DET`: deterministic candidate produced by code.
-- `HEUR`: heuristic candidate requiring judgment.
+- `DET`: the rule is a fixed structural test. It says how the finding was produced, not how likely it is to be right.
+- `HEUR`: the rule is a judgment call by design.
 
 ## Confidence Levels
 
