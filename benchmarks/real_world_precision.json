@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-14T07:48:00+00:00",
+  "generated": "2026-09-14T16:38:29+00:00",
   "source": "spreadsheetbench",
   "run": {
     "source": "spreadsheetbench",
@@ -7,7 +7,7 @@
     "include_glob": "*_input.*",
     "seed": 7,
     "limit": null,
-    "generated": "2026-09-14T07:37:43+00:00",
+    "generated": "2026-09-14T16:35:55+00:00",
     "auditor_version": "0.2.0",
     "workbooks": 2729,
     "ok": 2729,
@@ -17,13 +17,13 @@
     "recalc": {
       "unavailable": 2729
     },
-    "findings_total": 11126,
+    "findings_total": 11129,
     "workbooks_with_findings": 664,
     "severities": {
       "Medium": 4991,
       "Low": 131,
       "Critical": 5061,
-      "High": 943
+      "High": 946
     },
     "rules": {
       "BLANK_PRECEDENT": {
@@ -47,8 +47,8 @@
         "per_1k_formulas": 1.21
       },
       "FORMULA_DRIFT": {
-        "findings": 127,
-        "workbooks": 76,
+        "findings": 130,
+        "workbooks": 79,
         "per_1k_formulas": 0.24
       },
       "HARDCODE_IN_FORMULA_BLOCK": {
@@ -115,11 +115,11 @@
       "google_sheets_placeholders": 3
     },
     "elapsed": {
-      "median": 0.469,
-      "p95": 1.079,
-      "max": 46.844
+      "median": 0.516,
+      "p95": 1.14,
+      "max": 47.156
     },
-    "wall_clock_seconds": 476.2
+    "wall_clock_seconds": 512.0
   },
   "rules": [
     {
@@ -180,17 +180,17 @@
     },
     {
       "rule": "FORMULA_DRIFT",
-      "findings": 127,
-      "workbooks": 76,
+      "findings": 130,
+      "workbooks": 79,
       "per_1k_formulas": 0.24,
       "sampled": 25,
-      "tp": 12,
-      "fp": 6,
-      "unsure": 7,
+      "tp": 11,
+      "fp": 10,
+      "unsure": 4,
       "unlabeled": 0,
-      "precision": 0.6666666666666666,
-      "ci_low": 0.4374906934425036,
-      "ci_high": 0.8372144563633714
+      "precision": 0.5238095238095238,
+      "ci_low": 0.32369217900266756,
+      "ci_high": 0.7165628770323705
     },
     {
       "rule": "HARDCODE_IN_FORMULA_BLOCK",

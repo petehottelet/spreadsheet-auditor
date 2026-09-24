@@ -38,7 +38,11 @@ See [`sources.json`](sources.json). SpreadsheetBench (CC BY-SA 4.0) is the
 default precision corpus: 2,732 real Excel-forum workbooks, modern and
 formula-heavy, saved by Excel so cached values are present. The modified
 EUSES corpus adds recall: each workbook carries one injected formula fault at
-a known cell. FUSE is registered for a future large-scale run.
+a known cell. `recall.py --convert` needs LibreOffice for the `.xls` files;
+the `Corpus` GitHub workflow runs it with `source=euses-modified` in about
+five minutes, and the result is published at
+[`benchmarks/real_world_recall.md`](../real_world_recall.md). FUSE is
+registered for a future large-scale run.
 
 ## Labeling protocol
 

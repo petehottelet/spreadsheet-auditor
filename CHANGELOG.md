@@ -26,8 +26,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   interval 32% to 41%), with `LIVE_ERROR` and `BROKEN_REFERENCE` at 100% and
   `BLANK_PRECEDENT`, `CIRCULAR_REFERENCE`, `FORMULA_DRIFT`, `WHITESPACE_KEY`
   and `MERGED_CELL_IN_DATA_RANGE` at 8% or below. After the changes below the
-  same corpus yields 11,126 findings (from 48,281) at 76% precision (71% to
-  81%), judged on a fresh sample of 337 findings with the same protocol; the
+  same corpus yields 11,129 findings (from 48,281) at 75% precision (70% to
+  80%), judged on a fresh sample of 337 findings with the same protocol; the
   report carries a per-rule before/after table.
 
 ### Changed
@@ -109,6 +109,18 @@ false positives had in common; the seeded benchmark is unchanged.
 - **Performance**: `parse_formula` results are cached per name table, so the
   checks parse each formula once instead of once per check (the slowest
   corpus workbook spent 88 of 113 seconds parsing).
+- **Real-world recall report** (`benchmarks/real_world_recall.md`): the
+  auditor run over the modified EUSES corpus (695 real spreadsheets, one
+  injected formula fault each). 528 faults are found at the faulty cell
+  (recall 0.76); constants replaced by references 94%, formulas replaced by
+  constants 77%, arithmetic-operator swaps 67%, function swaps 60%,
+  relational-operator swaps 59%. The first run found 1 of 93 function swaps:
+  the totals-row exemption in `FORMULA_DRIFT` also hid a `SUM` that had
+  become an `AVERAGE` among its peers. The exemption now applies only when
+  the run is three cells or fewer, or when the header above the cell (or the
+  label beside it) names the aggregate it holds, as a pivot-style "Sum of
+  ... / Average of ..." row does; that took function-swap recall to 56 of 93
+  and overall recall from 0.68 to 0.76.
 
 ## [0.2.0] - 2026-09-13
 

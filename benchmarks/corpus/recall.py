@@ -299,7 +299,15 @@ def main(argv: list[str] | None = None) -> int:
         seeded_record = audited[case["seeded"]]
         original_record = audited.get(case["original"]) if case["original"] else None
         if seeded_record["status"] != "ok":
-            per_workbook.append({"seeded": case["seeded"].name, "status": seeded_record["status"], "seeded_findings": None, "original_findings": None})
+            per_workbook.append(
+                {
+                    "seeded": case["seeded"].name,
+                    "status": seeded_record["status"],
+                    "error": (seeded_record.get("stderr") or "")[-300:],
+                    "seeded_findings": None,
+                    "original_findings": None,
+                }
+            )
             continue
         seeded_findings = _findings(seeded_record["out"])
         original_findings = _findings(original_record["out"]) if original_record and original_record["status"] == "ok" else []
