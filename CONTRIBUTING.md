@@ -122,7 +122,7 @@ wheel + sdist to PyPI via trusted publishing.
 A maintainer typically:
 
 1. Updates [`CHANGELOG.md`](CHANGELOG.md): moves entries from `Unreleased`
-   into a new dated `## [vX.Y.Z]` section.
+   into a new dated `## [X.Y.Z]` section.
 2. Bumps `__version__` in
    [`spreadsheet_auditor/__init__.py`](spreadsheet_auditor/__init__.py). This is
    the single source of truth: [`pyproject.toml`](pyproject.toml) reads the

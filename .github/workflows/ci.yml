@@ -74,7 +74,7 @@ jobs:
         # artifacts are doc/showcase copies refreshed by maintainers.
         run: |
           python examples/make_demo.py
-          python benchmarks/run_benchmark.py
+          python benchmarks/run_benchmark.py --strict
 
       - name: Upload LibreOffice-backed demo and benchmark artifacts
         # Maintainers download this bundle and commit it, so the checked-in

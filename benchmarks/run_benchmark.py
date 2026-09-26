@@ -13,10 +13,9 @@ Honesty contract:
   so reviewers can investigate.
 
 Exit code:
-- 0 when no DET defect is missed in a recalc-capable environment AND no new
-  unexpected findings appeared compared to a previous matrix (no regression).
-- 0 otherwise too -- the benchmark is informational; CI surfaces the matrix as
-  an artifact rather than a hard gate. Set `--strict` to fail on regressions.
+- With `--strict`, 1 when any applicable DET defect is missed or any unexpected
+  finding appears; 0 otherwise. CI and releases use this mode.
+- Without `--strict`, 0 after generating the informational matrix.
 """
 
 from __future__ import annotations
@@ -183,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Fail (exit 1) when any DET defect was missed (and recalc was not required) or any unexpected finding appeared.",
+        help="Fail (exit 1) when any applicable DET defect was missed or any unexpected finding appeared.",
     )
     args = parser.parse_args(argv)
 
