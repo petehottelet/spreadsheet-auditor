@@ -126,8 +126,8 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 
 - `DET` rules fire on a fixed structural pattern and `HEUR` rules on a
   judgment call. Neither tag says how often a finding is right: on real
-  workbooks `FORMULA_DRIFT` and `HARDCODE_IN_FORMULA_BLOCK` are right a little
-  over half the time. The trust table in
+  workbooks `FORMULA_DRIFT` and `HARDCODE_IN_FORMULA_BLOCK` are right about
+  three times in five. The trust table in
   [`check_catalog.md`](check_catalog.md) says how far to check each rule
   before acting on it.
 - The opt-in `finance.*` checks (`BALANCE_SHEET_BALANCE`,
