@@ -68,3 +68,19 @@ def test_folded_description_block_is_parsed():
     assert fields is not None
     assert fields["description"].startswith("Audit existing Excel workbooks")
     assert quick_validate._validate_frontmatter(fields) == []
+
+
+def test_frontmatter_parses_with_standard_yaml():
+    import yaml
+
+    text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    fields = yaml.safe_load(text.split("---", 2)[1])
+    assert isinstance(fields["description"], str)
+    assert 0 < len(fields["description"]) <= 1024
+
+
+def test_validator_rejects_invalid_yaml_instead_of_recovering(tmp_path):
+    text = "---\nname: spreadsheet-auditor\ndescription: Audits cells: #REF! errors\n---\n"
+    assert quick_validate._parse_frontmatter(text) is None
+    (tmp_path / "SKILL.md").write_text(text, encoding="utf-8")
+    assert quick_validate.validate_folder(tmp_path) == 1

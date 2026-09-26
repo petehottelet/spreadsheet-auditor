@@ -21,5 +21,8 @@ report.sarif
 benchmarks/corpus/data/
 benchmarks/corpus/results/
 
-# Eval inputs are copied locally (see evals/files/README.md), never committed.
+# Downloaded eval inputs stay local; the synthetic review fixtures are bundled.
 evals/files/*.xlsx
+!evals/files/inherited-budget.xlsx
+!evals/files/survey-averages.xlsx
+!evals/files/legacy-model.xlsx
