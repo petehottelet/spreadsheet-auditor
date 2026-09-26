@@ -43,6 +43,23 @@ def _split(piece: str) -> tuple[str | None, str]:
     return unquote_sheet(sheet), addr.strip()
 
 
+_PLAIN_SHEET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
+def format_target(piece: str) -> str:
+    """Write one location piece as a target, quoting the sheet name when Excel would.
+
+    ``Revenue Detail!B1`` -> ``'Revenue Detail'!B1``; ``O'Brien!A1`` ->
+    ``'O''Brien'!A1``; ``Budget!B14`` is left as it is.
+    """
+    sheet, addr = _split(piece)
+    if sheet is None:
+        return piece.strip()
+    if _PLAIN_SHEET_RE.match(sheet) and _box(sheet) is None:
+        return f"{sheet}!{addr}"
+    return "'" + sheet.replace("'", "''") + f"'!{addr}"
+
+
 def target_sheet(target: str) -> str | None:
     """The sheet a suppression or headline target names (a bare target is a sheet)."""
     if not target.strip():

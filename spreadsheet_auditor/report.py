@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .finding import SEVERITY_ORDER, sort_findings
+from .suppressions import pinned_line
 
 
 DISCLAIMER = (
@@ -409,7 +410,7 @@ def _render_finding(finding: dict) -> list[str]:
         "",
         f"- ID: `{finding['id']}`",
         f"- Location: `{finding['location']}`",
-        f"- Fingerprint: `{finding.get('fingerprint', '')}` (suppress with `fingerprint:{finding.get('fingerprint', '')} <reason>`)",
+        f"- Fingerprint: `{finding.get('fingerprint', '')}`",
         f"- Detection: {finding['detection_mode']}; confidence: {finding['error_confidence']}",
     ]
     if finding.get("formula"):
@@ -419,5 +420,10 @@ def _render_finding(finding: dict) -> list[str]:
     if finding.get("impact"):
         lines.append("- Impact: " + json.dumps(finding["impact"], ensure_ascii=True))
     lines.append(f"- Suggested fix: {finding['suggested_fix']}")
+    if finding.get("fingerprint") and not finding.get("suppressed"):
+        # Pinned to the fingerprint, the line follows this finding through
+        # inserted rows and never hides a different one on the same cell.
+        accept = pinned_line(finding["rule_id"], finding["location"], finding["fingerprint"])
+        lines.append(f"- If intended, accept it in `.audit-ignore`: `{accept}`")
     lines.append("")
     return lines

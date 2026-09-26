@@ -287,25 +287,28 @@ that.
 config's `suppressions`), always with a reason:
 
 ```text
-fingerprint:3f9c2a1b7d4e5f60 accepted: legacy link, tracked in FIN-12
+LIVE_ERROR Model!C5 fingerprint:3f9c2a1b7d4e5f60 accepted: legacy link, FIN-12
 BROKEN_REFERENCE Imports raw feed, cells start empty
 LITERAL_CONSTANT 'Revenue Detail'!B2:B40 contract uplift rates
 ```
 
-To accept one finding, use its fingerprint (printed in the Markdown and HTML
-reports and in the JSON). It is built from the flagged cell's content, its row
-label and its sheet, so it follows the cell through inserted rows and columns
-and never passes to a different finding. A `rule_id` + range suppression
-follows the address instead: right for an area such as a raw-data sheet, but a
-one-cell target will hide whatever later lands on that cell. The range may be a
-cell, a range, a whole column or row, or a bare sheet name (a target without
-`!` is always a sheet, even `Q1`); quote sheet names that contain spaces. A
-finding is suppressed when its cell lies inside the target on the same sheet,
-never by text prefix (`Imports!A1` does not hide `Imports!A10`). Suppressions
-that are malformed, or that match no finding (fixed, or the cells moved), are
-called out in the report's coverage limitations. Suppressed findings stay in
-the JSON payload (auditable) but are hidden from the report unless
-`--show-suppressed` is passed.
+To accept one finding, copy the line the Markdown report prints under it (the
+first line above). It pins the suppression to the finding's fingerprint, which
+is built from the flagged cell's content, row label and sheet: the line keeps
+suppressing that finding when rows or columns are inserted, never hides a
+different finding that lands on the address, and the report says when the
+finding has moved away from the address written in the line. Without a
+fingerprint, a target follows its address, which is right for an area such as
+a raw-data sheet or an import range; an unpinned one-cell line would also hide
+whatever later lands on that cell, so the report prints the pinned line to
+replace it with. A target may be a cell, a range, a whole column or row, or a
+bare sheet name (a target without `!` is always a sheet, even `Q1`); quote
+sheet names that contain spaces. A finding is suppressed when its cell lies
+inside the target on the same sheet, never by text prefix (`Imports!A1` does
+not hide `Imports!A10`). Suppressions that are malformed, or that match no
+finding (fixed, or the cells changed), are called out in the report's coverage
+limitations. Suppressed findings stay in the JSON payload (auditable) but are
+hidden from the report unless `--show-suppressed` is passed.
 
 ## Contributing
 

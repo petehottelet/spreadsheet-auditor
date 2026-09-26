@@ -105,11 +105,11 @@ replacement of the original workbook.
   suppressed count. Every suppression requires a reason; malformed
   suppressions (missing reason, unparseable line) are ignored and reported as
   a coverage limitation so a dropped suppression is never silent, and so is a
-  suppression that matched no finding. A fingerprint suppression follows the
-  flagged cell's content through inserted rows and columns; a location target
-  (a cell, range, whole column/row, or sheet name) follows the address, never
-  a text prefix, so a stale one-cell target can hide a different finding that
-  later lands on that cell.
+  suppression that matched no finding. A line pinned to a fingerprint
+  follows the flagged cell's content through inserted rows and columns and
+  never hides a different finding; an unpinned target (a cell, range, whole
+  column/row, or sheet name) follows the address, never a text prefix, so the
+  report prints the pinned replacement for every unpinned one-cell line.
 
 Never execute macros. Never follow external links without explicit user
 approval and sandbox controls.

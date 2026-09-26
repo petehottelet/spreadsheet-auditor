@@ -33,8 +33,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   longer changes every fingerprint, and a fingerprint suppression no longer
   passes to whatever lands on the old address. Existing fingerprint
   suppressions need the new fingerprint once; the report now names each stale
-  one. SARIF carries it as `partialFingerprints["spreadsheetAuditor/v2"]`, and
-  the Markdown report prints it with a ready-to-paste suppression.
+  one. SARIF carries it as `partialFingerprints["spreadsheetAuditor/v2"]`.
+- **A one-cell suppression can be pinned to its finding.** A location line
+  such as `LIVE_ERROR Model!C5 accepted` also hid any later finding of that
+  rule on C5: after a row went in above the model, the accepted `#REF!` came
+  back at C6 and a new `#REF!` typed at C5 was hidden. A line may now carry
+  the fingerprint it accepts, `LIVE_ERROR Model!C5 fingerprint:<fp> <reason>`
+  (config: `rule_id`, `range` and `fingerprint` together); the fingerprint
+  decides the match, so the line keeps suppressing the accepted finding at C6,
+  leaves the new one reported, and the report says the finding has moved away
+  from C5. The Markdown report prints this pinned line under every finding,
+  and each run names the pinned replacement for every unpinned one-cell line
+  that matched. A pinned line whose finding is gone says what now sits at its
+  address.
 
 ### Fixed
 

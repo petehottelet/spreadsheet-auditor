@@ -122,34 +122,58 @@ def _package_available(package: str) -> bool:
         return False
 
 
-def _stale_suppression_notes(
+def _suppression_notes(
     suppressions: list[dict],
     config: dict,
     incomplete: list[dict],
+    findings: list[Finding],
     workbook_sheets: set[str] | None = None,
     allowed_sheets: set[str] | None = None,
 ) -> list[str]:
-    """Name the suppressions that matched nothing although they could have.
+    """Notes on the suppressions that need the user's attention.
 
-    A suppression goes stale when its finding is fixed or its cells move; a
-    stale one-cell target can later hide an unrelated finding that lands on
-    that address, so it should be updated or removed. Suppressions that could
-    not have matched this run stay quiet: their rule is turned off, their
-    rule was not checked because the audit is incomplete, or their sheet is
-    excluded by scope.
+    * A pinned line (a location plus the fingerprint it accepted) whose
+      finding has moved away from that location: still suppressed, but the
+      address in the file is out of date.
+    * An unpinned one-cell line that matched: it follows the address, so a
+      different finding that later lands there would be hidden too; the note
+      gives the pinned line to replace it with.
+    * A suppression that matched nothing although it could have: its finding
+      was fixed, or its cells moved. Suppressions that could not have matched
+      this run stay quiet: their rule is turned off, their rule was not
+      checked because the audit is incomplete, or their sheet is excluded by
+      scope.
     """
     from .config_loader import check_setting
-    from .locations import target_sheet
-    from .suppressions import describe, unmatched_suppressions
+    from .locations import location_matches, target_sheet
+    from .suppressions import describe, is_one_cell, pinned_line
 
     unchecked = {rule for entry in incomplete for rule in entry["rules"]}
     everything_unchecked = any(not entry["rules"] for entry in incomplete)
     existing = {name.casefold() for name in workbook_sheets or ()}
     allowed = {name.casefold() for name in allowed_sheets or ()}
     notes = []
-    for suppression in unmatched_suppressions(suppressions):
+    for suppression in suppressions:
         rule = suppression.get("rule_id")
-        if rule is None:  # a fingerprint: its rule is unknown until it matches
+        target = str(suppression.get("range") or "")
+        pin = suppression.get("fingerprint")
+        head = f"Suppression ({suppression.get('source', 'suppression')}) {describe(suppression)}"
+        matched = suppression.get("matched_findings") or []
+        if matched:
+            if pin and target and not any(location_matches(f.location, target) for f in matched):
+                where = ", ".join(f.location for f in matched)
+                notes.append(f"{head} follows its finding, which is now at {where}; update the address when convenient.")
+            elif not pin and is_one_cell(target):
+                lines = "; ".join(
+                    pinned_line(f.rule_id, f.location, f.fingerprint, suppression.get("reason") or "<reason>")
+                    for f in matched
+                )
+                notes.append(
+                    f"{head} follows the address, so a different finding that later lands on it would be "
+                    f"hidden too. Pin it to the finding it accepts: {lines}"
+                )
+            continue
+        if rule is None:  # a bare fingerprint: its rule is unknown until it matches
             if incomplete:
                 continue
             why = (
@@ -161,17 +185,24 @@ def _stale_suppression_notes(
                 continue
             if everything_unchecked or rule in unchecked:
                 continue
-            sheet = (target_sheet(str(suppression.get("range") or "")) or "").casefold()
+            sheet = (target_sheet(target) or "").casefold()
             if sheet in existing and sheet not in allowed:
                 continue
-            why = (
-                "The finding was fixed, or its cells moved or the target is misspelled; update or remove the "
-                "suppression, since a stale target can later hide a different finding on that address."
-            )
-        notes.append(
-            f"Suppression matched no finding ({suppression.get('source', 'suppression')}): "
-            f"{describe(suppression)}. {why}"
-        )
+            if pin:
+                now = [f for f in findings if f.rule_id == rule and location_matches(f.location, target)]
+                why = "The accepted finding was fixed, or its cell's formula, value or row label changed."
+                if now:
+                    why += (
+                        f" {target} now holds a different {rule} finding, which is reported "
+                        f"(fingerprint {now[0].fingerprint})."
+                    )
+                why += " Pin the line to the current finding or remove it."
+            else:
+                why = (
+                    "The finding was fixed, or its cells moved or the target is misspelled; update or remove the "
+                    "suppression, since a stale target can later hide a different finding on that address."
+                )
+        notes.append(f"{head} matched no finding. {why}")
     return notes
 
 
@@ -357,10 +388,11 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         suppressions = load_suppressions(config, args.ignore, warnings=limitations)
         findings = apply_suppressions(findings, suppressions)
         limitations.extend(
-            _stale_suppression_notes(
+            _suppression_notes(
                 suppressions,
                 config,
                 incomplete,
+                findings,
                 workbook_sheets={ws.title for ws in formula_wb.worksheets},
                 allowed_sheets=allowed_sheet_names,
             )
@@ -428,7 +460,7 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
         findings = apply_check_settings(findings, config)
     suppressions = load_suppressions(config, ignore_path, warnings=csv_limitations)
     findings = apply_suppressions(findings, suppressions)
-    csv_limitations.extend(_stale_suppression_notes(suppressions, config or {}, []))
+    csv_limitations.extend(_suppression_notes(suppressions, config or {}, [], findings))
     findings = sort_findings(findings)
     assign_ids(findings)
     return build_payload(

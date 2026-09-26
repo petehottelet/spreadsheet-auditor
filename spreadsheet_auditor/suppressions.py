@@ -3,16 +3,18 @@
 Suppressions can be supplied two ways:
 
 1. **Suppression file** (default `.audit-ignore`). One suppression per line, in
-   one of two grammars:
+   one of three grammars:
 
        <rule_id>  <range_or_location>  <reason>
+       <rule_id>  <location>  fingerprint:<fp>  <reason>
        fingerprint:<fp> <reason>
 
    Lines starting with `#` are comments. A reason is required for every
    suppression; suppressions missing a reason are dropped with a warning.
 
-2. **Config section** (`[suppressions]`). A list of `{rule_id, range, reason}`
-   or `{fingerprint, reason}` mappings. Same semantics as the file.
+2. **Config section** (`[suppressions]`). A list of `{rule_id, range, reason}`,
+   `{rule_id, range, fingerprint, reason}` or `{fingerprint, reason}`
+   mappings. Same semantics as the file.
 
 A suppression's `range` may be a single cell (`Budget!B14`), a range
 (`Imports!A1:A100`), a whole column or row (`Imports!A:A`), or a bare sheet
@@ -23,11 +25,15 @@ Nothing is matched by substring, so `Imports!A1` never hides `Imports!A10`.
 A target without `!` is always a sheet, even `Q1` or `FY2025`. In the file,
 quote a sheet name that contains spaces: `'Revenue Detail'!B1`.
 
-To accept one finding, suppress its fingerprint: it is built from the flagged
-cell's content, so it follows the cell through inserted rows and columns. A
-location target follows the address instead, which suits an area (a raw-data
-sheet, an import range) but lets a one-cell target hide whatever later lands
-on that cell.
+To accept one finding, pin the line to its fingerprint (the second grammar,
+which the Markdown report prints for every finding). The fingerprint is built
+from the flagged cell's content, so a pinned line follows its finding through
+inserted rows and columns, and never hides a different finding that lands on
+the address; the location stays for the reader, and the report says when the
+finding has moved away from it. An unpinned location follows the address,
+which suits an area (a raw-data sheet, an import range); an unpinned one-cell
+target would also hide whatever later lands on that cell, so each run names
+the pinned line to replace it with.
 
 A reason is required for every suppression. Suppressions missing a reason (or
 otherwise malformed) are dropped and a note is appended to the optional
@@ -45,7 +51,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .locations import location_matches
+from .locations import anchor, format_target, location_matches, split_location
 
 
 def load_suppressions(
@@ -83,7 +89,7 @@ def load_suppressions(
     return suppressions
 
 
-_EXPECTED = "expected '<rule_id> <range> <reason>' or 'fingerprint:<fp> <reason>'"
+_EXPECTED = "expected '<rule_id> <range> [fingerprint:<fp>] <reason>' or 'fingerprint:<fp> <reason>'"
 
 
 def _parse_ignore_line(line: str) -> tuple[dict | None, str | None]:
@@ -110,7 +116,14 @@ def _parse_ignore_line(line: str) -> tuple[dict | None, str | None]:
         # sheet `Revenue` (or nothing) and file the address under the reason.
         tail, address = first_word.rsplit("!", 1)
         return None, f"quote a sheet name that contains spaces, as in '{target} {tail}'!{address}"
-    return {"rule_id": rule_id, "range": target, "reason": reason}, None
+    entry = {"rule_id": rule_id, "range": target, "reason": reason}
+    if first_word.lower().startswith("fingerprint:"):
+        pin = first_word.split(":", 1)[1]
+        reason = reason[len(first_word):].strip()
+        if not pin or not reason:
+            return None, "expected '<rule_id> <location> fingerprint:<fp> <reason>'"
+        entry.update(fingerprint=pin.lower(), reason=reason)
+    return entry, None
 
 
 def _take_target(text: str) -> tuple[str | None, str]:
@@ -155,6 +168,7 @@ def apply_suppressions(findings, suppressions: list[dict]):
                     finding.suppressed = True
                     finding.impact["suppression_reason"] = suppression.get("reason", "")
                 suppression["matched"] = suppression.get("matched", 0) + 1
+                suppression.setdefault("matched_findings", []).append(finding)
     return findings
 
 
@@ -164,14 +178,35 @@ def unmatched_suppressions(suppressions: list[dict]) -> list[dict]:
 
 
 def describe(suppression: dict) -> str:
-    if suppression.get("fingerprint"):
+    if not suppression.get("rule_id"):
         return f"fingerprint:{suppression['fingerprint']}"
-    return f"{suppression.get('rule_id')} {suppression.get('range')}"
+    text = f"{suppression.get('rule_id')} {suppression.get('range')}"
+    if suppression.get("fingerprint"):
+        text += f" fingerprint:{suppression['fingerprint']}"
+    return text
+
+
+def is_one_cell(target: str) -> bool:
+    """True for a ``Sheet!A1`` target: one address, which a new finding can land on."""
+    spot = anchor(target)
+    return spot is not None and ":" not in target.rsplit("!", 1)[1]
+
+
+def pinned_line(rule_id: str, location: str, fingerprint: str, reason: str = "<reason>") -> str:
+    """The `.audit-ignore` line that accepts exactly this finding, wherever its cell moves."""
+    pieces = split_location(location)
+    target = format_target(pieces[0]) if pieces else location
+    return f"{rule_id} {target} fingerprint:{fingerprint} {reason}"
 
 
 def _matches(finding, suppression: dict) -> bool:
     fp = suppression.get("fingerprint")
     if fp:
+        # A pinned line names its rule too; the fingerprint alone decides
+        # where the finding is, so a different finding on the line's address
+        # is never covered.
+        if suppression.get("rule_id") and suppression["rule_id"] != finding.rule_id:
+            return False
         return str(fp).lower() == finding.fingerprint.lower()
     if suppression.get("rule_id") != finding.rule_id:
         return False
