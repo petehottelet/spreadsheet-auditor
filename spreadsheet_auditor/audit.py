@@ -160,6 +160,8 @@ def _suppression_notes(
         head = f"Suppression ({suppression.get('source', 'suppression')}) {describe(suppression)}"
         matched = suppression.get("matched_findings") or []
         if matched:
+            if suppression.get("rewritten"):
+                continue  # --pin-suppressions just brought this line up to date
             if pin and target and not any(location_matches(f.location, target) for f in matched):
                 where = ", ".join(f.location for f in matched)
                 notes.append(f"{head} follows its finding, which is now at {where}; update the address when convenient.")
@@ -170,7 +172,7 @@ def _suppression_notes(
                 )
                 notes.append(
                     f"{head} follows the address, so a different finding that later lands on it would be "
-                    f"hidden too. Pin it to the finding it accepts: {lines}"
+                    f"hidden too. Pin it to the finding it accepts (--pin-suppressions rewrites it): {lines}"
                 )
             continue
         if rule is None:  # a bare fingerprint: its rule is unknown until it matches
@@ -204,6 +206,25 @@ def _suppression_notes(
                 )
         notes.append(f"{head} matched no finding. {why}")
     return notes
+
+
+def _pin_suppressions(ignore_path: str, suppressions: list[dict]) -> None:
+    """Run --pin-suppressions and say on stderr what changed, so it can be reviewed."""
+    from .suppressions import pin_suppression_file
+
+    if not Path(ignore_path).exists():
+        print(f"No suppression file at {ignore_path}; nothing to pin.", file=sys.stderr)
+        return
+    changes = pin_suppression_file(ignore_path, suppressions)
+    if not changes:
+        print(f"Every one-cell line in {ignore_path} is already pinned and current.", file=sys.stderr)
+        return
+    print(f"Pinned {len(changes)} line(s) in {ignore_path}; review them before committing:", file=sys.stderr)
+    for change in changes:
+        print(f"  line {change['line']}: {change['old']}", file=sys.stderr)
+        for line, finding in zip(change["new"], change["findings"]):
+            print(f"    -> {line}", file=sys.stderr)
+            print(f"       ({finding.location}: {finding.formula or finding.title})", file=sys.stderr)
 
 
 def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
@@ -387,6 +408,8 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         assign_identities(findings, formula_wb)
         suppressions = load_suppressions(config, args.ignore, warnings=limitations)
         findings = apply_suppressions(findings, suppressions)
+        if getattr(args, "pin_suppressions", False) and args.ignore:
+            _pin_suppressions(args.ignore, suppressions)
         limitations.extend(
             _suppression_notes(
                 suppressions,
@@ -876,6 +899,7 @@ Examples:
   spreadsheet-auditor model.xlsx --out report.md --json findings.json
   spreadsheet-auditor model.xlsx --format html --out report.html
   spreadsheet-auditor model.xlsx --summary
+  spreadsheet-auditor model.xlsx --summary --pin-suppressions
   spreadsheet-auditor --demo
   spreadsheet-auditor --healthcheck --json
 """
@@ -1012,6 +1036,16 @@ def main(argv: list[str] | None = None) -> int:
         "--version",
         action="version",
         version=f"spreadsheet-auditor {__version__}",
+    )
+    parser.add_argument(
+        "--pin-suppressions",
+        action="store_true",
+        help=(
+            "After the audit, rewrite the --ignore file so each one-cell line carries the fingerprint of "
+            "the finding it matches now, and each pinned line names where its finding is now. Other lines "
+            "are kept as they are, and the workbook is never written. A line is pinned to whatever it "
+            "matches in this run, so run it before rows move and review the changes printed on stderr."
+        ),
     )
     parser.add_argument("--recalc-timeout", type=int, default=None, help="Override recalculation timeout in seconds.")
     parser.add_argument("--healthcheck", action="store_true", help="Report environment/runtime readiness and exit.")

@@ -46,6 +46,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and each run names the pinned replacement for every unpinned one-cell line
   that matched. A pinned line whose finding is gone says what now sits at its
   address.
+- **`--pin-suppressions`** rewrites the `--ignore` file after the audit: each
+  unpinned one-cell line that matched becomes its pinned form, reason kept,
+  and each pinned line whose finding has moved gets the finding's current
+  address. Comments, blank lines, area lines, stale lines and the file's
+  newline style are kept, the file is replaced atomically, and every change is
+  printed on stderr with the formula it was pinned to. A line is pinned to
+  whatever it matches in that run, so run it before rows move.
 
 ### Fixed
 

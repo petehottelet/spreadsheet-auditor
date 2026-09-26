@@ -33,7 +33,8 @@ the address; the location stays for the reader, and the report says when the
 finding has moved away from it. An unpinned location follows the address,
 which suits an area (a raw-data sheet, an import range); an unpinned one-cell
 target would also hide whatever later lands on that cell, so each run names
-the pinned line to replace it with.
+the pinned line to replace it with, and `--pin-suppressions` rewrites the file
+(see :func:`pin_suppression_file`).
 
 A reason is required for every suppression. Suppressions missing a reason (or
 otherwise malformed) are dropped and a note is appended to the optional
@@ -49,6 +50,7 @@ require `--show-suppressed` to surface them.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from .locations import anchor, format_target, location_matches, split_location
@@ -83,7 +85,9 @@ def load_suppressions(
                 continue
             entry, problem = _parse_ignore_line(line)
             if entry is not None:
-                suppressions.append(dict(entry, source=f"{ignore_path}:{line_no}"))
+                suppressions.append(
+                    dict(entry, source=f"{ignore_path}:{line_no}", path=str(ignore_path), line=line_no)
+                )
             else:
                 warn(f"Suppression ignored ({ignore_path}:{line_no}); {problem}: {line!r}")
     return suppressions
@@ -184,6 +188,51 @@ def describe(suppression: dict) -> str:
     if suppression.get("fingerprint"):
         text += f" fingerprint:{suppression['fingerprint']}"
     return text
+
+
+def pin_suppression_file(path: str | Path, suppressions: list[dict]) -> list[dict]:
+    """Rewrite the lines of the suppression file at ``path`` that follow an address.
+
+    After :func:`apply_suppressions`, each unpinned one-cell line that matched
+    is replaced by the pinned line for the finding it matched (one line per
+    finding, reason kept), and each pinned line whose finding has moved away
+    from its address gets the finding's current address. Every other line,
+    comments and blank lines included, is kept byte for byte, as is the
+    file's newline style; the file is replaced atomically. Returns one entry
+    per rewritten line: ``{"line", "old", "new", "findings"}``.
+
+    An unpinned line is pinned to whatever it matches in this run, so run this
+    before the workbook's rows move, and review the result.
+    """
+    path = Path(path)
+    replacements: dict[int, tuple[list[str], list]] = {}
+    for suppression in suppressions:
+        matched = suppression.get("matched_findings") or []
+        if suppression.get("path") != str(path) or not matched or not suppression.get("rule_id"):
+            continue
+        target = str(suppression.get("range") or "")
+        if suppression.get("fingerprint"):
+            if any(location_matches(f.location, target) for f in matched):
+                continue  # already pinned, and its address is current
+        elif not is_one_cell(target):
+            continue  # an area is meant to follow its address
+        lines = [pinned_line(f.rule_id, f.location, f.fingerprint, suppression["reason"]) for f in matched]
+        replacements[suppression["line"]] = (lines, matched)
+        suppression["rewritten"] = True
+    if not replacements:
+        return []
+    raw = path.read_bytes().decode("utf-8")
+    newline = "\r\n" if "\r\n" in raw else "\n"
+    lines = raw.splitlines()
+    changes = []
+    for line_no, (new, matched) in sorted(replacements.items()):
+        changes.append({"line": line_no, "old": lines[line_no - 1].strip(), "new": new, "findings": matched})
+        lines[line_no - 1] = newline.join(new)
+    text = newline.join(lines) + (newline if raw.endswith(("\n", "\r")) else "")
+    scratch = path.with_name(path.name + ".pinning")
+    scratch.write_bytes(text.encode("utf-8"))
+    os.replace(scratch, path)
+    return changes
 
 
 def is_one_cell(target: str) -> bool:

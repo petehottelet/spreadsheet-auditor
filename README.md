@@ -142,7 +142,7 @@ spreadsheet-auditor --demo --summary
 
 See `spreadsheet-auditor --help` for the full flag reference, including
 `--strict`, `--show-suppressed`, `--quiet`, `--config`, `--ignore`,
-`--recalc-timeout`, and `--healthcheck --json`.
+`--pin-suppressions`, `--recalc-timeout`, and `--healthcheck --json`.
 
 ## Outputs
 
@@ -301,7 +301,10 @@ finding has moved away from the address written in the line. Without a
 fingerprint, a target follows its address, which is right for an area such as
 a raw-data sheet or an import range; an unpinned one-cell line would also hide
 whatever later lands on that cell, so the report prints the pinned line to
-replace it with. A target may be a cell, a range, a whole column or row, or a
+replace it with, and `--pin-suppressions` rewrites those lines in place (and
+updates the address of pinned lines whose finding has moved), keeping every
+other line of the file. It pins each line to whatever it matches in that run,
+so run it before rows move and review the changes it prints. A target may be a cell, a range, a whole column or row, or a
 bare sheet name (a target without `!` is always a sheet, even `Q1`); quote
 sheet names that contain spaces. A finding is suppressed when its cell lies
 inside the target on the same sheet, never by text prefix (`Imports!A1` does
