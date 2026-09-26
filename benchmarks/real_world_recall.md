@@ -1,6 +1,6 @@
 # Recall on the modified EUSES corpus
 
-Generated 2026-09-14T16:33:40+00:00. A fault counts as found when a finding covers the faulty cell in the seeded workbook and not in the original.
+Generated 2026-09-26T03:57:58+00:00. A fault counts as found when a finding covers the faulty cell in the seeded workbook and not in the original.
 
 - Faults evaluated: 695 in 695 workbooks (10 could not be audited)
 - Found at the faulty cell: 528 (**recall 0.76**); found on the same row or column: 530

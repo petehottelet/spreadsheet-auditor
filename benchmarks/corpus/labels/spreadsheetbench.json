@@ -1,12 +1,12 @@
 {
-  "labeler": "Claude (Fable 5.1) working from the context cards in samples/spreadsheetbench.md, 2026-09-14; every label carries a reason so a maintainer can overrule it.",
+  "labeler": "Claude (Fable 5.1) working from the context cards in samples/spreadsheetbench.md, 2026-09-14, and Claude (Opus 5.5) for the seven FORMULA_DRIFT cards first drawn in samples/spreadsheetbench-summary.md, 2026-09-25; every label carries a reason so a maintainer can overrule it.",
   "protocol": "TP: the finding points at something a careful reviewer would want to look at, for the reason the rule gives. FP: the rule misread the workbook. unsure: the card was not enough to decide; excluded from precision.",
   "rule_notes": {
     "BLANK_PRECEDENT": "Was 15,300 findings at 4% precision on 0.2.0 (guarded formulas, template rows, mirror links, blank-ignoring aggregates). Positional and guarded uses, blank-tolerant functions, rows with no inputs and sparse columns are now excluded and 29 findings remain. What is left is one shape: a ledger with paired amount columns (debit or credit, buying or selling, trade size or none) where the blank is a zero by design, plus empty rows inside a block. None of the remaining sample was a defect; the rule is now rare enough to leave, and the next refinement would be to skip a blank whose row holds a filled sibling amount column.",
     "BROKEN_REFERENCE": "Right every time: #REF! formulas, and external links now reported as one Info note per source workbook per sheet (was one High finding per cell).",
     "CIRCULAR_REFERENCE": "Positional idioms (ROWS(A$6:A8), COLUMNS($D7:AA7), ROW(A19)) and the CELL(\"filename\",Q2) sheet-name idiom were 23 of 25 findings on 0.2.0 and are gone. What remains is the deliberate IFERROR(1/(1/F8)) date-freeze self-reference (which needs iterative calculation) and a MAX(B$7:B377)+1 counter that includes its own cell; both are worth a reviewer's attention.",
     "DUPLICATE_KEY": "Only the searched column of a first-match lookup counts now (VLOOKUP first column, MATCH/XLOOKUP lookup array); SUMIF criteria columns and category grids no longer fire. True positives are duplicate postcodes in a MATCH column, duplicate product names in a list searched by name, and letters listed twice in a rate table. The remaining false positives are lookups that deliberately find the previous occurrence, composite keys where the match is on another column, and product labels repeated as section headers in a grid.",
-    "FORMULA_DRIFT": "0 of 25 on 0.2.0. Rows of unrelated columns, chain seeds, label-link columns that step through another sheet, and short or header-labelled totals rows mixing SUM and AVERAGE are exempt; a SUM that became an AVERAGE inside a longer run of totals is still reported, because that is the 'function replaced' fault the EUSES corpus injects. What remains is mostly real: a first row whose SUMPRODUCT differs from the rows below and evaluates to #VALUE!, a DB() call missing an argument, a typed threshold of 90120 where the rows around use 90, a total that starts one row late, a typed input inside a fill (=525*1.5 beside =BF24*1.5), and a manual override link. Remaining false positives are summary or totals rows whose different formula is the design (a ratio of totals, a 'planned' row that averages under rows that sum, a wins row that counts under an 'average' header) and example sheets where every cell is a different formula.",
+    "FORMULA_DRIFT": "0 of 25 on 0.2.0. Rows of unrelated columns, chain seeds, label-link columns that step through another sheet, and short or header-labelled totals rows mixing SUM and AVERAGE are exempt; a SUM that became an AVERAGE inside a longer run of totals is still reported, because that is the 'function replaced' fault the EUSES corpus injects. What remains is mostly real: a first row whose SUMPRODUCT differs from the rows below and evaluates to #VALUE!, a DB() call missing an argument, a typed threshold of 90120 where the rows around use 90, a total that starts one row late, a typed input inside a fill (=525*1.5 beside =BF24*1.5), and a manual override link. Summary cells that are not part of the run beside them are exempt too: a link heading a column of labels (L2 = M14 over a column of names, where the run's SUM would add up text) and one of a row of counts over one block (COUNTIF(F5:F11,1), 2 and 3). Of the six findings this removed, the four already labeled were FP or unsure, and EUSES recall did not move. Remaining false positives are summary or totals rows whose different formula is the design (a ratio of totals, a 'planned' row that averages under rows that sum, a wins row that counts under an 'average' header) and example sheets where every cell is a different formula.",
     "HARDCODE_IN_FORMULA_BLOCK": "8% on 0.2.0: input columns between two formula columns sharing a pattern (running sums, unit x quantity). Those are now recognised from the other axis, and the true positives dominate: a constant typed over an IF, a difference, a rolling sum or a scaled copy in a column of identical formulas. Remaining false positives are input columns on sparse sheets or one-row tables, where the cells above and below the constant are empty and the check has nothing to compare, and input columns whose neighbouring formula lines hold plugs of their own.",
     "HIDDEN_STRUCTURE_IN_TOTAL": "Hidden helper columns feeding scores, hidden rows still counted by SUMIFS, hidden lookup tables and hidden source sheets: every sampled finding was a disclosure a reviewer wants. AGGREGATE and SUBTOTAL variants that skip hidden rows no longer count, and hidden rows feeding the same formulas are reported together.",
     "IFERROR_MASK": "Disclosure rule, now one finding per formula pattern per sheet. Judged TP when the fallback silently replaces a computational error with a value that feeds other cells: a lookup miss shown as an age or length of stay of 0, an average of 0 for no trades, IFNA(...,0) on an input sheet, a sliding VLOOKUP range whose misses are hidden, an exact-match tier lookup that can never match, and Google Sheets placeholder formulas. FP for the lookup-miss-to-blank idiom, end-of-list extraction, supplier fallback chains, and wrappers around functions that cannot error or whose inner IF already guards the case. Precision stays under a third; the rule is honest about being a review prompt.",
@@ -4261,6 +4261,34 @@
     "a1e653eaaddb|FORMULA_DRIFT|Sheet1!E9": {
       "label": "TP",
       "reason": "DB() call missing the month argument that the cells beside it pass."
+    },
+    "044436780a22|FORMULA_DRIFT|Sheet1!B3": {
+      "label": "TP",
+      "reason": "B3 wraps the VLOOKUP in IF(A3=\"\",...) unlike B2, and evaluates to #N/A."
+    },
+    "5ec32da9071e|FORMULA_DRIFT|Total(2)!O12": {
+      "label": "TP",
+      "reason": "The last period's upper bound reads P10 where the cells beside it read their bounds from row 16; an inconsistency inside the fill worth a look."
+    },
+    "19dfd5dbcec5|FORMULA_DRIFT|formamspnc(7)!CO5": {
+      "label": "FP",
+      "reason": "Row 5 is a summary row with its own formula; different by design."
+    },
+    "4ea284d68c01|FORMULA_DRIFT|Sheet1!Q374": {
+      "label": "TP",
+      "reason": "The comparison reads J373>=175 where the 375 rows around it use <=175; a flipped operator inside the fill."
+    },
+    "c2c1c9ef2579|FORMULA_DRIFT|formamspnc(7)!AT5": {
+      "label": "FP",
+      "reason": "Row 5 is a summary row with its own formula above a block of links; different by design."
+    },
+    "643562b8c3e5|FORMULA_DRIFT|Sheet1!G9": {
+      "label": "FP",
+      "reason": "Rows alternate inputs and ratios; G9 sits in an input row (E9, F9 and H9 are typed) and pulls its value with SUMIF, so it is not a ratio row."
+    },
+    "e1683f0529fe|FORMULA_DRIFT|HouseBudget!F123": {
+      "label": "TP",
+      "reason": "The total under a column of row sums (F) sums column G instead; a reviewer would want to confirm which column it should total."
     }
   }
 }

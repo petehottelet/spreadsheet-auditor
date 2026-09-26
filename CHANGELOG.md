@@ -53,6 +53,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   newline style are kept, the file is replaced atomically, and every change is
   printed on stderr with the formula it was pinned to. A line is pinned to
   whatever it matches in that run, so run it before rows move.
+- `FORMULA_DRIFT` leaves summary cells alone when they are not part of the
+  run beside them: a cell where the run's formula would add up only text
+  labels (a link under "Total Tax" heading a column of names), and one of a
+  row of summaries over the same block with their own criteria (counts of 1,
+  2 and 3 over one range). A total aimed at the wrong column, and a broken
+  member of a run that reads a shared table, are still reported. On
+  SpreadsheetBench this removes 6 of 130 drift findings, and the four of them
+  already labeled were false or unsure; the re-drawn sample puts drift at 62%
+  precision (41% to 79%), up from 52%. EUSES recall is unchanged at 528 of
+  695 injected faults.
 
 ### Fixed
 
