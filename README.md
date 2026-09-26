@@ -115,7 +115,7 @@ spreadsheet-auditor --healthcheck
 python -m pytest tests -q
 ```
 
-Releases (signed source archive + Claude/Codex skill zips + SHA-256
+Releases (source archive + Claude/Codex skill zips + SHA-256
 checksums) are published from the
 [Releases page](https://github.com/petehottelet/spreadsheet-auditor/releases).
 
@@ -182,9 +182,10 @@ Install the zip from the
 [Releases page](https://github.com/petehottelet/spreadsheet-auditor/releases)
 for your surface:
 
-- **Claude Code**: unzip `spreadsheet-auditor-claude.zip` into
-  `~/.claude/skills/` (all projects) or a repository's `.claude/skills/`, so
-  that `spreadsheet-auditor/SKILL.md` sits directly under it. The machine
+- **Claude Code**: extract `spreadsheet-auditor-claude.zip` into
+  `~/.claude/skills/spreadsheet-auditor/` (all projects) or a repository's
+  `.claude/skills/spreadsheet-auditor/`, with `SKILL.md` directly inside
+  that folder. The machine
   needs Python 3.11+ with `openpyxl`.
 - **claude.ai**: upload `spreadsheet-auditor-claude.zip` as a custom skill in
   Settings, with code execution enabled.
