@@ -1,7 +1,7 @@
 {
-  "audit_version": "0.2.0",
-  "tool_version": "0.2.0",
-  "timestamp": "2026-09-23T16:14:18+00:00",
+  "audit_version": "0.3.0",
+  "tool_version": "0.3.0",
+  "timestamp": "2026-09-26T03:30:02+00:00",
   "runtime": {
     "python": "3.11.16",
     "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
@@ -11,7 +11,7 @@
   },
   "workbook": {
     "path": "examples/demo_bad_budget.xlsx",
-    "sha256": "a776eaa8fe4ce8b6f4a6e8b42f686e01361fc7187bbfe20a39c67cd8ded2ad17",
+    "sha256": "0e525bf3ede5b20e6c3f008c6b832c6b7e79718d45816787cb6bae93abadf0c5",
     "sheets_analyzed": 2,
     "formulas_scanned": 30,
     "recalc_status": "completed"
@@ -28,7 +28,7 @@
       "cells": false,
       "timeout": false
     },
-    "elapsed_seconds": 1.145,
+    "elapsed_seconds": 1.424,
     "recalculation": {
       "status": "completed",
       "limitations": []

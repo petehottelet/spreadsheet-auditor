@@ -7,177 +7,47 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-### Added
+## [0.3.0] - 2026-09-25
 
-- Three ready-to-run task evaluations with synthetic workbooks cover
-  portable audits, correct averages and capped findings with suppressions.
-- **Context cards** (`scripts/context.py`): the row label, column header,
-  formula, cached value and neighbours of every Critical or High candidate
-  (or of named findings and cells), and what a one-cell link points at, so an
-  agent can tell a mistake from a line that differs by design before
-  reporting it. A cell flagged by several rules gets one card naming them all.
-- **Skill evals** (`evals/evals.json`): three task prompts with expectations,
-  on a household budget, the demo forecast and an inherited tracker.
-- **Skill workflow**: SKILL.md checks every non-certain finding in context
-  instead of treating `findings.json` as ground truth, and `check_catalog.md`
-  says how far to trust each rule, from the real-world precision run.
-- **Real-world corpus harness** (`benchmarks/corpus/`): a registry of public
-  spreadsheet corpora, a parallel runner that audits every workbook and
-  records crashes and timeouts, a seeded stratified sampler that renders each
-  finding as a context card, a labels file, and a report generator that
-  publishes per-rule precision with Wilson 95% intervals to
-  `benchmarks/real_world_precision.md`. `recall.py` measures recall on the
-  modified EUSES corpus, whose workbooks each carry one injected formula fault
-  at a known cell, attributing a hit only when the finding is absent from the
-  unmodified original. A manual `corpus.yml` workflow runs either corpus in CI
-  with LibreOffice installed.
-- **Real-world precision report** (`benchmarks/real_world_precision.md`): the
-  auditor run over all 2,729 SpreadsheetBench input workbooks, with 394
-  findings sampled across the 18 rules that fired, labeled with a reason
-  each. Against 0.2.0 as released the overall precision was 36% (Wilson 95%
-  interval 32% to 41%), with `LIVE_ERROR` and `BROKEN_REFERENCE` at 100% and
-  `BLANK_PRECEDENT`, `CIRCULAR_REFERENCE`, `FORMULA_DRIFT`, `WHITESPACE_KEY`
-  and `MERGED_CELL_IN_DATA_RANGE` at 8% or below. After the changes below the
-  same corpus yields 11,129 findings (from 48,281) at 75% precision (70% to
-  80%), judged on a fresh sample of 337 findings with the same protocol; the
-  report carries a per-rule before/after table.
+Audit existing Excel models with clearer answers and fewer false alarms.
+Context cards help distinguish mistakes from intentional formulas, while
+portable commands make the skill easier to adopt in Claude and Codex.
 
-### Changed
+Download the Claude or Codex skill ZIP from the release assets, or upgrade
+the CLI with `python -m pip install --upgrade spreadsheet-auditor`.
 
-Every rule below was re-scoped from what the labeled sample showed its
-false positives had in common; the seeded benchmark is unchanged.
+### Clearer audit results
 
-- **Parser context**: each reference now records the function and argument
-  it sits in, whether an operator touches it, and whether the formula tests
-  it for blank; positional references (`ROW`, `ROWS`, `COLUMN`, `COLUMNS`,
-  `ISREF`, `AREAS`) are no longer dependencies.
-- **CIRCULAR_REFERENCE**: `ROWS(A$6:A8)` counters and `COLUMNS($D7:AA7)`
-  are not cycles (23 of 25 sampled findings). A deliberate
-  `IFERROR(1/(1/F8),"")` self-reference is still reported.
-- **BLANK_PRECEDENT**: fires only when a blank is used in arithmetic, as a
-  lookup key, or in a date or rounding function, the formula never tests it
-  for blank, and the blank is a gap in an otherwise filled column; guarded
-  formulas, template rows, mirror links, sparse ledger columns and
-  blank-tolerant aggregates are quiet (24 of 25 sampled findings were these).
-- **FORMULA_DRIFT**: a cell that agrees with its formula neighbours on the
-  other axis is a different column by design, and the seed of a chain (an
-  opening balance, year 0) is expected to differ; a `#REF!` majority is not a
-  pattern.
-- **HARDCODE_IN_FORMULA_BLOCK**: an input column or row between two lines
-  of formulas sharing a pattern (running sums, unit x quantity) is not a
-  plug; a text label between the two formulas ends the block.
-- **BROKEN_REFERENCE**: external workbook links are one Low/Info finding per
-  source per sheet instead of a High finding per cell.
-- **DUPLICATE_KEY**: only the searched column of a first-match lookup is a
-  key column (`VLOOKUP` first column, `HLOOKUP` first row, the lookup array
-  of `MATCH`/`XMATCH`/`XLOOKUP`/`LOOKUP`); `SUMIF`/`COUNTIF` criteria ranges
-  and `VLOOKUP` return columns are not.
-- **NUMBERS_STORED_AS_TEXT**: the High variant requires a formula that
-  consumes the cell as a number; leading-zero identifiers are never
-  reported. The numeric-column variant was right 10 times out of 10 and is
-  unchanged.
-- **WHITESPACE_KEY**: headers over data, leading-space indentation and
-  whitespace-only cells are skipped; a column padded by an export gets one
-  Low/Info note instead of a finding per cell.
-- **MERGED_CELL_IN_DATA_RANGE**: only a merged number or formula read
-  through a range reference counts; merged titles, headers, labels and cells
-  that formulas address directly are presentation (0 of 25 sampled findings
-  were data).
-- **WHOLE_COLUMN_REFERENCE**: reported only where the column is evaluated as
-  an array (a comparison, arithmetic, `IF`, `SUMPRODUCT`, `LOOKUP(2,1/...)`,
-  array formulas); `COUNTIF`, `VLOOKUP`, `MATCH` and `INDEX` over `A:A` are
-  bounded by Excel and are quiet.
-- **VOLATILE_FUNCTION**: `TODAY`/`NOW` become one Low/Info note per sheet;
-  `RAND`, `RANDBETWEEN`, `OFFSET`, `INDIRECT` stay Medium.
-- **LITERAL_CONSTANT**: literals in structural argument slots (column
-  indexes, match types, string positions, date parts, rounding digits) and
-  the unit constants 60 and 3600 are skipped.
-- **HIDDEN_STRUCTURE_IN_TOTAL**: `AGGREGATE` options 1/3/5/7 and `SUBTOTAL`
-  101-111 skip hidden rows by definition; hidden rows feeding the same
-  formulas are reported together.
-- **RANGE_EXCLUSION**: expanding running-total ranges (`$A$9:A9`) are not
-  totals. **RANGE_INCLUDES_SUBTOTAL**: a labeled column of constants (a total
-  carried forward) is no longer reported. **RANGE_LENGTH_MISMATCH**: one-cell
-  aggregates are links, and sums over disjoint column groups are not peers.
-- **Grouping**: `IFERROR_MASK`, `LITERAL_CONSTANT`, `VOLATILE_FUNCTION` and
-  `WHOLE_COLUMN_REFERENCE` report once per formula pattern per sheet, at the
-  first cell, with the other cells listed as evidence, instead of once per
-  cell.
-- **Second pass**, from labeling the re-audited corpus: `CELL("filename",A1)`
-  in A1 is not a cycle; a compared column inside `SUMPRODUCT` is not numeric
-  consumption; an input column keeps its status when the neighbouring
-  formula line holds a plug or a SUM row; a label column that links every
-  second row of another sheet, and a totals row mixing `SUM` and `AVERAGE`,
-  are not drift; merged formulas (title formulas, net lines) are
-  presentation; a header under a lone title row and two-space indentation
-  are not padded keys while a single stray leading space still is; an array
-  formula that only hands a whole column to `INDEX` is quiet; `COUNTIF`-style
-  criteria literals are not assumptions; `BLANK_PRECEDENT` skips rows whose
-  inputs are all blank and needs three of four surrounding cells filled.
-- **Google Sheets placeholders**: formulas of the form
-  `IFERROR(__xludf.DUMMYFUNCTION("..."), cached value)` set the coverage flag
-  `google_sheets_placeholders` and a limitation note, since those cells are
-  frozen values.
-- **Performance**: `parse_formula` results are cached per name table, so the
-  checks parse each formula once instead of once per check (the slowest
-  corpus workbook spent 88 of 113 seconds parsing).
-- **Real-world recall report** (`benchmarks/real_world_recall.md`): the
-  auditor run over the modified EUSES corpus (695 real spreadsheets, one
-  injected formula fault each). 528 faults are found at the faulty cell
-  (recall 0.76); constants replaced by references 94%, formulas replaced by
-  constants 77%, arithmetic-operator swaps 67%, function swaps 60%,
-  relational-operator swaps 59%. The first run found 1 of 93 function swaps:
-  the totals-row exemption in `FORMULA_DRIFT` also hid a `SUM` that had
-  become an `AVERAGE` among its peers. The exemption now applies only when
-  the run is three cells or fewer, or when the header above the cell (or the
-  label beside it) names the aggregate it holds, as a pivot-style "Sum of
-  ... / Average of ..." row does; that took function-swap recall to 56 of 93
-  and overall recall from 0.68 to 0.76.
-- **`--summary`** counts findings by rule, severity and confidence.
-- **Skill packages** ship only what an agent reads: SKILL.md, the check
-  catalog, severity rubric, report template and limitations, the config
-  schema, `scripts/audit.py`, `scripts/context.py` and the engine. Contributor
-  docs, the test schemas, the seeded corpus and the maintainer scripts stay in
-  the repository.
-- **`scripts/quick_validate.py`** accepts the Agent Skills spec's optional
-  frontmatter fields (`license`, `compatibility`, `metadata`,
-  `allowed-tools`) and 64-character names, and rejects names containing
-  `anthropic` or `claude` and descriptions with XML tags.
-- **`FORMULA_DRIFT`** suggests restoring the neighbours' pattern only when the
-  cell is the same kind of line; a total, net or summary line is compared with
-  the other totals. The old text led agents to rewrite correct total lines.
-  When a drifted total adds another column than the totals beside it (F123 =
-  `SUM(G65:G122)` next to E123 = `SUM(E65:E122)`), the fix names its own
-  column (`=SUM(F65:F122)`), the same across a totals column.
-- **`LIVE_ERROR`** findings carry the formula of the cell where the error is
-  born, so the report shows the cause.
+- Review each candidate alongside its labels, formula, cached value and
+  neighbors. Multiple findings at one cell become one issue to investigate.
+- Interpret intentional totals, lookup patterns, identifiers and layout
+  more precisely when checking formulas and data quality.
+- Compare additive totals when cross-footing; correct averages and scaled
+  sums remain clear of cross-foot errors.
+- Retain active failures when reports are capped, and show findings by rule,
+  severity and confidence in the audit summary.
+- Follow published precision and recall evaluations to understand detector
+  coverage and remaining limitations.
 
-### Fixed
+### Easier adoption
 
-- Claude and Codex can discover the skill through valid YAML metadata;
-  validation catches malformed descriptions before distribution.
-- Correct averages and scaled sums remain clear of cross-foot errors;
-  cross-footing applies to additive SUM totals.
-- Capped reports prioritize active findings and retain the audit's full
-  pass/fail result.
-- Reports and annotated workbooks use distinct destinations, preserving
-  every requested artifact even when path aliases point to the same file.
-- Audits run from the user's project folder with fresh reports, clear
-  completion status, restricted-runtime recovery and context-card batching.
-- `--out`, `--json` and `--annotated` refuse the audited workbook's own path
-  (exit 4); before, each silently overwrote it.
-- The annotated copy lists every finding at a cell, most severe first; before,
-  only the last one survived, which dropped the Critical finding on shared cells.
-- `limits.max_cells` counts the cells a sheet holds, not its used-range
-  rectangle, so one stray cell far down no longer switches the grid checks off.
-- A runtime without openpyxl gets an install hint and exit 3 instead of a
-  traceback; `.xls` and password-protected files get conversion advice.
-- openpyxl's read-time "will be lost" warnings no longer reach stderr; the
-  audit never saves the workbook it reads.
-- LibreOffice gets its throwaway profile as a canonical file URL
-  (`file:///tmp/...`); on Linux the old string was `file:////tmp/...`, which
-  LibreOffice need not map to the profile that disables macros and forces
-  recalculation.
+- Start audits from any project folder with valid skill metadata, fresh
+  report outputs and clear guidance for restricted runtimes.
+- Use context cards to trace a finding to neighboring cells or linked totals
+  before suggesting a repair.
+- Try ready-to-run task evaluations with bundled synthetic workbooks.
+- Access installation guidance, licensing and security information with the
+  distributed skill packages.
+
+### Reliable workbook handling
+
+- Preserve source workbooks and every requested output by checking that
+  report and annotated-copy destinations are distinct.
+- Keep every finding attached to a cell in annotated copies.
+- Keep grid checks active when a stray cell extends the workbook's used range.
+- Recalculate in an isolated LibreOffice profile with macros disabled while
+  retaining the original formulas for static checks.
+- Identify frozen Google Sheets placeholders and explain coverage limits.
 
 ## [0.2.0] - 2026-09-13
 
