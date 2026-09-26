@@ -295,6 +295,9 @@ def detect_total_mismatches(
 
 
 def _single_aggregate_box(formula: str, sheet: str, row: int, col: int, names) -> Box | None:
+    toks = tokens(formula)
+    if toks is None or _bare_sum_range(toks) is None:
+        return None
     ranges = aggregate_ranges(formula, names=names, origin=(sheet, row, col))
     if len(ranges) != 1 or not ranges[0].bounded:
         return None

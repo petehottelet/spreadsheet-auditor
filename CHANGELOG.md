@@ -9,6 +9,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Three ready-to-run task evaluations with synthetic workbooks cover
+  portable audits, correct averages and capped findings with suppressions.
 - **Context cards** (`scripts/context.py`): the row label, column header,
   formula, cached value and neighbours of every Critical or High candidate
   (or of named findings and cells), and what a one-cell link points at, so an
@@ -152,6 +154,16 @@ false positives had in common; the seeded benchmark is unchanged.
 
 ### Fixed
 
+- Claude and Codex can discover the skill through valid YAML metadata;
+  validation catches malformed descriptions before distribution.
+- Correct averages and scaled sums remain clear of cross-foot errors;
+  cross-footing applies to additive SUM totals.
+- Capped reports prioritize active findings and retain the audit's full
+  pass/fail result.
+- Reports and annotated workbooks use distinct destinations, preserving
+  every requested artifact even when path aliases point to the same file.
+- Audits run from the user's project folder with fresh reports, clear
+  completion status, restricted-runtime recovery and context-card batching.
 - `--out`, `--json` and `--annotated` refuse the audited workbook's own path
   (exit 4); before, each silently overwrote it.
 - The annotated copy lists every finding at a cell, most severe first; before,
