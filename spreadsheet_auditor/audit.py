@@ -278,11 +278,12 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         suppressions = load_suppressions(config, args.ignore, warnings=limitations)
         findings = apply_suppressions(findings, suppressions)
         findings = sort_findings(findings)
+        all_findings = findings
         max_reported = int(limits_config.get("max_reported_findings", 200))
         if max_reported > 0 and len(findings) > max_reported:
             truncated["findings"] = True
             limitations.append(f"Findings output capped at {max_reported} findings by config.")
-            findings = findings[:max_reported]
+            findings = sorted(findings, key=lambda finding: finding.suppressed)[:max_reported]
         assign_ids(findings)
 
         coverage = {
@@ -302,7 +303,9 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             "recalc_status": recalc_status,
         }
         payload = build_payload(AUDIT_VERSION, workbook_meta, coverage, findings)
-        return payload, exit_code(payload["findings"], args.fail_on, limitations, strict=args.strict)
+        return payload, exit_code(
+            [finding.to_dict() for finding in all_findings], args.fail_on, limitations, strict=args.strict
+        )
 
 
 def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, ignore_path: str | None = None) -> dict:
@@ -875,6 +878,21 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("workbook is required unless --healthcheck or --demo is used")
 
         source = Path(args.workbook)
+        targets = [
+            (flag, Path(target))
+            for flag, target in (("--out", args.out), ("--json", args.json_out), ("--annotated", args.annotated))
+            if target and not (flag == "--json" and target == "-")
+        ]
+        for index, (flag, target) in enumerate(targets):
+            for previous_flag, previous in targets[:index]:
+                if target.resolve() == previous.resolve() or (
+                    target.exists() and previous.exists() and target.samefile(previous)
+                ):
+                    print(
+                        f"Preflight failed: {flag} and {previous_flag} refer to the same output file; use distinct paths.",
+                        file=sys.stderr,
+                    )
+                    return 4
         for flag, target in (("--out", args.out), ("--json", args.json_out), ("--annotated", args.annotated)):
             if target and target != "-" and source.exists() and Path(target).exists() and source.samefile(target):
                 print(f"Preflight failed: {flag} {target} is the workbook being audited; write to a new file.", file=sys.stderr)

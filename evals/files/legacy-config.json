@@ -1,0 +1,1 @@
+{"recalc": {"enabled": false}, "limits": {"max_reported_findings": 1}, "suppressions": [{"rule_id": "LIVE_ERROR", "range": "S", "reason": "Known legacy issue"}]}

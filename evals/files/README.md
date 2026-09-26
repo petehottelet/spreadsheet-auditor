@@ -1,6 +1,23 @@
 # Eval inputs
 
-The eval workbooks are not committed. Two come from SpreadsheetBench
+## Bundled review fixtures
+
+`evals/review-starter.json` uses three synthetic workbooks committed here:
+
+- `inherited-budget.xlsx`: a copy of the bundled demo with omitted rows,
+  duplicate components, a hardcoded total and a broken reference.
+- `survey-averages.xlsx`: correct row and column averages with embedded
+  numeric caches; these summaries must not be cross-footed as additive totals.
+- `legacy-model.xlsx` and `legacy-config.json`: a broken reference, one
+  suppressed rule and a one-finding cap; the remaining High finding must
+  still fail the audit.
+
+No downloads are needed for these cases. See `evals/README.md` for running
+and recording model evaluations.
+
+## Corpus-based task fixtures
+
+The workbooks for `evals/evals.json` are not committed. Two come from SpreadsheetBench
 (CC BY-SA 4.0, https://github.com/RUCKBReasoning/SpreadsheetBench) and one is
 the bundled demo. Copy them here before running `evals/evals.json`:
 

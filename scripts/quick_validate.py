@@ -3,6 +3,8 @@
 Usage:
     python scripts/quick_validate.py <skill-folder-or-zip>
 
+Requires PyYAML, included in the project's development dependencies.
+
 Checks:
 - `SKILL.md` exists with valid YAML frontmatter holding `name` and
   `description`, plus only the optional fields the Agent Skills spec allows.
@@ -51,48 +53,15 @@ def _parse_frontmatter(text: str) -> dict[str, Any] | None:
         return None
     raw = match.group(1)
     try:
-        import yaml  # type: ignore
-
+        import yaml
+    except ImportError:
+        print("Metadata validation requires PyYAML: python -m pip install PyYAML", file=sys.stderr)
+        return None
+    try:
         data = yaml.safe_load(raw)
-        if not isinstance(data, dict):
-            return None
-        return data
-    except Exception:
-        return _parse_frontmatter_fallback(raw)
-
-
-def _parse_frontmatter_fallback(raw: str) -> dict[str, Any] | None:
-    """Minimal YAML fallback when PyYAML is unavailable.
-
-    Handles the two shapes we actually publish:
-      * single-line `key: value`
-      * folded block scalar `key: >` followed by indented continuation lines.
-    """
-    fields: dict[str, str] = {}
-    lines = raw.splitlines()
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        if not line.strip() or line.lstrip().startswith("#"):
-            i += 1
-            continue
-        if ":" not in line:
-            return None
-        key, _, value = line.partition(":")
-        key = key.strip()
-        value = value.strip()
-        if value in {">", ">-", "|", "|-"}:
-            buffer: list[str] = []
-            i += 1
-            while i < len(lines) and (lines[i].startswith(("  ", "\t")) or not lines[i].strip()):
-                if lines[i].strip():
-                    buffer.append(lines[i].strip())
-                i += 1
-            fields[key] = " ".join(buffer)
-            continue
-        fields[key] = value
-        i += 1
-    return fields or None
+    except yaml.YAMLError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _validate_frontmatter(fields: dict[str, Any]) -> list[str]:
