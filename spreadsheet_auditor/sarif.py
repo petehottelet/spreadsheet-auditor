@@ -95,7 +95,9 @@ def _result(finding: dict, workbook_uri: str) -> dict:
         },
     }
     if fingerprint:
-        result["partialFingerprints"] = {"spreadsheetAuditor/v1": fingerprint}
+        # v2 hashes the flagged cell's content rather than its address (v1),
+        # so an inserted row no longer closes and reopens every alert.
+        result["partialFingerprints"] = {"spreadsheetAuditor/v2": fingerprint}
     return result
 
 

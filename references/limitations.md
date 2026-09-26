@@ -104,9 +104,12 @@ replacement of the original workbook.
 - Suppressions hide findings; the report's summary always shows the
   suppressed count. Every suppression requires a reason; malformed
   suppressions (missing reason, unparseable line) are ignored and reported as
-  a coverage limitation so a dropped suppression is never silent. Suppression
-  targets are matched by location (a cell, range, whole column/row, or sheet
-  name), never by text prefix.
+  a coverage limitation so a dropped suppression is never silent, and so is a
+  suppression that matched no finding. A fingerprint suppression follows the
+  flagged cell's content through inserted rows and columns; a location target
+  (a cell, range, whole column/row, or sheet name) follows the address, never
+  a text prefix, so a stale one-cell target can hide a different finding that
+  later lands on that cell.
 
 Never execute macros. Never follow external links without explicit user
 approval and sandbox controls.

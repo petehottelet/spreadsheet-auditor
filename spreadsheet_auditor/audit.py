@@ -122,7 +122,61 @@ def _package_available(package: str) -> bool:
         return False
 
 
+def _stale_suppression_notes(
+    suppressions: list[dict],
+    config: dict,
+    incomplete: list[dict],
+    workbook_sheets: set[str] | None = None,
+    allowed_sheets: set[str] | None = None,
+) -> list[str]:
+    """Name the suppressions that matched nothing although they could have.
+
+    A suppression goes stale when its finding is fixed or its cells move; a
+    stale one-cell target can later hide an unrelated finding that lands on
+    that address, so it should be updated or removed. Suppressions that could
+    not have matched this run stay quiet: their rule is turned off, their
+    rule was not checked because the audit is incomplete, or their sheet is
+    excluded by scope.
+    """
+    from .config_loader import check_setting
+    from .locations import target_sheet
+    from .suppressions import describe, unmatched_suppressions
+
+    unchecked = {rule for entry in incomplete for rule in entry["rules"]}
+    everything_unchecked = any(not entry["rules"] for entry in incomplete)
+    existing = {name.casefold() for name in workbook_sheets or ()}
+    allowed = {name.casefold() for name in allowed_sheets or ()}
+    notes = []
+    for suppression in unmatched_suppressions(suppressions):
+        rule = suppression.get("rule_id")
+        if rule is None:  # a fingerprint: its rule is unknown until it matches
+            if incomplete:
+                continue
+            why = (
+                "The finding was fixed, or the flagged cell's formula, value or row label changed; "
+                "copy its new fingerprint from the report or remove the suppression."
+            )
+        else:
+            if check_setting(config, rule) in {"off", "false", "disabled", "disable"}:
+                continue
+            if everything_unchecked or rule in unchecked:
+                continue
+            sheet = (target_sheet(str(suppression.get("range") or "")) or "").casefold()
+            if sheet in existing and sheet not in allowed:
+                continue
+            why = (
+                "The finding was fixed, or its cells moved or the target is misspelled; update or remove the "
+                "suppression, since a stale target can later hide a different finding on that address."
+            )
+        notes.append(
+            f"Suppression matched no finding ({suppression.get('source', 'suppression')}): "
+            f"{describe(suppression)}. {why}"
+        )
+    return notes
+
+
 def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
+    from .identity import assign_identities
     from .suppressions import apply_suppressions, load_suppressions
     from .workbook_inventory import (
         formula_cells,
@@ -299,8 +353,18 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
 
         findings = apply_impact_escalation(findings, config)
         findings = apply_check_settings(findings, config)
+        assign_identities(findings, formula_wb)
         suppressions = load_suppressions(config, args.ignore, warnings=limitations)
         findings = apply_suppressions(findings, suppressions)
+        limitations.extend(
+            _stale_suppression_notes(
+                suppressions,
+                config,
+                incomplete,
+                workbook_sheets={ws.title for ws in formula_wb.worksheets},
+                allowed_sheets=allowed_sheet_names,
+            )
+        )
         findings = sort_findings(findings)
         all_findings = findings
         max_reported = int(limits_config.get("max_reported_findings", 200))
@@ -362,9 +426,9 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
     csv_limitations = ["CSV audit is limited to data-hygiene checks."]
     if config:
         findings = apply_check_settings(findings, config)
-    findings = apply_suppressions(
-        findings, load_suppressions(config, ignore_path, warnings=csv_limitations)
-    )
+    suppressions = load_suppressions(config, ignore_path, warnings=csv_limitations)
+    findings = apply_suppressions(findings, suppressions)
+    csv_limitations.extend(_stale_suppression_notes(suppressions, config or {}, []))
     findings = sort_findings(findings)
     assign_ids(findings)
     return build_payload(

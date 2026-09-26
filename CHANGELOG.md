@@ -26,6 +26,32 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Checks run formula integrity (live errors and broken references first)
   and the reconciliations before the grid scans, so a time budget that runs
   out drops the slower checks first.
+- **Fingerprints follow the flagged cell, not its address.** A fingerprint
+  now hashes the rule, the sheet, the cell's row label, and its content (a
+  formula rewritten relative to its own cell, or a constant), numbered in
+  sheet order when several findings share all of that. Inserting a row no
+  longer changes every fingerprint, and a fingerprint suppression no longer
+  passes to whatever lands on the old address. Existing fingerprint
+  suppressions need the new fingerprint once; the report now names each stale
+  one. SARIF carries it as `partialFingerprints["spreadsheetAuditor/v2"]`, and
+  the Markdown report prints it with a ready-to-paste suppression.
+
+### Fixed
+
+- A suppression that matches no finding is reported in the coverage
+  limitations, unless its rule is turned off, its rule went unchecked in an
+  incomplete audit, or its sheet is out of scope.
+- `'Revenue Detail'!B1` in `.audit-ignore` was split at the space and
+  suppressed findings on the sheet `Revenue`; quoted sheet names (with `''`
+  for an apostrophe) now parse, and an unquoted sheet name with a space is
+  rejected with the quoted form to use.
+- A bare target that reads like a cell (`Q1`, `FY2025`) suppressed that
+  address on every sheet; a target without `!` is now always a sheet name, as
+  documented.
+- Sheet names containing a comma (`P&L, 2025`) could not be suppressed or
+  annotated, and their findings had no `cell` in the JSON.
+- `--annotated` no longer fails on a finding located at a whole column or row
+  (no built-in rule reports one; a custom check could).
 
 ## [0.3.0] - 2026-09-25
 

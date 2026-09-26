@@ -152,8 +152,9 @@ See `spreadsheet-auditor --help` for the full flag reference, including
   (self-contained, no network).
 - **JSON findings** for reruns, CI, and downstream tooling. Validates against
   [`schemas/findings.schema.json`](schemas/findings.schema.json). Each finding
-  carries a stable `fingerprint` for diffing across runs and for fingerprint-
-  based suppression.
+  carries a `fingerprint` built from the flagged cell's content, which stays
+  the same across runs and inserted rows or columns, for diffing and for
+  fingerprint-based suppression.
 - **SARIF 2.1.0** for GitHub code scanning. See
   [`examples/github-actions/code-scanning.yml`](examples/github-actions/code-scanning.yml).
 - **Annotated workbook copy** with comments at finding cells (`--annotated`).
@@ -282,13 +283,28 @@ value-dependent checks.
 **Does it support Google Sheets?** Not directly. Export to `.xlsx` and audit
 that.
 
-**How are false positives handled?** Suppress them by `(rule_id, range, reason)`
-or by `fingerprint`. The range may be a cell, a range, a whole column or row,
-or a bare sheet name; a finding is suppressed when its cell lies inside that
-target on the same sheet, never by text prefix (`Imports!A1` does not hide
-`Imports!A10`). A reason is required; suppressions missing a reason are
-ignored and called out in the report's coverage limitations. Suppressed findings
-stay in the JSON payload (auditable) but are hidden from the report unless
+**How are false positives handled?** Suppress them in `.audit-ignore` (or the
+config's `suppressions`), always with a reason:
+
+```text
+fingerprint:3f9c2a1b7d4e5f60 accepted: legacy link, tracked in FIN-12
+BROKEN_REFERENCE Imports raw feed, cells start empty
+LITERAL_CONSTANT 'Revenue Detail'!B2:B40 contract uplift rates
+```
+
+To accept one finding, use its fingerprint (printed in the Markdown and HTML
+reports and in the JSON). It is built from the flagged cell's content, its row
+label and its sheet, so it follows the cell through inserted rows and columns
+and never passes to a different finding. A `rule_id` + range suppression
+follows the address instead: right for an area such as a raw-data sheet, but a
+one-cell target will hide whatever later lands on that cell. The range may be a
+cell, a range, a whole column or row, or a bare sheet name (a target without
+`!` is always a sheet, even `Q1`); quote sheet names that contain spaces. A
+finding is suppressed when its cell lies inside the target on the same sheet,
+never by text prefix (`Imports!A1` does not hide `Imports!A10`). Suppressions
+that are malformed, or that match no finding (fixed, or the cells moved), are
+called out in the report's coverage limitations. Suppressed findings stay in
+the JSON payload (auditable) but are hidden from the report unless
 `--show-suppressed` is passed.
 
 ## Contributing

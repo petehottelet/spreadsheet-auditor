@@ -47,7 +47,7 @@ def test_sarif_results_carry_severity_and_fingerprint():
     assert result["ruleId"] == "BROKEN_REFERENCE"
     assert result["level"] in {"error", "warning", "note"}
     assert "partialFingerprints" in result
-    assert "spreadsheetAuditor/v1" in result["partialFingerprints"]
+    assert "spreadsheetAuditor/v2" in result["partialFingerprints"]
     assert result["properties"]["severity"] == "High"
     assert result["properties"]["sheet"] == "Budget"
     assert result["properties"]["cell"] == "B14"

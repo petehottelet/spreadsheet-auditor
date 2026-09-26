@@ -409,6 +409,7 @@ def _render_finding(finding: dict) -> list[str]:
         "",
         f"- ID: `{finding['id']}`",
         f"- Location: `{finding['location']}`",
+        f"- Fingerprint: `{finding.get('fingerprint', '')}` (suppress with `fingerprint:{finding.get('fingerprint', '')} <reason>`)",
         f"- Detection: {finding['detection_mode']}; confidence: {finding['error_confidence']}",
     ]
     if finding.get("formula"):
