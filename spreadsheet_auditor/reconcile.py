@@ -7,8 +7,8 @@ from openpyxl.utils.cell import get_column_letter
 
 from .budget import tick
 from .finding import Finding
-from .formula_parser import extract_functions, formula_text, split_sheet, tokens
-from .range_checks import AGG_FUNCS, aggregate_ranges
+from .formula_parser import extract_functions, formula_text, parse_formula, split_sheet, tokens
+from .range_checks import AGG_FUNCS
 from .reference_resolver import (
     EXCEL_MAX_COL,
     EXCEL_MAX_ROW,
@@ -294,22 +294,43 @@ def detect_total_mismatches(
     return findings
 
 
-def _single_aggregate_box(formula: str, sheet: str, row: int, col: int, names) -> Box | None:
+def _additive_total_box(formula: str, sheet: str, row: int, col: int, names) -> Box | None:
+    """Bound positive SUM terms and added cells, excluding averages and scaled totals."""
     toks = tokens(formula)
-    if toks is None or _bare_sum_range(toks) is None:
+    if toks is None:
         return None
-    ranges = aggregate_ranges(formula, names=names, origin=(sheet, row, col))
-    if len(ranges) != 1 or not ranges[0].bounded:
+    boxes: list[Box] = []
+    has_sum = False
+    for sign, term in _additive_terms(toks):
+        if sign != "+":
+            return None
+        range_text = _bare_sum_range(term)
+        is_sum = range_text is not None
+        range_text = range_text if is_sum else _single_operand(term)
+        if range_text is None:
+            return None
+        ranges = parse_formula(f"=SUM({range_text})", names=names, origin=(sheet, row, col)).references
+        if len(ranges) != 1 or not ranges[0].bounded:
+            return None
+        ref = ranges[0]
+        if ref.sheet is not None and ref.sheet.casefold() != sheet.casefold():
+            return None
+        box = boundaries(ref.ref)
+        if box is None or (not is_sum and not _is_single_cell(box)):
+            return None
+        boxes.append(box)
+        has_sum = has_sum or is_sum
+    if not has_sum:
         return None
-    ref = ranges[0]
-    if ref.sheet is not None and ref.sheet.casefold() != sheet.casefold():
-        return None
-    return boundaries(ref.ref)
+    return (
+        min(box[0] for box in boxes), min(box[1] for box in boxes),
+        max(box[2] for box in boxes), max(box[3] for box in boxes),
+    )
 
 
 def _column_total_rows(formula: str, sheet: str, row: int, col: int, names) -> tuple[int, int] | None:
-    """Row span when the formula is one vertical aggregate over its own column, ending above ``row``."""
-    box = _single_aggregate_box(formula, sheet, row, col, names)
+    """Row span when an additive total references its own column above ``row``."""
+    box = _additive_total_box(formula, sheet, row, col, names)
     if box is None:
         return None
     min_col, min_row, max_col, max_row = box
@@ -319,8 +340,8 @@ def _column_total_rows(formula: str, sheet: str, row: int, col: int, names) -> t
 
 
 def _row_total_cols(formula: str, sheet: str, row: int, col: int, names) -> tuple[int, int] | None:
-    """Column span when the formula is one horizontal aggregate over its own row, ending left of ``col``."""
-    box = _single_aggregate_box(formula, sheet, row, col, names)
+    """Column span when an additive total references its own row left of ``col``."""
+    box = _additive_total_box(formula, sheet, row, col, names)
     if box is None:
         return None
     min_col, min_row, max_col, max_row = box
@@ -341,10 +362,10 @@ def detect_cross_foot_failures(
 
     A table is recognized from its formulas, not from adjacency, so stacked
     blocks that share a total column are not confused with one another: a run
-    of two or more column totals (each a single vertical SUM over its own
-    column, ending above the totals row) defines the columns, the union of
-    their row spans defines the rows, and every one of those rows must carry
-    a row total in the column just right of the run spanning exactly those
+    of two or more column totals (each a vertical SUM, optionally with added
+    cells or SUM terms, over its own column above the totals row) defines the
+    columns, the union of their row spans defines the rows, and every row must
+    carry a row total in the column just right of the run spanning exactly those
     columns. The corner cell's own value is never used. Value-gated: skips
     when any needed cached value is missing rather than guessing.
     """

@@ -49,6 +49,30 @@ def test_cross_foot_does_not_treat_averages_as_additive_totals(style):
     assert detect_cross_foot_failures(formula_wb, value_wb) == []
 
 
+@pytest.mark.parametrize(("formula", "cached", "expected"), [
+    ("=SUM(B2:B3)+B3", 70, ["Budget!D4"]),
+    ("=SUM(B2:B2)+B3", 40, []),
+    ("=SUM(B2:B2)+SUM(B3:B3)", 40, []),
+    ("=AVERAGE(B2:B3)+B3", 50, []),
+    ("=SUM(B2:B3)/2+B3", 50, []),
+    ("=SUM(B2:B3)-B3", 10, []),
+])
+def test_cross_foot_checks_additive_sum_adjustments(formula, cached, expected):
+    formula_wb, value_wb = Workbook(), Workbook()
+    ws, values = formula_wb.active, value_wb.active
+    ws.title = values.title = "Budget"
+    for row, first, second in ((2, 10, 20), (3, 30, 40)):
+        ws[f"B{row}"] = values[f"B{row}"] = first
+        ws[f"C{row}"] = values[f"C{row}"] = second
+        ws[f"D{row}"] = f"=SUM(B{row}:C{row})"
+        values[f"D{row}"] = first + second
+    ws["B4"], values["B4"] = formula, cached
+    ws["C4"], values["C4"] = "=SUM(C2:C3)", 60
+    findings = detect_cross_foot_failures(formula_wb, value_wb)
+    assert [f.location for f in findings] == expected
+    assert all(f.rule_id == "CROSS_FOOT_FAILURE" for f in findings)
+
+
 @pytest.mark.parametrize("flags", [("--out", "--json"), ("--out", "--annotated"), ("--json", "--annotated")])
 def test_output_destinations_must_be_distinct_before_any_write(tmp_path, flags):
     source = tmp_path / "source.xlsx"
