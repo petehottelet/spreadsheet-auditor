@@ -135,6 +135,12 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
     preflight_info = preflight(input_path)
     config = load_config(args.config)
     limitations: list[str] = []
+    # Why part of the workbook went unchecked (a check failed or ran out of
+    # time, or a size cap skipped formulas or cells). Any entry makes the audit
+    # incomplete, which exits 6 whatever the findings: a partial audit must
+    # never pass a CI gate as if it were whole. Each message is also a
+    # limitation, so the reports that list limitations need no change.
+    incomplete: list[dict] = []
     unsupported_features: set[str] = set()
     findings: list[Finding] = []
     truncated = {"formulas": False, "findings": False, "cells": False, "timeout": False}
@@ -143,10 +149,15 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
     timeout_seconds = int(limits_config.get("timeout_seconds", 0) or 0)
     budget = Budget(timeout_seconds, start=start_time)
 
-    def _note_timeout(detail: str) -> None:
+    def _note_incomplete(reason: str, message: str, rules: list[str] | None = None) -> None:
+        limitations.append(message)
+        incomplete.append({"reason": reason, "message": message, "rules": sorted(set(rules or []))})
+
+    def _note_timeout(detail: str, skipped: list) -> None:
         if not truncated["timeout"]:
             truncated["timeout"] = True
-            limitations.append(f"Audit timeout of {timeout_seconds}s exceeded; {detail}")
+            rules = [rule for check_cls in skipped for rule in check_cls.rule_ids]
+            _note_incomplete("timeout", f"Audit timeout of {timeout_seconds}s exceeded; {detail}", rules)
 
     if preflight_info["extension"] == ".csv":
         payload = audit_csv(input_path, preflight_info, config, args.ignore)
@@ -208,10 +219,13 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         if max_cells > 0 and total_cells > max_cells:
             truncated["cells"] = True
             grid_scan_allowed = False
-            limitations.append(
+            _note_incomplete(
+                "cell_cap",
                 f"Cell scan capped: workbook holds {total_cells} cells, exceeding the configured "
                 f"max_cells={max_cells}; cell-grid checks (HARDCODE_IN_FORMULA_BLOCK, CROSS_FOOT_FAILURE, "
-                "data hygiene) were skipped. Formula-based checks still ran."
+                "data hygiene) were skipped. Formula-based checks still ran. Raise limits.max_cells to check them.",
+                ["HARDCODE_IN_FORMULA_BLOCK", "CROSS_FOOT_FAILURE", "NUMBERS_STORED_AS_TEXT",
+                 "WHITESPACE_KEY", "DUPLICATE_KEY", "MERGED_CELL_IN_DATA_RANGE"],
             )
 
         all_formulas = formula_cells(formula_wb)
@@ -219,7 +233,12 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         max_formulas = int(limits_config.get("max_formulas", 50000))
         if max_formulas > 0 and len(formulas) > max_formulas:
             truncated["formulas"] = True
-            limitations.append(f"Formula scan capped at {max_formulas} formulas by config.")
+            _note_incomplete(
+                "formula_cap",
+                f"Formula scan capped at {max_formulas} formulas by config; {len(formulas) - max_formulas} of "
+                f"{len(formulas)} formulas, from {formulas[max_formulas]['location']} on, were not checked. "
+                "Raise limits.max_formulas to check them.",
+            )
             formulas = formulas[:max_formulas]
 
         from .checks import CheckContext, checks as registered_checks
@@ -245,20 +264,25 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             budget=budget,
             grid_scan_allowed=grid_scan_allowed,
         )
-        for check_cls in registered_checks():
+        ordered = registered_checks()
+        for index, check_cls in enumerate(ordered):
             check_name = getattr(check_cls, "name", "") or check_cls.__name__
             if budget.expired():
-                _note_timeout(f"'{check_name}' and remaining checks were skipped.")
+                _note_timeout(f"'{check_name}' and remaining checks were skipped.", ordered[index:])
                 break
             check = check_cls()
             try:
                 findings.extend(check.run(ctx))
             except AuditTimeout:
-                _note_timeout(f"'{check_name}' was interrupted and remaining checks were skipped.")
+                _note_timeout(
+                    f"'{check_name}' was interrupted and remaining checks were skipped.", ordered[index:]
+                )
                 break
             except Exception as exc:
-                limitations.append(
-                    f"Check '{check_name}' raised an exception and was skipped: {exc!r}"
+                _note_incomplete(
+                    "check_failed",
+                    f"Check '{check_name}' raised an exception and was skipped: {exc!r}",
+                    list(check_cls.rule_ids),
                 )
 
         findings = _dedupe_range_length_with_drift(findings)
@@ -292,6 +316,8 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             "external_links_present": bool(inv["external_links"]) or "external_workbook_links" in unsupported_features,
             "unsupported_features": sorted(unsupported_features),
             "limitations": limitations,
+            "complete": not incomplete,
+            "incomplete": incomplete,
             "truncated": truncated,
             "elapsed_seconds": round(time.monotonic() - start_time, 3),
         }
@@ -304,7 +330,11 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         }
         payload = build_payload(AUDIT_VERSION, workbook_meta, coverage, findings)
         return payload, exit_code(
-            [finding.to_dict() for finding in all_findings], args.fail_on, limitations, strict=args.strict
+            [finding.to_dict() for finding in all_findings],
+            args.fail_on,
+            limitations,
+            strict=args.strict,
+            incomplete=bool(incomplete),
         )
 
 
@@ -352,6 +382,8 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
             "external_links_present": False,
             "unsupported_features": [],
             "limitations": csv_limitations,
+            "complete": True,
+            "incomplete": [],
         },
         findings,
     )
@@ -706,7 +738,14 @@ def _write_report(
         write_markdown(payload, path, show_suppressed=show_suppressed)
 
 
-def exit_code(findings: list[dict], fail_on: str, limitations: list[str], strict: bool = False) -> int:
+def exit_code(
+    findings: list[dict], fail_on: str, limitations: list[str], strict: bool = False, incomplete: bool = False
+) -> int:
+    # An audit that skipped part of the workbook outranks its findings: the
+    # findings it has are real, but a clean-looking partial run is exactly
+    # what must not pass, so it fails whatever --fail-on says.
+    if incomplete:
+        return 6
     threshold = FAIL_ORDER.get(fail_on, 99)
     if fail_on != "None" and any(
         FAIL_ORDER.get(finding["severity"], 99) <= threshold and not finding.get("suppressed")
@@ -728,9 +767,14 @@ Exit codes:
   2  --strict (or --fail-on None) and coverage limitations were present
      (e.g. recalculation unavailable, defusedxml missing).
   3  Healthcheck failed: required dependencies missing.
-  4  Preflight error: workbook is unreadable or has the wrong shape.
+  4  Invalid input: bad command-line arguments, or the workbook is unreadable
+     or has the wrong shape.
   5  Internal auditor error. Re-run with the same arguments and attach
      stderr to a bug report.
+  6  Audit incomplete: a check failed or ran out of time, or a size limit
+     (limits.max_formulas, limits.max_cells) skipped part of the workbook.
+     The findings reported are real but partial; the limitations say what
+     was not checked. Takes precedence over 1.
 
 Examples:
   spreadsheet-auditor model.xlsx --out report.md --json findings.json
@@ -746,8 +790,13 @@ def _summary_lines(payload: dict, fail_on: str) -> list[str]:
     counts = Counter(f["severity"] for f in findings)
     coverage = payload.get("coverage", {})
     workbook = payload.get("workbook", {})
+    if coverage.get("complete", True):
+        status = "complete"
+    else:
+        status = "INCOMPLETE: part of the workbook was not checked; findings are partial (see limitations)"
     lines = [
         f"workbook   : {workbook.get('path')}",
+        f"audit      : {status}",
         f"sheets     : {workbook.get('sheets_analyzed')}",
         f"formulas   : {workbook.get('formulas_scanned')}",
         f"recalc     : {workbook.get('recalc_status')}",
@@ -788,9 +837,21 @@ def _configure_streams() -> None:
             pass
 
 
+class _ArgumentParser(argparse.ArgumentParser):
+    """Exit 4 on a usage error instead of argparse's 2.
+
+    Exit 2 means a completed audit with coverage limitations, so a mistyped
+    flag in a CI script that accepts 2 would otherwise pass as an audit.
+    """
+
+    def error(self, message: str):  # type: ignore[override]
+        self.print_usage(sys.stderr)
+        self.exit(4, f"{self.prog}: error: {message}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     _configure_streams()
-    parser = argparse.ArgumentParser(
+    parser = _ArgumentParser(
         prog="spreadsheet-auditor",
         description="Audit an existing spreadsheet for correctness defects.",
         epilog=EPILOG,
@@ -927,6 +988,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Failed to write output: {exc}", file=sys.stderr)
             return 5
 
+        # Even with --quiet: a CI log that shows only the exit code should
+        # still say why the audit is partial.
+        for entry in payload.get("coverage", {}).get("incomplete", []):
+            print(f"Audit incomplete: {entry['message']}", file=sys.stderr)
+
         if args.quiet:
             return code
 
@@ -947,8 +1013,9 @@ def main(argv: list[str] | None = None) -> int:
             pass
         else:
             counts = Counter(f["severity"] for f in payload["findings"] if not f.get("suppressed"))
+            done = "complete" if payload.get("coverage", {}).get("complete", True) else "incomplete"
             print(
-                f"Audit complete: {counts.get('Critical', 0)} Critical, "
+                f"Audit {done}: {counts.get('Critical', 0)} Critical, "
                 f"{counts.get('High', 0)} High, {counts.get('Medium', 0)} Medium, "
                 f"{counts.get('Low', 0)} Low."
             )

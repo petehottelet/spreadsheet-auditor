@@ -33,8 +33,15 @@ react differently to defects vs environmental problems:
 |         1 | Findings at/above `--fail-on`.                                     | **Fail** (default)             |
 |         2 | `--strict` and recalculation/coverage limitations were present.    | Treat as warning (not used here) |
 |         3 | Healthcheck failed: required dependency missing.                   | Fail (separate step)           |
-|         4 | Preflight error: unreadable workbook or wrong extension.           | Fail                           |
+|         4 | Invalid input: bad arguments, unreadable workbook, wrong extension. | Fail                          |
 |         5 | Internal auditor error.                                            | Fail                           |
+|         6 | Incomplete: a check failed or timed out, or a size cap skipped part of the workbook. | Fail |
+
+Exit 6 outranks 1 and ignores `--fail-on`: a partial audit that found nothing
+must not pass as a clean workbook. Raise `limits.timeout_seconds`,
+`limits.max_formulas` or `limits.max_cells` in a config file if your workbooks
+are large. In 0.3.0 and earlier an incomplete audit exited like a complete one
+and argument errors exited 2.
 
 If you want CI to *also* fail when recalculation could not run, add `--strict`
 to the audit invocation; combine it with the healthcheck step so missing

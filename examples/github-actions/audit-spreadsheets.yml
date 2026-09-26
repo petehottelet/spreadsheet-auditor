@@ -12,8 +12,10 @@
 #   2  --strict and coverage limitations were present (e.g. recalculation
 #      unavailable). Treated as a warning here by skipping --strict.
 #   3  Healthcheck failed: a required dependency is missing.
-#   4  Preflight error (unreadable workbook, wrong extension).
+#   4  Invalid input (bad arguments, unreadable workbook, wrong extension).
 #   5  Internal auditor error.
+#   6  Incomplete audit: a check failed or timed out, or a size cap skipped
+#      part of the workbook. Fails the run below, like 3 to 5.
 name: Audit Spreadsheets
 
 on:
@@ -78,7 +80,7 @@ jobs:
             if [ "$code" -ge 1 ] && [ "$code" -le 1 ]; then
               fail=1
             elif [ "$code" -ge 3 ]; then
-              # Internal/preflight errors should also fail the run.
+              # Invalid input, internal errors and incomplete audits also fail the run.
               fail=1
             fi
           done

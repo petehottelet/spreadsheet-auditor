@@ -96,7 +96,10 @@ replacement of the original workbook.
 - External workbooks are referenced but not available.
 - Formulas use unsupported syntax, dynamic arrays, data tables, structured
   references, Power Query, Data Model, add-ins, UDFs, or macros.
-- Runtime limits cause expensive graph or range checks to be skipped.
+- Runtime limits cause expensive graph or range checks to be skipped. A
+  check that fails or runs out of time, or a size cap that skips formulas or
+  cells, makes the audit incomplete: the CLI exits 6, `coverage.complete` is
+  false, and `coverage.incomplete` names the rules that were not checked.
 - The workbook is password-protected or corrupt.
 - Suppressions hide findings; the report's summary always shows the
   suppressed count. Every suppression requires a reason; malformed

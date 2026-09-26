@@ -39,8 +39,11 @@ def _run_audit(workbook: Path, config: dict | None = None, tmp_path: Path | None
     if config_path:
         cmd += ["--config", str(config_path)]
     result = subprocess.run(cmd, capture_output=True, text=True)
-    assert result.returncode in (0, 1, 2), result.stderr
-    return json.loads(result.stdout)
+    assert result.returncode in (0, 1, 2, 6), result.stderr
+    payload = json.loads(result.stdout)
+    # Exit 6 exactly when the audit reports itself incomplete.
+    assert (result.returncode == 6) == (payload["coverage"]["complete"] is False)
+    return payload
 
 
 def test_max_formulas_caps_formula_scan(tmp_path):
@@ -48,6 +51,9 @@ def test_max_formulas_caps_formula_scan(tmp_path):
     payload = _run_audit(workbook, {"limits": {"max_formulas": 5}}, tmp_path)
     assert payload["coverage"]["truncated"]["formulas"] is True
     assert any("Formula scan capped" in note for note in payload["coverage"]["limitations"])
+    # The note says where the unchecked formulas start, so a reader knows which sheet was cut.
+    assert [entry["reason"] for entry in payload["coverage"]["incomplete"]] == ["formula_cap"]
+    assert "25 of 30 formulas, from Model!C7 on" in payload["coverage"]["incomplete"][0]["message"]
 
 
 def test_max_reported_findings_marks_truncation(tmp_path):
@@ -55,6 +61,8 @@ def test_max_reported_findings_marks_truncation(tmp_path):
     payload = _run_audit(workbook, {"limits": {"max_reported_findings": 1}}, tmp_path)
     assert payload["coverage"]["truncated"]["findings"] is True
     assert any("Findings output capped" in note for note in payload["coverage"]["limitations"])
+    # Capping the report is not skipping the workbook: every check ran.
+    assert payload["coverage"]["complete"] is True
 
 
 def test_max_cells_marks_truncation(tmp_path):
@@ -62,6 +70,7 @@ def test_max_cells_marks_truncation(tmp_path):
     payload = _run_audit(workbook, {"limits": {"max_cells": 5}}, tmp_path)
     assert payload["coverage"]["truncated"]["cells"] is True
     assert any("Cell scan capped" in note for note in payload["coverage"]["limitations"])
+    assert payload["coverage"]["complete"] is False
 
 
 def test_timeout_zero_is_disabled(tmp_path):

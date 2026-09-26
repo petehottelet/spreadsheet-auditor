@@ -111,11 +111,20 @@ def render_markdown(payload: dict, show_suppressed: bool = False) -> str:
     timestamp = payload.get("timestamp")
     tool_version = payload.get("tool_version") or payload.get("audit_version")
 
-    lines = [
-        f"# Spreadsheet Audit Report - {Path(workbook['path']).name}",
-        "",
+    lines = [f"# Spreadsheet Audit Report - {Path(workbook['path']).name}", ""]
+    incomplete = coverage.get("incomplete") or []
+    if incomplete:
+        lines.append(
+            "> **Incomplete audit.** Part of the workbook was not checked, so the findings below are real "
+            "but partial:"
+        )
+        for entry in incomplete:
+            lines.append(f"> - {entry['message']}")
+        lines.append("")
+    lines += [
         "## Executive Summary",
         "",
+        f"- Audit status: {'complete' if not incomplete else 'incomplete (see above)'}",
         f"- Tool version: `{tool_version}`" + (f" (run at {timestamp})" if timestamp else ""),
         f"- Workbook SHA-256: `{workbook['sha256']}`",
         f"- Sheets analyzed: {workbook['sheets_analyzed']}",
@@ -239,6 +248,8 @@ h2 { font-size: 1.25rem; margin-top: 2rem; border-bottom: 1px solid var(--border
 .evidence li { margin: 2px 0; }
 code { background: rgba(0,0,0,0.04); padding: 1px 4px; border-radius: 4px; font-size: 0.9em; }
 pre code { display: block; padding: 8px; overflow-x: auto; }
+.incomplete { margin: 0 0 1.5rem; padding: 12px 16px; border: 1px solid var(--critical); border-left-width: 6px; border-radius: 8px; }
+.incomplete ul { margin: 6px 0 0; }
 .disclaimer { margin-top: 2rem; padding: 14px 18px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); font-size: 0.9rem; }
 table.limits { border-collapse: collapse; font-size: 0.9rem; }
 table.limits td, table.limits th { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
@@ -356,6 +367,14 @@ def render_html(payload: dict, show_suppressed: bool = False) -> str:
         items = "".join(f"<li>{_html_escape(item)}</li>" for item in limitations)
         limitations_block = f"<h3>Limitations</h3><ul>{items}</ul>"
 
+    incomplete_block = ""
+    if coverage.get("incomplete"):
+        items = "".join(f"<li>{_html_escape(entry['message'])}</li>" for entry in coverage["incomplete"])
+        incomplete_block = (
+            "<div class=\"incomplete\"><strong>Incomplete audit.</strong> Part of the workbook was not "
+            f"checked, so the findings below are real but partial:<ul>{items}</ul></div>"
+        )
+
     title = _html_escape(Path(workbook.get("path", "workbook")).name)
     tool_version = _html_escape(payload.get("tool_version", payload.get("audit_version", "")))
     timestamp = _html_escape(payload.get("timestamp", ""))
@@ -368,6 +387,7 @@ def render_html(payload: dict, show_suppressed: bool = False) -> str:
         "</head><body>"
         f"<h1>Spreadsheet Audit Report</h1>"
         f"<p class=\"subtitle\">{title} &middot; spreadsheet-auditor {tool_version} &middot; {timestamp}</p>"
+        f"{incomplete_block}"
         f"<div class=\"summary\">{summary_cards}</div>"
         f"<h2>Coverage</h2>{coverage_table}{limitations_block}"
         + "".join(findings_sections)

@@ -223,7 +223,16 @@ def test_orchestrator_reports_timeout_as_limitation(tmp_path, monkeypatch):
     payload, code = audit_module.audit_workbook(args)
     assert payload["coverage"]["truncated"]["timeout"] is True
     assert any("timeout" in note.lower() for note in payload["coverage"]["limitations"])
-    assert code == 2
+    # A timed-out audit is incomplete, and incomplete fails even with --fail-on None.
+    assert payload["coverage"]["complete"] is False
+    assert [entry["reason"] for entry in payload["coverage"]["incomplete"]] == ["timeout"]
+    # The live-error check finished (nothing to trace); the reference check,
+    # which ticks per formula, was the one cut off, and it and every later
+    # check's rules are listed as unchecked.
+    unchecked = payload["coverage"]["incomplete"][0]["rules"]
+    assert "BROKEN_REFERENCE" in unchecked and "CROSS_FOOT_FAILURE" in unchecked
+    assert "LIVE_ERROR" not in unchecked
+    assert code == 6
 
 
 # --- tables, array formulas, output encoding ---------------------------------

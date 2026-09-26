@@ -25,7 +25,7 @@ Resolve `SKILL_DIR` to the folder containing this SKILL.md and `WORKBOOK` to the
 python "SKILL_DIR/scripts/audit.py" "WORKBOOK" --out "RUN_DIR/audit_report.md" --json "RUN_DIR/findings.json" --summary
 ```
 
-Check stderr and verify both artifacts were created by this invocation before reading them. Exit 0 means no findings reached the failure threshold; 1 means findings reached it (Critical by default). Exit 2 may mean either a completed audit with coverage limitations or an argument error: missing artifacts or a usage error means the audit did not run. Exits 3 to 5 are failures; use stderr to resolve the cause.
+Check stderr and verify both artifacts were created by this invocation before reading them. Exit 0 means no findings reached the failure threshold; 1 means findings reached it (Critical by default). Exit 6 means the audit did not finish: a check failed or ran out of time, or a size limit skipped part of the workbook. Its findings are real but partial; the summary's limitations say what was not checked, and the answer must say so too. Exits 3 to 5 are failures (4 includes a mistyped argument); use stderr to resolve the cause.
 
 - Requires Python 3.11+ and `openpyxl>=3.1`. If missing, use `python -m pip install "openpyxl>=3.1"` in the local project environment only when package installation is supported. In the Claude API or another restricted runtime, report the missing dependency instead of retrying an unavailable install.
 - For `.xls`, `.xlsb`, `.ods` or a password-protected file, request an unprotected `.xlsx` exported by Excel or LibreOffice. Say which copy you audited.

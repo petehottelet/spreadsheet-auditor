@@ -7,6 +7,26 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- **An incomplete audit exits 6.** A check that raised an exception or ran
+  out of time, or a `limits.max_formulas`/`limits.max_cells` cap that skipped
+  part of the workbook, used to add a line to the limitations and exit as if
+  the audit were whole. A workbook with 1,830 live errors audited under a
+  15-second budget reported no findings and exited 0; it now exits 6.
+  Exit 6 takes precedence over 1 and applies whatever `--fail-on` says.
+  `coverage.complete` and `coverage.incomplete` (reason, message, and the
+  rules not checked) say what happened; the Markdown and HTML reports open
+  with a banner, `--summary` prints `audit : INCOMPLETE`, stderr names the
+  cause even with `--quiet`, and SARIF sets `executionSuccessful: false`
+  with tool execution notifications.
+- **Command-line usage errors exit 4 instead of 2**, since 2 means a
+  completed audit with coverage limitations; a script that accepted 2 read a
+  mistyped flag as a finished audit.
+- Checks run formula integrity (live errors and broken references first)
+  and the reconciliations before the grid scans, so a time budget that runs
+  out drops the slower checks first.
+
 ## [0.3.0] - 2026-09-25
 
 Audit existing Excel models with clearer answers and fewer false alarms.

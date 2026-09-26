@@ -170,11 +170,19 @@ See `spreadsheet-auditor --help` for the full flag reference, including
 | 1 | Completed; findings at or above `--fail-on` |
 | 2 | Completed with coverage limitations (only with `--strict` or `--fail-on None`) |
 | 3 | Healthcheck failed: required dependency missing |
-| 4 | Preflight/security failure |
+| 4 | Invalid input: bad command-line arguments, or a preflight/security failure |
 | 5 | Internal error |
+| 6 | Incomplete: a check failed or timed out, or `limits.max_formulas`/`limits.max_cells` skipped part of the workbook |
 
 Benign limitations (no recalculation engine, missing optional packages) do not
 fail a normal run. Use `--strict` to surface them as exit code `2` in CI.
+
+An incomplete audit exits `6` whatever `--fail-on` says, because a partial run
+that found nothing is not a clean workbook. The findings it reports are real;
+`coverage.incomplete` in the JSON (and a banner in the reports) says what was
+not checked, and SARIF marks the run `executionSuccessful: false`. Raise
+`limits.timeout_seconds`, `limits.max_formulas` or `limits.max_cells` to
+audit a larger workbook in full.
 
 ## Agent Skill usage
 

@@ -99,12 +99,29 @@ def _result(finding: dict, workbook_uri: str) -> dict:
     return result
 
 
+def _notifications(coverage: dict) -> list[dict]:
+    """Tool execution notifications: what went unchecked (errors) and other limitations (notes)."""
+    incomplete = coverage.get("incomplete") or []
+    notes = [
+        {"level": "error", "message": {"text": entry["message"]}, "descriptor": {"id": entry["reason"]}}
+        for entry in incomplete
+    ]
+    unchecked = {entry["message"] for entry in incomplete}
+    notes += [
+        {"level": "note", "message": {"text": text}}
+        for text in coverage.get("limitations") or []
+        if text not in unchecked
+    ]
+    return notes
+
+
 def render_sarif(payload: dict) -> dict:
     findings = [f for f in payload.get("findings", []) if not f.get("suppressed")]
     workbook = payload.get("workbook", {})
     workbook_uri = Path(workbook.get("path", "workbook.xlsx")).as_posix()
     tool_version = payload.get("tool_version") or payload.get("audit_version") or "unknown"
     rules = _rules_from_findings(findings)
+    coverage = payload.get("coverage", {})
 
     run = {
         "tool": {
@@ -125,8 +142,11 @@ def render_sarif(payload: dict) -> dict:
         ],
         "invocations": [
             {
-                "executionSuccessful": True,
+                # False when a check failed or timed out or a size cap skipped
+                # part of the workbook: the results are then partial.
+                "executionSuccessful": bool(coverage.get("complete", True)),
                 "endTimeUtc": payload.get("timestamp"),
+                "toolExecutionNotifications": _notifications(coverage),
             }
         ],
     }
