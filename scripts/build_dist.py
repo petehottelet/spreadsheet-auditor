@@ -44,6 +44,7 @@ SOURCE_INCLUDE_TOP_LEVEL = [
     "schemas",
     "agents",
     "examples",
+    "evals",
     "benchmarks",
     "assets",
     "SKILL.md",
@@ -75,7 +76,8 @@ def copy_package(destination: Path, include_agents: bool) -> None:
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
-    shutil.copy2(ROOT / "SKILL.md", destination / "SKILL.md")
+    for filename in ("SKILL.md", "LICENSE", "SECURITY.md"):
+        shutil.copy2(ROOT / filename, destination / filename)
 
     for directory in PACKAGE_DIRS:
         source = ROOT / directory
