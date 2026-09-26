@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-14T16:33:40+00:00",
+  "generated": "2026-09-26T03:57:58+00:00",
   "summary": {
     "faults": 695,
     "direct_attributable": 528,
@@ -153,14 +153,12 @@
       "type": "FRC",
       "target": "Sheet1!E10",
       "direct": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT"
       ],
       "direct_attributable": [
         "FORMULA_DRIFT"
       ],
       "line": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT"
       ],
       "line_attributable": [
@@ -4468,7 +4466,6 @@
         "RANGE_EXCLUSION"
       ],
       "line": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT",
         "RANGE_EXCLUSION"
       ],
@@ -4493,7 +4490,6 @@
         "RANGE_EXCLUSION"
       ],
       "line": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT",
         "RANGE_EXCLUSION"
       ],
@@ -4516,7 +4512,6 @@
         "FORMULA_DRIFT"
       ],
       "line": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT"
       ],
       "line_attributable": [
@@ -4537,7 +4532,6 @@
         "FORMULA_DRIFT"
       ],
       "line": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT"
       ],
       "line_attributable": [
@@ -4558,7 +4552,6 @@
         "FORMULA_DRIFT"
       ],
       "line": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT"
       ],
       "line_attributable": [
@@ -5314,7 +5307,6 @@
         "FORMULA_DRIFT"
       ],
       "line": [
-        "CROSS_FOOT_FAILURE",
         "FORMULA_DRIFT"
       ],
       "line_attributable": [
@@ -13931,32 +13923,32 @@
     {
       "seeded": "ACT3_sec23_smith_1FAULTS_FAULTVERSION1.xls",
       "status": "ok",
-      "seeded_findings": 6,
-      "original_findings": 5
+      "seeded_findings": 5,
+      "original_findings": 4
     },
     {
       "seeded": "ACT3_sec23_smith_1FAULTS_FAULTVERSION2.xls",
       "status": "ok",
-      "seeded_findings": 5,
-      "original_findings": 5
+      "seeded_findings": 4,
+      "original_findings": 4
     },
     {
       "seeded": "ACT3_sec23_smith_1FAULTS_FAULTVERSION3.xls",
       "status": "ok",
       "seeded_findings": 6,
-      "original_findings": 5
+      "original_findings": 4
     },
     {
       "seeded": "ACT3_sec23_smith_1FAULTS_FAULTVERSION4.xls",
       "status": "ok",
-      "seeded_findings": 5,
-      "original_findings": 5
+      "seeded_findings": 4,
+      "original_findings": 4
     },
     {
       "seeded": "ACT3_sec23_smith_1FAULTS_FAULTVERSION5.xls",
       "status": "ok",
-      "seeded_findings": 6,
-      "original_findings": 5
+      "seeded_findings": 5,
+      "original_findings": 4
     },
     {
       "seeded": "act3_23_bartholomew_1FAULTS_FAULTVERSION1.xls",
@@ -15357,32 +15349,32 @@
     {
       "seeded": "as474gradestopost_1FAULTS_FAULTVERSION1.xls",
       "status": "ok",
-      "seeded_findings": 3,
-      "original_findings": 1
+      "seeded_findings": 2,
+      "original_findings": 0
     },
     {
       "seeded": "as474gradestopost_1FAULTS_FAULTVERSION2.xls",
       "status": "ok",
-      "seeded_findings": 3,
-      "original_findings": 1
+      "seeded_findings": 2,
+      "original_findings": 0
     },
     {
       "seeded": "as474gradestopost_1FAULTS_FAULTVERSION3.xls",
       "status": "ok",
-      "seeded_findings": 2,
-      "original_findings": 1
+      "seeded_findings": 1,
+      "original_findings": 0
     },
     {
       "seeded": "as474gradestopost_1FAULTS_FAULTVERSION4.xls",
       "status": "ok",
-      "seeded_findings": 2,
-      "original_findings": 1
+      "seeded_findings": 1,
+      "original_findings": 0
     },
     {
       "seeded": "as474gradestopost_1FAULTS_FAULTVERSION5.xls",
       "status": "ok",
-      "seeded_findings": 2,
-      "original_findings": 1
+      "seeded_findings": 1,
+      "original_findings": 0
     },
     {
       "seeded": "bus1950public_1FAULTS_FAULTVERSION1.xls",
@@ -15573,26 +15565,26 @@
     {
       "seeded": "Book2_1FAULTS_FAULTVERSION1.xls",
       "status": "ok",
-      "seeded_findings": 4,
-      "original_findings": 2
+      "seeded_findings": 3,
+      "original_findings": 1
     },
     {
       "seeded": "Book2_1FAULTS_FAULTVERSION2.xls",
       "status": "ok",
-      "seeded_findings": 4,
-      "original_findings": 2
+      "seeded_findings": 3,
+      "original_findings": 1
     },
     {
       "seeded": "Book2_1FAULTS_FAULTVERSION4.xls",
       "status": "ok",
-      "seeded_findings": 4,
-      "original_findings": 2
+      "seeded_findings": 3,
+      "original_findings": 1
     },
     {
       "seeded": "Book2_1FAULTS_FAULTVERSION5.xls",
       "status": "ok",
-      "seeded_findings": 3,
-      "original_findings": 2
+      "seeded_findings": 2,
+      "original_findings": 1
     },
     {
       "seeded": "CH112_post_grades_1FAULTS_FAULTVERSION1.xls",
@@ -15675,20 +15667,20 @@
     {
       "seeded": "ClassList_Pseud_1FAULTS_FAULTVERSION2.xls",
       "status": "ok",
-      "seeded_findings": 51,
-      "original_findings": 49
+      "seeded_findings": 50,
+      "original_findings": 48
     },
     {
       "seeded": "ClassList_Pseud_1FAULTS_FAULTVERSION4.xls",
       "status": "ok",
-      "seeded_findings": 50,
-      "original_findings": 49
+      "seeded_findings": 49,
+      "original_findings": 48
     },
     {
       "seeded": "ClassList_Pseud_1FAULTS_FAULTVERSION5.xls",
       "status": "ok",
-      "seeded_findings": 50,
-      "original_findings": 49
+      "seeded_findings": 49,
+      "original_findings": 48
     },
     {
       "seeded": "ComputerInstseIVRConfigTool_1FAULTS_FAULTVERSION2.xls",
@@ -15801,56 +15793,56 @@
     {
       "seeded": "Example_1_1FAULTS_FAULTVERSION1.xls",
       "status": "ok",
-      "seeded_findings": 10,
-      "original_findings": 8
+      "seeded_findings": 9,
+      "original_findings": 7
     },
     {
       "seeded": "Example_1_1FAULTS_FAULTVERSION3.xls",
       "status": "ok",
-      "seeded_findings": 9,
-      "original_findings": 8
+      "seeded_findings": 8,
+      "original_findings": 7
     },
     {
       "seeded": "Example_1_1FAULTS_FAULTVERSION4.xls",
       "status": "ok",
-      "seeded_findings": 9,
-      "original_findings": 8
+      "seeded_findings": 8,
+      "original_findings": 7
     },
     {
       "seeded": "Example_1_1FAULTS_FAULTVERSION5.xls",
       "status": "ok",
-      "seeded_findings": 10,
-      "original_findings": 8
+      "seeded_findings": 9,
+      "original_findings": 7
     },
     {
       "seeded": "Example_3_1FAULTS_FAULTVERSION1.xls",
       "status": "ok",
-      "seeded_findings": 6,
-      "original_findings": 5
+      "seeded_findings": 5,
+      "original_findings": 4
     },
     {
       "seeded": "Example_3_1FAULTS_FAULTVERSION2.xls",
       "status": "ok",
-      "seeded_findings": 7,
-      "original_findings": 5
+      "seeded_findings": 6,
+      "original_findings": 4
     },
     {
       "seeded": "Example_3_1FAULTS_FAULTVERSION3.xls",
       "status": "ok",
-      "seeded_findings": 7,
-      "original_findings": 5
+      "seeded_findings": 6,
+      "original_findings": 4
     },
     {
       "seeded": "Example_3_1FAULTS_FAULTVERSION4.xls",
       "status": "ok",
-      "seeded_findings": 6,
-      "original_findings": 5
+      "seeded_findings": 5,
+      "original_findings": 4
     },
     {
       "seeded": "Example_3_1FAULTS_FAULTVERSION5.xls",
       "status": "ok",
-      "seeded_findings": 6,
-      "original_findings": 5
+      "seeded_findings": 5,
+      "original_findings": 4
     },
     {
       "seeded": "Excel%20Monthly%20report_1FAULTS_FAULTVERSION1.xls",
@@ -15903,8 +15895,8 @@
     {
       "seeded": "FinalScoreAnon_1FAULTS_FAULTVERSION3.xls",
       "status": "ok",
-      "seeded_findings": 36,
-      "original_findings": 37
+      "seeded_findings": 33,
+      "original_findings": 34
     },
     {
       "seeded": "Finalgradebook_1FAULTS_FAULTVERSION1.xls",
