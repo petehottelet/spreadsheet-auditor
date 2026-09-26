@@ -1,0 +1,52 @@
+{
+  "skill_name": "spreadsheet-auditor",
+  "note": "Task evaluation specifications with bundled synthetic inputs, not completed model evaluation results.",
+  "evals": [
+    {
+      "id": "review-01-inherited-budget",
+      "prompt": "Before I send inherited-budget.xlsx to my manager, check it for formula mistakes. Tell me the exact cells and suggested fixes, distinguish intentional structure, and leave the workbook unchanged. Run from my project folder, where audit_report.md and findings.json already belong to yesterday's audit.",
+      "files": [
+        "evals/files/inherited-budget.xlsx"
+      ],
+      "setup": "Use an unrelated temporary current directory. Place sentinel audit_report.md and findings.json there. Keep a SHA-256 of the source workbook.",
+      "expected_output": "Audits from the user working folder using the installed scripts, preserves the existing reports and source workbook, and explains genuine defects once per cell with actual coverage limits.",
+      "expectations": [
+        "Resolve audit.py and context.py from the installed skill directory, create fresh run output paths, and preserve both sentinels and the workbook hash.",
+        "Identify Budget!B10 missing B9, Budget!E6 missing D6, Budget!B6 double-counting B5, Budget!E9 hardcode and Budget!B14 broken reference. Combine repeated rules for the same cell.",
+        "Explain formula evidence and suggest fixes without editing; hidden inputs and duplicate lookup keys require context rather than being automatic arithmetic errors.",
+        "Treat exit 1 as findings only after the new report/JSON exist; disclose actual recalculation and coverage."
+      ]
+    },
+    {
+      "id": "review-02-correct-averages",
+      "prompt": "Audit survey-averages.xlsx. The rows summarize teams over two weeks and the last row summarizes each week. Check whether any formula needs fixing; do not change formulas merely to make totals match.",
+      "files": [
+        "evals/files/survey-averages.xlsx"
+      ],
+      "setup": "Cached values are embedded. Disable recalculation if needed for a deterministic run.",
+      "expected_output": "Recognizes the correct AVERAGE summaries and does not claim a cross-foot defect at the empty corner or recommend changing correct formulas.",
+      "expectations": [
+        "Recognize AVERAGE formulas as non-additive summaries. D2:D4 are 15, 35, 55; B5:C5 are 30, 40.",
+        "Do not report a confirmed cross-foot error at the empty Survey!D5 or recommend making 105 equal 70.",
+        "If using an unfixed tool that emits that finding, reject it using the formulas and explain that row/column averages are not additive totals.",
+        "Preserve workbook hash and state only the coverage actually achieved."
+      ]
+    },
+    {
+      "id": "review-03-capped-legacy-findings",
+      "prompt": "Audit legacy-model.xlsx using legacy-config.json and a failure threshold of High. We have accepted the LIVE_ERROR warning, but still need other broken-reference findings. Keep the one-finding report cap and tell me whether this run passes.",
+      "files": [
+        "evals/files/legacy-model.xlsx",
+        "evals/files/legacy-config.json"
+      ],
+      "setup": "Config suppresses LIVE_ERROR at S and sets max_reported_findings=1; S!A1 is =SUM(#REF!).",
+      "expected_output": "Reports the active High broken reference and failure status despite the suppressed LIVE_ERROR and one-finding report cap.",
+      "expectations": [
+        "Run with --config legacy-config.json and --fail-on High, using fresh outputs.",
+        "Return/report failure for active BROKEN_REFERENCE at S!A1 even though LIVE_ERROR is suppressed; patched CLI exit is 1.",
+        "Prioritize the active High finding in the capped output and disclose the cap and suppression.",
+        "Do not infer clean or fully reviewed from zero displayed active findings in an unfixed auditor; inspect cap/suppression coverage and rerun uncapped if necessary to diagnose, without changing user files."
+      ]
+    }
+  ]
+}
