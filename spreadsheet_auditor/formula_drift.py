@@ -28,12 +28,14 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, for
     by_row: dict[tuple[str, int], list[dict]] = defaultdict(list)
     by_col: dict[tuple[str, int], list[dict]] = defaultdict(list)
     pattern_at: dict[tuple[str, int, int], str] = {}
+    cell_at: dict[tuple[str, int, int], dict] = {}
     for cell in formula_cells:
         by_row[(cell["sheet"], cell["row"])].append(cell)
         by_col[(cell["sheet"], cell["col"])].append(cell)
         pattern_at[(cell["sheet"], cell["row"], cell["col"])] = normalize_formula(
             cell["formula"], cell["row"], cell["col"]
         )
+        cell_at[(cell["sheet"], cell["row"], cell["col"])] = cell
 
     groups = [(values, "row") for values in by_row.values()]
     groups += [(values, "column") for values in by_col.values()]
@@ -77,6 +79,14 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, for
                     continue
                 if _conforms_across(cell, pattern, majority, axis, pattern_at):
                     continue
+                peer = min(
+                    (member for member, member_pattern in pairs if member_pattern == majority),
+                    key=lambda member: abs(member[key] - cell[key]),
+                )
+                if _fill_adds_up_labels(cell, peer, formula_wb, names):
+                    continue
+                if _in_summary_set(cell, pairs, majority, axis, cell_at, names):
+                    continue
                 seen.add(cell["location"])
                 neighbors = _drift_neighbors(members, members.index(cell))
                 evidence = [
@@ -94,13 +104,13 @@ def detect_formula_drift(formula_cells: list[dict], budget=None, names=None, for
                     cell, by_row[(cell["sheet"], cell["row"])], by_col[(cell["sheet"], cell["col"])]
                 )
                 if own is not None:
-                    peer, unit, fixed = own
+                    total, unit, own_formula = own
                     line = "row" if unit == "column" else "column"
                     evidence.append(
                         f"The other totals on this {line} add up their own {unit} "
-                        f"({peer['location']}={peer['formula']}); this one adds a different {unit}."
+                        f"({total['location']}={total['formula']}); this one adds a different {unit}."
                     )
-                    suggested_fix = f"Point the total at its own {unit}: {fixed}"
+                    suggested_fix = f"Point the total at its own {unit}: {own_formula}"
                 findings.append(
                     Finding(
                         rule_id="FORMULA_DRIFT",
@@ -125,6 +135,127 @@ _SIMPLE_AGG_RE = re.compile(
     r"\$?([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)\s*\)\s*$",
     re.IGNORECASE,
 )
+
+
+# Moving the fill's formula to a flagged cell reads each cell of its ranges;
+# larger ranges are not judged (the cell stays a drift candidate).
+MAX_MOVED_RANGE_CELLS = 10_000
+_A1_POINT_RE = re.compile(r"^(\$?)([A-Za-z]{1,3})(\$?)(\d+)$")
+_NUMERIC_TEXT_RE = re.compile(r"^[\s$\u20ac\u00a3(+-]*\d[\d,.\s]*%?\)?\s*$")
+# Functions that summarise a block: a row of them over one range, each with
+# its own criterion, is a set of summaries rather than a fill.
+_SUMMARY_FUNCTIONS = {
+    "AVERAGE", "AVERAGEIF", "AVERAGEIFS", "COUNT", "COUNTA", "COUNTBLANK", "COUNTIF", "COUNTIFS",
+    "LARGE", "MAX", "MAXIFS", "MEDIAN", "MIN", "MINIFS", "SMALL", "SUM", "SUMIF", "SUMIFS", "SUMPRODUCT",
+}
+
+
+def _moved_point(text: str, drow: int, dcol: int) -> tuple[int, int] | None:
+    """``(row, col)`` of an A1 endpoint moved by the offset, honouring ``$`` markers."""
+    match = _A1_POINT_RE.match(text)
+    if match is None:
+        return None
+    col_absolute, letters, row_absolute, digits = match.groups()
+    col = column_index_from_string(letters.upper()) + (0 if col_absolute else dcol)
+    row = int(digits) + (0 if row_absolute else drow)
+    return (row, col) if row >= 1 and col >= 1 else None
+
+
+def _fill_adds_up_labels(cell: dict, peer: dict, formula_wb, names) -> bool:
+    """True when the fill's formula, moved to this cell, would aggregate nothing but text labels.
+
+    A summary box heads columns L, M and N: M2 = SUM(M4:M11) and
+    N2 = SUM(N4:N11) total their columns, while L2 = M14 points at another
+    total. At L2 the fill's formula would be SUM(L4:L11), a column of names,
+    so L2 cannot belong to that fill. A total aimed at the wrong column stays
+    reported: there the moved formula lands on numbers or on empty cells.
+    """
+    if formula_wb is None:
+        return False
+    try:
+        ws = formula_wb[cell["sheet"]]
+    except KeyError:
+        return False
+    parsed = parse_formula(peer["formula"], names=names, origin=(peer["sheet"], peer["row"], peer["col"]))
+    drow, dcol = cell["row"] - peer["row"], cell["col"] - peer["col"]
+    ranges = 0
+    for ref in parsed.references:
+        if not ref.is_range:
+            continue
+        if not ref.bounded or (ref.sheet is not None and ref.sheet.casefold() != cell["sheet"].casefold()):
+            return False
+        ends = ref.raw.rsplit("!", 1)[-1].split(":")
+        if len(ends) != 2:
+            return False
+        first, last = _moved_point(ends[0], drow, dcol), _moved_point(ends[1], drow, dcol)
+        if first is None or last is None:
+            return False
+        rows = range(min(first[0], last[0]), max(first[0], last[0]) + 1)
+        cols = range(min(first[1], last[1]), max(first[1], last[1]) + 1)
+        if len(rows) * len(cols) > MAX_MOVED_RANGE_CELLS:
+            return False
+        labels = 0
+        for row in rows:
+            for col in cols:
+                value = cell_value(ws, row, col)
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    continue
+                if isinstance(value, str) and not is_formula(value) and not _NUMERIC_TEXT_RE.match(value):
+                    labels += 1
+                    continue
+                return False  # a number, a date, a formula or numeric text: the fill has data here
+        if labels == 0:
+            return False
+        ranges += 1
+    return ranges > 0
+
+
+def _range_boxes(cell: dict, names) -> tuple[set[tuple[int, int, int, int]], set[str]]:
+    """The bounded same-sheet multi-cell ranges a formula reads, and the functions it calls."""
+    parsed = parse_formula(cell["formula"], names=names, origin=(cell["sheet"], cell["row"], cell["col"]))
+    boxes = set()
+    for ref in parsed.references:
+        if not ref.is_range or not ref.bounded:
+            continue
+        if ref.sheet is not None and ref.sheet.casefold() != cell["sheet"].casefold():
+            continue
+        box = boundaries(ref.ref)
+        if box is not None and (box[0], box[1]) != (box[2], box[3]):
+            boxes.add(box)
+    return boxes, set(parsed.functions)
+
+
+def _in_summary_set(cell: dict, pairs: list, majority: str, axis: str, cell_at: dict, names) -> bool:
+    """True when the cell summarises a block the fill never reads, beside a cell that summarises it the same way.
+
+    Row 5 holds COUNTIF(F5:F11,1), COUNTIF(F5:F11,2) and COUNTIF(F5:F11,3),
+    a set of counts over one block. C5 also heads a column whose rows extract
+    text with MID, so the column scan sees it as the odd one out; it is one of
+    the counts. A fill that reads a shared lookup table is not a set: its
+    members read the same range, so a broken member stays reported.
+    """
+    boxes, functions = _range_boxes(cell, names)
+    if not boxes or not functions & _SUMMARY_FUNCTIONS:
+        return False
+    fill_boxes: set[tuple[int, int, int, int]] = set()
+    for member, pattern in pairs:
+        if pattern == majority:
+            fill_boxes |= _range_boxes(member, names)[0]
+    own = boxes - fill_boxes
+    if not own:
+        return False
+    if axis == "column":
+        across = [(cell["row"], cell["col"] - 1), (cell["row"], cell["col"] + 1)]
+    else:
+        across = [(cell["row"] - 1, cell["col"]), (cell["row"] + 1, cell["col"])]
+    for row, col in across:
+        other = cell_at.get((cell["sheet"], row, col))
+        if other is None:
+            continue
+        other_boxes, other_functions = _range_boxes(other, names)
+        if other_functions == functions and own & other_boxes:
+            return True
+    return False
 
 
 def _simple_aggregate(formula: str) -> tuple[str, int, int, int, int] | None:

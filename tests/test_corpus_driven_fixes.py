@@ -407,6 +407,53 @@ def test_function_swapped_inside_a_run_of_totals_is_still_drift(tmp_path):
     assert [f["location"] for f in _audit(path).get("FORMULA_DRIFT", [])] == ["S!D6"]
 
 
+def test_drift_skips_a_link_heading_a_label_column(tmp_path):
+    """A summary box: M2 and N2 total their columns, L2 = M14 points at another
+    total. At L2 the totals' formula would sum L4:L11, a column of names, so L2
+    is not part of that run. When column L holds amounts, L2 = M14 is a total
+    that stopped totalling and stays reported."""
+    wb = Workbook()
+    for title, first_column in (("Box", lambda row: f"Payee {row}"), ("Amounts", lambda row: row * 3)):
+        ws = wb.create_sheet(title)
+        ws["L1"], ws["M1"], ws["N1"] = "Total Tax", "Monthly Income", "Total Income"
+        ws["L2"], ws["M2"], ws["N2"] = "=M14", "=SUM(M4:M11)", "=SUM(N4:N11)"
+        for row in range(4, 12):
+            ws[f"L{row}"], ws[f"M{row}"], ws[f"N{row}"] = first_column(row), row * 100, row * 10
+        ws["L14"], ws["M14"] = "Total Property Tax Paid", 1200
+    wb.remove(wb["Sheet"])
+    path = tmp_path / "box.xlsx"
+    wb.save(path)
+    assert [f["location"] for f in _audit(path).get("FORMULA_DRIFT", [])] == ["Amounts!L2"]
+
+
+def test_drift_skips_one_of_a_set_of_counts_over_a_block(tmp_path):
+    """Row 5 counts the codes in F5:F11 one criterion per cell; C5 also heads a
+    column that extracts text with MID. It is one of the counts, not a broken
+    extraction. A fill that reads a shared table through SUMIF, with one member
+    pointing at the wrong row, stays reported: its neighbours read the same
+    table, so the table is not a range only the flagged cell summarises."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Patterns"
+    ws["B4"], ws["C4"], ws["D4"] = "count of 1", "count of 2", "count of 3"
+    ws["B5"], ws["C5"], ws["D5"] = "=COUNTIF(F5:F11,1)", "=COUNTIF(F5:F11,2)", "=COUNTIF(F5:F11,3)"
+    for row in range(5, 12):
+        ws[f"A{row}"], ws[f"F{row}"] = f"13c/15c ({row})", row % 3 + 1
+    for row in range(6, 12):
+        ws[f"C{row}"] = f'=MID(A{row},FIND("(",A{row})+1,FIND(")",A{row})-FIND("(",A{row})-1)'
+    table = wb.create_sheet("Totals")
+    for row in range(2, 21):
+        table[f"H{row}"], table[f"I{row}"], table[f"J{row}"] = f"k{row}", row, row * 2
+    for row in range(5, 12):
+        table[f"A{row}"] = f"k{row}"
+        key_row = row + 1 if row == 8 else row  # D8 looks up the wrong row
+        table[f"D{row}"] = f"=SUMIF($H$2:$H$20,A{key_row},$I$2:$I$20)"
+        table[f"E{row}"] = f"=SUMIF($H$2:$H$20,A{row},$J$2:$J$20)"
+    path = tmp_path / "counts.xlsx"
+    wb.save(path)
+    assert [f["location"] for f in _audit(path).get("FORMULA_DRIFT", [])] == ["Totals!D8"]
+
+
 def test_merged_formulas_in_totals_rows_are_presentation(tmp_path):
     wb = Workbook()
     ws = wb.active

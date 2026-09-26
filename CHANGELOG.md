@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- `FORMULA_DRIFT` leaves summary cells alone when they are not part of the
+  run beside them: a cell where the run's formula would add up only text
+  labels (a link under "Total Tax" heading a column of names), and one of a
+  row of summaries over the same block with their own criteria (counts of 1,
+  2 and 3 over one range). A total aimed at the wrong column, and a broken
+  member of a run that reads a shared table, are still reported.
+
 ## [0.3.0] - 2026-09-25
 
 Audit existing Excel models with clearer answers and fewer false alarms.
