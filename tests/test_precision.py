@@ -23,9 +23,9 @@ CATALOG = ROOT / "benchmarks" / "seeded_defects.json"
 VALUE_DEPENDENT = {"TOTAL_MISMATCH", "CROSS_FOOT_FAILURE", "LIVE_ERROR"}
 
 
-def _audit(path: Path) -> dict:
+def _audit(path: Path, *extra: str) -> dict:
     result = subprocess.run(
-        [sys.executable, "-m", "spreadsheet_auditor", str(path), "--json", "-", "--fail-on", "None"],
+        [sys.executable, "-m", "spreadsheet_auditor", str(path), "--json", "-", "--fail-on", "None", *extra],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -332,8 +332,12 @@ def test_blank_precedent_in_empty_row_is_quiet_but_anomalous_blank_is_flagged(tm
     ws.append([3, None, "=A3*B3"])  # B3 blank where its row and column hold data
     ws.append([4, 7, "=A4*B4"])
     ws["E2"] = "=A2/A99"  # row 99 is empty space, not a broken link
-    payload = _audit(_save(wb, tmp_path, "blanks.xlsx"))
-    assert _rules(payload)["BLANK_PRECEDENT"] == ["S!C3"]
+    path = _save(wb, tmp_path, "blanks.xlsx")
+    # Off by default: on real workbooks its findings were almost never mistakes.
+    assert "BLANK_PRECEDENT" not in _rules(_audit(path))
+    config = tmp_path / "blank_on.json"
+    config.write_text(json.dumps({"checks": {"blank_precedent": True}}), encoding="utf-8")
+    assert _rules(_audit(path, "--config", str(config)))["BLANK_PRECEDENT"] == ["S!C3"]
 
 
 # --- the seeded corpora are fully catalogued ---------------------------------

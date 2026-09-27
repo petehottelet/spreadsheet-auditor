@@ -144,7 +144,7 @@ def _suppression_notes(
       checked because the audit is incomplete, or their sheet is excluded by
       scope.
     """
-    from .config_loader import check_setting
+    from .config_loader import rule_enabled
     from .locations import location_matches, target_sheet
     from .suppressions import describe, is_one_cell, pinned_line
 
@@ -183,7 +183,7 @@ def _suppression_notes(
                 "copy its new fingerprint from the report or remove the suppression."
             )
         else:
-            if check_setting(config, rule) in {"off", "false", "disabled", "disable"}:
+            if not rule_enabled(config, rule):
                 continue
             if everything_unchecked or rule in unchecked:
                 continue
@@ -611,9 +611,16 @@ def detect_reference_issues(
     unsupported_features: set[str],
     names=None,
     budget=None,
+    blank_precedents: bool = True,
 ) -> list[Finding]:
+    """Broken references, blank precedents, external links, and error masks.
+
+    ``blank_precedents`` is False when BLANK_PRECEDENT is turned off (its
+    default), which skips the blank-cell analysis altogether.
+    """
     from bisect import bisect_left
 
+    from .error_masks import masks as error_masks
     from .formula_parser import external_source, is_formula, parse_formula
     from .grouping import group_by_pattern, pattern_note
     from .reference_resolver import boundaries, existing_cell, find_sheet, reference_in_bounds
@@ -694,9 +701,10 @@ def detect_reference_issues(
             # IFERROR(__xludf.DUMMYFUNCTION("..."), <cached value>).
             unsupported_features.add("google_sheets_placeholders")
 
-        masks = parsed.functions.intersection({"IFERROR", "IFNA"})
-        if masks:
-            masked.append((cell, masks))
+        if parsed.functions & {"IFERROR", "IFNA"}:
+            found = error_masks(formula)
+            if found:
+                masked.append((cell, found))
 
         # A cell the formula tests for blank anywhere (=""; ISBLANK; a
         # comparison; inside IFERROR) is handled wherever else it appears.
@@ -711,6 +719,8 @@ def detect_reference_issues(
             ok, reason = reference_in_bounds(ref, cell["sheet"], formula_wb)
             if not ok:
                 unresolved.setdefault(cell["location"], (cell, []))[1].append(reason or f"Could not resolve {ref.raw}.")
+                continue
+            if not blank_precedents:
                 continue
             if ref.is_range or not ref.bounded or ref.positional or not ref.sensitive or row_inputs_blank:
                 continue
@@ -802,10 +812,24 @@ def detect_reference_issues(
             )
         )
 
-    masks_of = {id(cell): masks for cell, masks in masked}
+    masks_of = {id(cell): found for cell, found in masked}
     for members in group_by_pattern([cell for cell, _ in masked]):
         lead = members[0]
-        evidence = [f"Formula uses {', '.join(sorted(masks_of[id(lead)]))}."]
+        mask = masks_of[id(lead)][0]
+        if mask.sources == ("a Google Sheets placeholder",):
+            evidence = [
+                (
+                    f"{mask.function} wraps a Google Sheets placeholder and returns its cached value, "
+                    f"{mask.fallback}: the cell holds a frozen value, not a live calculation."
+                )
+            ]
+        else:
+            evidence = [
+                (
+                    f"{mask.function} replaces any error from {', '.join(mask.sources)} with {mask.fallback}, "
+                    "which reads as a real value to anyone looking at the cell and to every formula that uses it."
+                )
+            ]
         note = pattern_note(members)
         if note:
             evidence.append(note)
@@ -816,10 +840,13 @@ def detect_reference_issues(
                 error_confidence="Review",
                 detection_mode="HEUR",
                 location=lead["location"],
-                title="Formula may be masking an error",
+                title="Error replaced by a value that reads as data",
                 formula=lead["formula"],
                 evidence=evidence,
-                suggested_fix="Inspect the wrapped expression and confirm the error case is intentional.",
+                suggested_fix=(
+                    'Return a visible marker for the failure ("" or NA()) or fix the input the error comes from; '
+                    "keep the replacement only if it is the right result when the calculation fails."
+                ),
             )
         )
     return findings

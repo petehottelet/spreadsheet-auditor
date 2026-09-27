@@ -239,6 +239,7 @@ limits:
 checks:
   IFERROR_MASK: review   # warn instead of error
   LITERAL_CONSTANT: off
+  BLANK_PRECEDENT: error # off by default; on for data that must never have gaps
 suppressions:
   - rule_id: BROKEN_REFERENCE
     range: Imports!A1:A100

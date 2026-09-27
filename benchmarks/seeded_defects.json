@@ -17,7 +17,7 @@
         {"rule_id": "RANGE_LENGTH_MISMATCH", "location": "Model!F63", "mode": "DET", "requires_recalc": false, "notes": "F63 sums two columns while peers sum three."},
         {"rule_id": "HARDCODE_IN_FORMULA_BLOCK", "location": "Model!C22", "mode": "DET", "requires_recalc": false, "notes": "Literal 999 between two formulas that share one pattern."},
         {"rule_id": "LITERAL_CONSTANT", "location": "Model!B25", "mode": "HEUR", "requires_recalc": false, "notes": "Embedded growth-rate literal 1.05 inside a formula."},
-        {"rule_id": "IFERROR_MASK", "location": "Model!B27", "mode": "HEUR", "requires_recalc": false, "notes": "IFERROR wrapper that may hide a real error."},
+        {"rule_id": "IFERROR_MASK", "location": "Model!B27", "mode": "HEUR", "requires_recalc": false, "notes": "IFERROR turns the #DIV/0! of a division by a blank cell into 0."},
         {"rule_id": "HIDDEN_STRUCTURE_IN_TOTAL", "location": "Model!B32", "mode": "DET", "requires_recalc": false, "notes": "Hidden row 31 feeds the visible total in B32."},
         {"rule_id": "NUMBERS_STORED_AS_TEXT", "location": "Model!B35", "mode": "DET", "requires_recalc": false, "notes": "'1,234' typed as a string in a numeric column (Review severity: nothing sums it)."},
         {"rule_id": "WHITESPACE_KEY", "location": "Model!A36", "mode": "DET", "requires_recalc": false, "notes": "Leading/trailing whitespace on a first-column label."},

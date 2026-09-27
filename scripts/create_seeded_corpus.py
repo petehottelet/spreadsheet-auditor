@@ -56,7 +56,7 @@ def build_seeded_defects() -> None:
     ws["D22"] = "=D2+D3"
 
     ws["A25"], ws["B25"] = "Embedded literal", "=B2*1.05"
-    ws["A27"], ws["B27"] = "IFERROR mask", '=IFERROR(B2/B99,"")'
+    ws["A27"], ws["B27"] = "IFERROR mask", '=IFERROR(B2/B99,0)'
     ws["A28"], ws["B28"] = "Broken ref", "=SUM(#REF!)"
 
     ws["A30"], ws["B30"] = "Visible input", 5

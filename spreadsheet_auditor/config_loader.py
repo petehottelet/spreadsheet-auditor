@@ -106,9 +106,15 @@ def sheet_is_allowed(sheet_name: str, include: set[str] | None, exclude: set[str
     return sheet_name not in exclude
 
 
+# Rules that stay off unless a config turns them on (for example
+# ``"checks": {"BLANK_PRECEDENT": "error"}``). On real workbooks their findings
+# were almost never mistakes: BLANK_PRECEDENT was right in none of 25 sampled.
+OFF_BY_DEFAULT = {"BLANK_PRECEDENT"}
+
+
 def check_setting(config: dict[str, Any], rule_id: str) -> str:
     checks = config.get("checks") or {}
-    value: Any = "error"
+    value: Any = None
     if rule_id in checks:
         value = checks[rule_id]
     elif rule_id.lower() in checks:
@@ -118,16 +124,25 @@ def check_setting(config: dict[str, Any], rule_id: str) -> str:
             if rule == rule_id and key in checks:
                 value = checks[key]
                 break
+    if value is None:
+        return "off" if rule_id in OFF_BY_DEFAULT else "error"
     if isinstance(value, bool):
         return "error" if value else "off"
     return str(value).lower()
+
+
+OFF_SETTINGS = {"off", "false", "disabled", "disable"}
+
+
+def rule_enabled(config: dict[str, Any], rule_id: str) -> bool:
+    return check_setting(config, rule_id) not in OFF_SETTINGS
 
 
 def apply_check_settings(findings, config: dict[str, Any]):
     kept = []
     for finding in findings:
         setting = check_setting(config, finding.rule_id)
-        if setting in {"off", "false", "disabled", "disable"}:
+        if setting in OFF_SETTINGS:
             continue
         if setting in {"warn", "warning", "review"} and finding.severity in {"Critical", "High"}:
             finding.severity = "Medium"

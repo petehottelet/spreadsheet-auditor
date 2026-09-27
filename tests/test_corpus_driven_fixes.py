@@ -16,9 +16,15 @@ from pathlib import Path
 from openpyxl import Workbook
 
 
-def _audit(path: Path) -> dict[str, list[dict]]:
+def _audit(path: Path, blank_precedent: bool = False) -> dict[str, list[dict]]:
+    """Findings by rule; ``blank_precedent`` turns on BLANK_PRECEDENT, which is off by default."""
+    extra: list[str] = []
+    if blank_precedent:
+        config = path.with_suffix(".config.json")
+        config.write_text(json.dumps({"checks": {"BLANK_PRECEDENT": "error"}}), encoding="utf-8")
+        extra = ["--config", str(config)]
     result = subprocess.run(
-        [sys.executable, "-m", "spreadsheet_auditor", str(path), "--json", "-", "--fail-on", "None"],
+        [sys.executable, "-m", "spreadsheet_auditor", str(path), "--json", "-", "--fail-on", "None", *extra],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -49,7 +55,7 @@ def test_positional_references_are_not_value_dependencies(tmp_path):
     ws["E9"] = 1
     path = tmp_path / "positional.xlsx"
     wb.save(path)
-    by_rule = _audit(path)
+    by_rule = _audit(path, blank_precedent=True)
     assert "CIRCULAR_REFERENCE" not in by_rule
     assert [f["location"] for f in by_rule.get("BLANK_PRECEDENT", [])] == ["S!D2"]
 
@@ -69,7 +75,7 @@ def test_blank_precedent_skips_formulas_that_test_the_cell_for_blank(tmp_path):
         ws.append([f"Row {row}", f"=C{row}*2", "x"])  # column C is mostly filled, so the blanks above are gaps
     path = tmp_path / "blank_tests.xlsx"
     wb.save(path)
-    by_rule = _audit(path)
+    by_rule = _audit(path, blank_precedent=True)
     assert [f["location"] for f in by_rule.get("BLANK_PRECEDENT", [])] == ["S!B5"]
 
 
@@ -315,12 +321,14 @@ def test_iferror_is_reported_once_per_formula_block(tmp_path):
     ws.title = "S"
     for row in range(1, 6):
         ws.append([row, f"=IFERROR(1/A{row},0)"])
-    ws["D1"] = '=IFERROR(VLOOKUP(1,A1:B5,2,FALSE),"")'
+    ws["D1"] = '=IFERROR(VLOOKUP(1,A1:B5,2,FALSE),0)'
+    ws["D2"] = '=IFERROR(VLOOKUP(2,A1:B5,2,FALSE),"")'  # a miss shown as blank hides nothing
     path = tmp_path / "masks.xlsx"
     wb.save(path)
     masks = _audit(path).get("IFERROR_MASK", [])
     assert [f["location"] for f in masks] == ["S!B1", "S!D1"]
     assert "5 cells" in masks[0]["evidence"][1]
+    assert masks[0]["evidence"][0].startswith("IFERROR replaces any error from a division with 0")
 
 
 # --- second round: patterns the re-audited corpus still showed ---------------
@@ -541,7 +549,7 @@ def test_blank_precedent_ignores_rows_with_no_inputs_and_half_filled_ledgers(tmp
     ws["J4"] = "=I4*2"
     path = tmp_path / "ledger.xlsx"
     wb.save(path)
-    assert [f["location"] for f in _audit(path).get("BLANK_PRECEDENT", [])] == ["S!J4"]
+    assert [f["location"] for f in _audit(path, blank_precedent=True).get("BLANK_PRECEDENT", [])] == ["S!J4"]
 
 
 def test_countif_criteria_literals_are_not_assumptions(tmp_path):
