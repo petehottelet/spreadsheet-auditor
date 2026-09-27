@@ -21,6 +21,7 @@ from corpuslib import (  # noqa: E402
     SAMPLES_DIR,
     WorkbookCache,
     build_context,
+    display_path,
     load_findings,
     load_sources,
     now_iso,
@@ -72,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     sample = {
         "source": args.source,
         "generated": now_iso(),
-        "results_dir": str(results_dir),
+        "results_dir": display_path(results_dir),
         "seed": args.seed,
         "per_rule": args.per_rule,
         "max_per_workbook": args.max_per_workbook,
