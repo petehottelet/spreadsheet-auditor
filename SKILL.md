@@ -53,7 +53,7 @@ Each card shows the row label, column header, formula, cached value and neighbor
 
 Judge a total against the other totals on its row or column, not against the rows it adds up; cells beside it that do the same job with different arguments (counts of 1, 2 and 3) are a set, not drift. A one-cell link such as `=D40` in a header or summary row is usually a deliberate pointer to another total: the card's `links to:` line shows what it points at.
 
-Suggest "make it match its neighbors" only after the card shows the cell belongs to that series; on a total or net line that rewrite breaks a correct formula. One cell can carry several findings (`LIVE_ERROR` + `BROKEN_REFERENCE`, `FORMULA_DRIFT` + `TOTAL_MISMATCH`), so report each cell once. If the context reveals a problem the tool did not flag, report it as your own observation and cite the cells. `references/check_catalog.md` says what each rule checks, what it ignores, and how far to trust it.
+Suggest "make it match its neighbors" only after the card shows the cell belongs to that series; on a total or net line that rewrite breaks a correct formula. One cell can carry several findings (`LIVE_ERROR` + `BROKEN_REFERENCE`, `FORMULA_DRIFT` + `TOTAL_MISMATCH`), so report each cell once. One finding can also stand for a formula repeated down a column; its evidence says how many cells share it ("in 612 cells"), so report it once, as a fix to the whole column. If the context reveals a problem the tool did not flag, report it as your own observation and cite the cells. `references/check_catalog.md` says what each rule checks, what it ignores, and how far to trust it.
 
 ### 4. Answer the user
 

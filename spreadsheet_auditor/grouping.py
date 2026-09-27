@@ -28,10 +28,14 @@ def group_by_pattern(cells: list[dict]) -> list[list[dict]]:
     return list(groups.values())
 
 
-def pattern_note(members: list[dict]) -> str | None:
-    """Evidence line naming the other cells that share the leading cell's pattern."""
+def pattern_note(members: list[dict], does: str = "appears") -> str | None:
+    """Evidence line naming the other cells that share the leading cell's pattern.
+
+    ``does`` says what the formula does in each of them ("appears",
+    "evaluates to #N/A", "references its own cell").
+    """
     if len(members) < 2:
         return None
     others = [cell["location"] for cell in members[1:]]
-    shown = ", ".join(others[:MAX_SHOWN]) + (", ..." if len(others) > MAX_SHOWN else "")
-    return f"The same relative formula appears in {len(members)} cells on this sheet; the others are {shown}."
+    shown = ", ".join(others[:MAX_SHOWN]) + (f", and {len(others) - MAX_SHOWN} more" if len(others) > MAX_SHOWN else "")
+    return f"The same relative formula {does} in {len(members)} cells on this sheet; the others are {shown}."

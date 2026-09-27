@@ -9,7 +9,7 @@ import platform
 import sys
 import tempfile
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import __version__
@@ -206,6 +206,67 @@ def _suppression_notes(
                 )
         notes.append(f"{head} matched no finding. {why}")
     return notes
+
+
+def _finding_counts(findings: list[Finding]) -> dict:
+    """Counts of the active findings by severity and by rule, for summaries that outlive the cap."""
+    active = [finding for finding in findings if not finding.suppressed]
+    by_rule = Counter((finding.severity, finding.error_confidence, finding.rule_id) for finding in active)
+    return {
+        "total": len(active),
+        "shown": len(active),
+        "suppressed": len(findings) - len(active),
+        "by_severity": dict(Counter(finding.severity for finding in active)),
+        "by_rule": [
+            {"rule_id": rule, "severity": severity, "error_confidence": confidence, "count": count}
+            for (severity, confidence, rule), count in sorted(
+                by_rule.items(), key=lambda item: (FAIL_ORDER.get(item[0][0], 4), -item[1], item[0][2])
+            )
+        ],
+    }
+
+
+def _cap_findings(
+    findings: list[Finding], max_reported: int, truncated: dict, limitations: list[str]
+) -> tuple[list[Finding], dict]:
+    """Keep at most ``max_reported`` findings without letting one rule crowd out the rest.
+
+    Active findings go before suppressed ones. Every rule first keeps its most
+    severe active finding, so a workbook with hundreds of one error still shows
+    the other rules' findings; the remaining places go in severity order. The
+    counts are taken before the cap, and the limitation note says what each
+    rule lost.
+    """
+    counts = _finding_counts(findings)
+    if max_reported <= 0 or len(findings) <= max_reported:
+        return findings, counts
+    ordered = sorted(findings, key=lambda finding: finding.suppressed)  # stable: severity order within
+    kept: list[Finding] = []
+    kept_ids: set[int] = set()
+    rules_seen: set[str] = set()
+    for finding in ordered:
+        if not finding.suppressed and finding.rule_id not in rules_seen:
+            rules_seen.add(finding.rule_id)
+            kept.append(finding)
+            kept_ids.add(id(finding))
+    for finding in ordered:
+        if len(kept) >= max_reported:
+            break
+        if id(finding) not in kept_ids:
+            kept.append(finding)
+            kept_ids.add(id(finding))
+    kept = sort_findings(kept[:max_reported])
+    kept_ids = {id(finding) for finding in kept}
+    left_out = Counter(
+        finding.rule_id for finding in findings if id(finding) not in kept_ids and not finding.suppressed
+    )
+    truncated["findings"] = True
+    counts["shown"] = sum(1 for finding in kept if not finding.suppressed)
+    note = f"Findings output capped at {max_reported} of {len(findings)} findings by config"
+    if left_out:
+        note += "; not shown: " + ", ".join(f"{count} {rule}" for rule, count in left_out.most_common())
+    limitations.append(note + ". Raise limits.max_reported_findings to see them all.")
+    return kept, counts
 
 
 def _pin_suppressions(ignore_path: str, suppressions: list[dict]) -> None:
@@ -422,11 +483,9 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         )
         findings = sort_findings(findings)
         all_findings = findings
-        max_reported = int(limits_config.get("max_reported_findings", 200))
-        if max_reported > 0 and len(findings) > max_reported:
-            truncated["findings"] = True
-            limitations.append(f"Findings output capped at {max_reported} findings by config.")
-            findings = sorted(findings, key=lambda finding: finding.suppressed)[:max_reported]
+        findings, finding_counts = _cap_findings(
+            findings, int(limits_config.get("max_reported_findings", 200)), truncated, limitations
+        )
         assign_ids(findings)
 
         coverage = {
@@ -437,6 +496,7 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
             "limitations": limitations,
             "complete": not incomplete,
             "incomplete": incomplete,
+            "finding_counts": finding_counts,
             "truncated": truncated,
             "elapsed_seconds": round(time.monotonic() - start_time, 3),
         }
@@ -460,24 +520,51 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
 def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, ignore_path: str | None = None) -> dict:
     from .suppressions import apply_suppressions, load_suppressions
 
-    findings: list[Finding] = []
+    # One finding per column: a padded notes column is one thing to trim, and
+    # a column padded throughout came out of a fixed-width export (as in the
+    # workbook rule, it gets an Info note). Whitespace-only cells are spacers.
+    padded: dict[int, list[tuple[int, str]]] = defaultdict(list)
+    filled: Counter = Counter()
     with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.reader(handle)
         for row_idx, row in enumerate(reader, start=1):
             for col_idx, value in enumerate(row, start=1):
+                if not value.strip():
+                    continue
+                filled[col_idx] += 1
                 if value != value.strip():
-                    findings.append(
-                        Finding(
-                            rule_id="WHITESPACE_KEY",
-                            severity="Medium",
-                            error_confidence="Review",
-                            detection_mode="DET",
-                            location=f"CSV!R{row_idx}C{col_idx}",
-                            title="CSV value has leading or trailing whitespace",
-                            evidence=[f"Raw value is {value!r}."],
-                            suggested_fix="Trim if this field is used as a key, label, or numeric input.",
-                        )
-                    )
+                    padded[col_idx].append((row_idx, value))
+    findings: list[Finding] = []
+    for col_idx, cells in sorted(padded.items()):
+        row_idx, value = cells[0]
+        export = len(cells) >= 3 and len(cells) * 5 >= filled[col_idx] * 4
+        if export:
+            evidence = [
+                f"{len(cells)} of {filled[col_idx]} values in column {col_idx} carry leading or trailing whitespace, "
+                f"for example {value!r}; this looks like fixed-width padding from an export."
+            ]
+        else:
+            evidence = [f"Raw value is {value!r}."]
+            if len(cells) > 1:
+                shown = ", ".join(f"R{row}C{col_idx} {text!r}" for row, text in cells[1:9])
+                if len(cells) > 9:
+                    shown += f", and {len(cells) - 9} more"
+                evidence.append(
+                    f"{len(cells)} of {filled[col_idx]} values in column {col_idx} carry leading or trailing "
+                    f"whitespace; the others are {shown}."
+                )
+        findings.append(
+            Finding(
+                rule_id="WHITESPACE_KEY",
+                severity="Low" if export else "Medium",
+                error_confidence="Info" if export else "Review",
+                detection_mode="DET",
+                location=f"CSV!R{row_idx}C{col_idx}",
+                title="Column of padded CSV values" if export else "CSV value has leading or trailing whitespace",
+                evidence=evidence,
+                suggested_fix="Trim if this field is used as a key, label, or numeric input.",
+            )
+        )
     csv_limitations = ["CSV audit is limited to data-hygiene checks."]
     if config:
         findings = apply_check_settings(findings, config)
@@ -485,6 +572,13 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
     findings = apply_suppressions(findings, suppressions)
     csv_limitations.extend(_suppression_notes(suppressions, config or {}, [], findings))
     findings = sort_findings(findings)
+    truncated = {"formulas": False, "findings": False, "cells": False, "timeout": False}
+    findings, finding_counts = _cap_findings(
+        findings,
+        int(((config or {}).get("limits") or {}).get("max_reported_findings", 200)),
+        truncated,
+        csv_limitations,
+    )
     assign_ids(findings)
     return build_payload(
         AUDIT_VERSION,
@@ -503,6 +597,8 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
             "limitations": csv_limitations,
             "complete": True,
             "incomplete": [],
+            "finding_counts": finding_counts,
+            "truncated": truncated,
         },
         findings,
     )
@@ -566,6 +662,10 @@ def detect_reference_issues(
 
     findings: list[Finding] = []
     masked: list[tuple[dict, set[str]]] = []
+    # Broken formulas are reported once per relative pattern: a #REF! filled
+    # down a column is one repair, not one finding per row.
+    deleted: list[dict] = []
+    unresolved: dict[str, tuple[dict, list[str]]] = {}
     external: dict[tuple[str, str], list[dict]] = {}
     for cell in formulas:
         if budget is not None:
@@ -576,19 +676,7 @@ def detect_reference_issues(
             unsupported_features.add("unparseable_formulas")
             continue
         if parsed.deleted_reference:
-            findings.append(
-                Finding(
-                    rule_id="BROKEN_REFERENCE",
-                    severity="High",
-                    error_confidence="Defect",
-                    detection_mode="DET",
-                    location=cell["location"],
-                    title="Formula contains deleted reference",
-                    formula=formula,
-                    evidence=["Formula text contains #REF!."],
-                    suggested_fix="Restore the deleted reference or rebuild the formula from intended source cells.",
-                )
-            )
+            deleted.append(cell)
         if parsed.external_references:
             unsupported_features.add("external_workbook_links")
             for source in sorted({external_source(raw) for raw in parsed.external_references}):
@@ -622,19 +710,7 @@ def detect_reference_issues(
         for ref in parsed.references:
             ok, reason = reference_in_bounds(ref, cell["sheet"], formula_wb)
             if not ok:
-                findings.append(
-                    Finding(
-                        rule_id="BROKEN_REFERENCE",
-                        severity="High",
-                        error_confidence="Likely defect",
-                        detection_mode="DET",
-                        location=cell["location"],
-                        title="Formula reference cannot be resolved cleanly",
-                        formula=formula,
-                        evidence=[reason or f"Could not resolve {ref.raw}."],
-                        suggested_fix="Review the reference target and restore the intended sheet/range.",
-                    )
-                )
+                unresolved.setdefault(cell["location"], (cell, []))[1].append(reason or f"Could not resolve {ref.raw}.")
                 continue
             if ref.is_range or not ref.bounded or ref.positional or not ref.sensitive or row_inputs_blank:
                 continue
@@ -666,6 +742,46 @@ def detect_reference_issues(
                         suggested_fix="Confirm the blank precedent is intentional or update the formula to the correct input.",
                     )
                 )
+
+    for members in group_by_pattern(deleted):
+        lead = members[0]
+        evidence = ["Formula text contains #REF!."]
+        note = pattern_note(members, "contains #REF!")
+        if note:
+            evidence.append(note)
+        findings.append(
+            Finding(
+                rule_id="BROKEN_REFERENCE",
+                severity="High",
+                error_confidence="Defect",
+                detection_mode="DET",
+                location=lead["location"],
+                title="Formula contains deleted reference",
+                formula=lead["formula"],
+                evidence=evidence,
+                suggested_fix="Restore the deleted reference or rebuild the formula from intended source cells.",
+            )
+        )
+    reasons_at = {loc: reasons for loc, (_cell, reasons) in unresolved.items()}
+    for members in group_by_pattern([cell for cell, _reasons in unresolved.values()]):
+        lead = members[0]
+        evidence = list(dict.fromkeys(reasons_at[lead["location"]]))
+        note = pattern_note(members, "has the same unresolved reference")
+        if note:
+            evidence.append(note)
+        findings.append(
+            Finding(
+                rule_id="BROKEN_REFERENCE",
+                severity="High",
+                error_confidence="Likely defect",
+                detection_mode="DET",
+                location=lead["location"],
+                title="Formula reference cannot be resolved cleanly",
+                formula=lead["formula"],
+                evidence=evidence,
+                suggested_fix="Review the reference target and restore the intended sheet/range.",
+            )
+        )
 
     for (sheet, source), cells in sorted(external.items()):
         shown = ", ".join(c["location"] for c in cells[:8]) + (", ..." if len(cells) > 8 else "")
@@ -787,14 +903,23 @@ def detect_cycles(
 ) -> list[Finding]:
     """Report one CIRCULAR_REFERENCE finding per cyclic dependency component.
 
+    Cells that each depend only on themselves and share a relative formula
+    (a self-referencing formula filled down a column) are one finding.
+
     ``expansion_limit`` is accepted for backward compatibility and ignored; see
     :func:`spreadsheet_auditor.dependency_graph.build_dependency_graph`.
     """
     from .dependency_graph import build_dependency_graph, find_cycles
+    from .grouping import group_by_pattern, pattern_note
 
     graph = build_dependency_graph(formulas, names=names, extents=extents, budget=budget)
+    cell_at = {item["location"]: item for item in formulas}
     findings: list[Finding] = []
+    self_references: list[dict] = []
     for members in find_cycles(graph):
+        if len(members) == 1 and members[0] in cell_at:
+            self_references.append(cell_at[members[0]])
+            continue
         if len(members) == 1:
             title = "Formula references its own cell"
             evidence = [
@@ -812,6 +937,26 @@ def detect_cycles(
                 detection_mode="DET",
                 location=members[0],
                 title=title,
+                evidence=evidence,
+                suggested_fix="Confirm whether iterative calculation is intentional; otherwise break the circular dependency.",
+            )
+        )
+    self_references.sort(key=lambda cell: (cell["sheet"], cell["row"], cell["col"]))
+    for group in group_by_pattern(self_references):
+        lead = group[0]
+        evidence = [f"{lead['location']} depends on itself, for example a total whose range includes the total cell."]
+        note = pattern_note(group, "references its own cell")
+        if note:
+            evidence.append(note)
+        findings.append(
+            Finding(
+                rule_id="CIRCULAR_REFERENCE",
+                severity="High",
+                error_confidence="Likely defect",
+                detection_mode="DET",
+                location=lead["location"],
+                title="Formula references its own cell",
+                formula=lead["formula"],
                 evidence=evidence,
                 suggested_fix="Confirm whether iterative calculation is intentional; otherwise break the circular dependency.",
             )
@@ -907,9 +1052,21 @@ Examples:
 
 def _summary_lines(payload: dict, fail_on: str) -> list[str]:
     findings = [f for f in payload["findings"] if not f.get("suppressed")]
-    counts = Counter(f["severity"] for f in findings)
     coverage = payload.get("coverage", {})
     workbook = payload.get("workbook", {})
+    # Counted before the report cap, so a capped report still says how many
+    # findings each rule has.
+    totals = coverage.get("finding_counts")
+    if totals:
+        counts = Counter(totals["by_severity"])
+        by_rule = Counter(
+            {(entry["severity"], entry["error_confidence"], entry["rule_id"]): entry["count"] for entry in totals["by_rule"]}
+        )
+        shown = "" if totals["shown"] == totals["total"] else f" ({totals['shown']} of {totals['total']} shown)"
+    else:
+        counts = Counter(f["severity"] for f in findings)
+        by_rule = Counter((f["severity"], f["error_confidence"], f["rule_id"]) for f in findings)
+        shown = ""
     if coverage.get("complete", True):
         status = "complete"
     else:
@@ -923,10 +1080,10 @@ def _summary_lines(payload: dict, fail_on: str) -> list[str]:
         "findings   : "
         + ", ".join(
             f"{counts.get(sev, 0)} {sev}" for sev in ("Critical", "High", "Medium", "Low", "Info")
-        ),
+        )
+        + shown,
         f"fail_on    : {fail_on}",
     ]
-    by_rule = Counter((f["severity"], f["error_confidence"], f["rule_id"]) for f in findings)
     if by_rule:
         lines.append("by rule    :")
         for (severity, confidence, rule), count in sorted(

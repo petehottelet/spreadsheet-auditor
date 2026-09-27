@@ -99,6 +99,15 @@ def _confidence_bucket(value: str) -> str:
     return "Review"
 
 
+def _severity_counts(payload: dict, active: list[dict], show_suppressed: bool) -> tuple[Counter, str]:
+    """Findings per severity, counted before the report cap when the audit recorded that."""
+    totals = (payload.get("coverage") or {}).get("finding_counts")
+    if totals and not show_suppressed:
+        note = "" if totals["shown"] == totals["total"] else f" ({totals['shown']} of {totals['total']} shown; see limitations)"
+        return Counter(totals["by_severity"]), note
+    return Counter(f["severity"] for f in active), ""
+
+
 def render_markdown(payload: dict, show_suppressed: bool = False) -> str:
     findings = payload["findings"]
     suppressed = [f for f in findings if f.get("suppressed")]
@@ -106,7 +115,7 @@ def render_markdown(payload: dict, show_suppressed: bool = False) -> str:
         active = list(findings)
     else:
         active = [f for f in findings if not f.get("suppressed")]
-    counts = Counter(f["severity"] for f in active)
+    counts, shown_note = _severity_counts(payload, active, show_suppressed)
     workbook = payload["workbook"]
     coverage = payload["coverage"]
     timestamp = payload.get("timestamp")
@@ -131,7 +140,7 @@ def render_markdown(payload: dict, show_suppressed: bool = False) -> str:
         f"- Sheets analyzed: {workbook['sheets_analyzed']}",
         f"- Formulas scanned: {workbook['formulas_scanned']}",
         f"- Recalculation status: {workbook['recalc_status']}",
-        f"- Findings: {counts.get('Critical', 0)} Critical, {counts.get('High', 0)} High, {counts.get('Medium', 0)} Medium, {counts.get('Low', 0)} Low, {counts.get('Info', 0)} Info",
+        f"- Findings: {counts.get('Critical', 0)} Critical, {counts.get('High', 0)} High, {counts.get('Medium', 0)} Medium, {counts.get('Low', 0)} Low, {counts.get('Info', 0)} Info" + shown_note,
         f"- Suppressed findings: {len(suppressed)}",
         "",
         "## Coverage And Limitations",
@@ -306,7 +315,7 @@ def render_html(payload: dict, show_suppressed: bool = False) -> str:
         active = list(findings)
     else:
         active = [f for f in findings if not f.get("suppressed")]
-    counts = Counter(f["severity"] for f in active)
+    counts, shown_note = _severity_counts(payload, active, show_suppressed)
     workbook = payload["workbook"]
     coverage = payload["coverage"]
 
@@ -368,6 +377,7 @@ def render_html(payload: dict, show_suppressed: bool = False) -> str:
         items = "".join(f"<li>{_html_escape(item)}</li>" for item in limitations)
         limitations_block = f"<h3>Limitations</h3><ul>{items}</ul>"
 
+    shown_block = f"<p class=\"meta\">{_html_escape(shown_note.strip())}</p>" if shown_note else ""
     incomplete_block = ""
     if coverage.get("incomplete"):
         items = "".join(f"<li>{_html_escape(entry['message'])}</li>" for entry in coverage["incomplete"])
@@ -390,6 +400,7 @@ def render_html(payload: dict, show_suppressed: bool = False) -> str:
         f"<p class=\"subtitle\">{title} &middot; spreadsheet-auditor {tool_version} &middot; {timestamp}</p>"
         f"{incomplete_block}"
         f"<div class=\"summary\">{summary_cards}</div>"
+        f"{shown_block}"
         f"<h2>Coverage</h2>{coverage_table}{limitations_block}"
         + "".join(findings_sections)
         + suppressed_section

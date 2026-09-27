@@ -54,21 +54,28 @@ def test_custom_check_can_register_and_run():
                 )
             ]
 
-    # Custom check should now be in the registry
-    assert any(c.__name__ == "CustomCheck" for c in checks())
-    instance = CustomCheck()
-    findings = instance.run(
-        CheckContext(
-            workbook_path=None,
-            formula_wb=None,
-            value_wb=None,
-            allowed_sheet_names=set(),
-            formulas=[],
-            config={},
-            inventory={},
+    from spreadsheet_auditor.checks import base
+
+    try:
+        # Custom check should now be in the registry
+        assert any(c.__name__ == "CustomCheck" for c in checks())
+        instance = CustomCheck()
+        findings = instance.run(
+            CheckContext(
+                workbook_path=None,
+                formula_wb=None,
+                value_wb=None,
+                allowed_sheet_names=set(),
+                formulas=[],
+                config={},
+                inventory={},
+            )
         )
-    )
-    assert findings and findings[0].rule_id == "CUSTOM_TEST"
+        assert findings and findings[0].rule_id == "CUSTOM_TEST"
+    finally:
+        # The registry is process-wide: left registered, this check would add
+        # a CUSTOM_TEST finding to every later in-process audit in the run.
+        base._REGISTRY.remove(CustomCheck)
 
 
 def test_registry_modes_are_DET_or_HEUR():
