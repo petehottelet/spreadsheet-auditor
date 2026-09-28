@@ -171,8 +171,8 @@ See `spreadsheet-auditor --help` for the full flag reference, including
 | 1 | Completed; findings at or above `--fail-on` |
 | 2 | Completed with coverage limitations (only with `--strict` or `--fail-on None`) |
 | 3 | Healthcheck failed: required dependency missing |
-| 4 | Invalid input: bad command-line arguments, or a preflight/security failure |
-| 5 | Internal error |
+| 4 | Invalid input: bad command-line arguments or config, a workbook, CSV or suppression file that cannot be read, a preflight/security failure, or an output path that cannot be written. stderr says what to fix |
+| 5 | Internal error: a bug in the auditor. stderr has the traceback for a bug report |
 | 6 | Incomplete: a check failed or timed out, or `limits.max_formulas`/`limits.max_cells` skipped part of the workbook |
 
 Benign limitations (no recalculation engine, missing optional packages) do not

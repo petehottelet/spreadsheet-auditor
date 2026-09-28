@@ -4,17 +4,19 @@ import argparse
 import contextlib
 import csv
 import importlib.resources
+import io
 import json
 import platform
 import sys
 import tempfile
 import time
+import traceback
 from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import __version__
 from .budget import AuditTimeout, Budget
-from .config_loader import allowed_sheets, apply_check_settings, load_config, sheet_is_allowed
+from .config_loader import ConfigError, allowed_sheets, apply_check_settings, load_config, sheet_is_allowed
 from .finding import Finding, assign_ids, sort_findings
 from .locations import location_matches
 from .names import NameTable
@@ -288,6 +290,13 @@ def _pin_suppressions(ignore_path: str, suppressions: list[dict]) -> None:
             print(f"       ({finding.location}: {finding.formula or finding.title})", file=sys.stderr)
 
 
+def _known_rules() -> set[str]:
+    """Rule IDs the registered checks report, which a config's checks section may name."""
+    from .checks import checks as registered_checks
+
+    return {rule for check_cls in registered_checks() for rule in check_cls.rule_ids}
+
+
 def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
     from .identity import assign_identities
     from .suppressions import apply_suppressions, load_suppressions
@@ -300,7 +309,7 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
 
     input_path = Path(args.workbook)
     preflight_info = preflight(input_path)
-    config = load_config(args.config)
+    config = load_config(args.config, known_rules=_known_rules())
     limitations: list[str] = []
     # Why part of the workbook went unchecked (a check failed or ran out of
     # time, or a size cap skipped formulas or cells). Any entry makes the audit
@@ -354,8 +363,15 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         # exactly what the author wrote; LibreOffice re-serializes formulas
         # (for example ``=SUM(#ref!)``) in its converted copy. That copy, when
         # recalculation ran, only supplies cached values.
-        formula_wb = load_workbook_formulas(input_path)
-        value_wb = load_workbook_values(analysis_path)
+        try:
+            formula_wb = load_workbook_formulas(input_path)
+            value_wb = load_workbook_values(analysis_path)
+        except Exception as exc:
+            # The file passed preflight as a zip but its contents do not parse.
+            raise PreflightError(
+                f"The workbook could not be read ({type(exc).__name__}: {exc}); open it in Excel, "
+                "save a copy, and audit the copy."
+            ) from exc
         inv = inventory(input_path, formula_wb, value_wb, preflight_info)
         include, exclude = allowed_sheets(config)
         allowed_sheet_names = {
@@ -525,15 +541,29 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
     # workbook rule, it gets an Info note). Whitespace-only cells are spacers.
     padded: dict[int, list[tuple[int, str]]] = defaultdict(list)
     filled: Counter = Counter()
-    with path.open(newline="", encoding="utf-8-sig") as handle:
-        reader = csv.reader(handle)
-        for row_idx, row in enumerate(reader, start=1):
-            for col_idx, value in enumerate(row, start=1):
-                if not value.strip():
-                    continue
-                filled[col_idx] += 1
-                if value != value.strip():
-                    padded[col_idx].append((row_idx, value))
+    # Excel's "CSV (Comma delimited)" is Windows-1252 on Western Windows
+    # systems; only "CSV UTF-8" is UTF-8.
+    raw = path.read_bytes()
+    encoding_notes: list[str] = []
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("cp1252")
+        except UnicodeDecodeError as exc:
+            raise PreflightError(
+                "The CSV is neither UTF-8 nor Windows-1252 text; save it as 'CSV UTF-8' and audit that."
+            ) from exc
+        encoding_notes.append(
+            "The CSV is not UTF-8, so it was read as Windows-1252, the encoding of Excel's 'CSV (Comma delimited)'."
+        )
+    for row_idx, row in enumerate(csv.reader(io.StringIO(text, newline="")), start=1):
+        for col_idx, value in enumerate(row, start=1):
+            if not value.strip():
+                continue
+            filled[col_idx] += 1
+            if value != value.strip():
+                padded[col_idx].append((row_idx, value))
     findings: list[Finding] = []
     for col_idx, cells in sorted(padded.items()):
         row_idx, value = cells[0]
@@ -565,7 +595,7 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
                 suggested_fix="Trim if this field is used as a key, label, or numeric input.",
             )
         )
-    csv_limitations = ["CSV audit is limited to data-hygiene checks."]
+    csv_limitations = ["CSV audit is limited to data-hygiene checks.", *encoding_notes]
     if config:
         findings = apply_check_settings(findings, config)
     suppressions = load_suppressions(config, ignore_path, warnings=csv_limitations)
@@ -1058,10 +1088,11 @@ Exit codes:
   2  --strict (or --fail-on None) and coverage limitations were present
      (e.g. recalculation unavailable, defusedxml missing).
   3  Healthcheck failed: required dependencies missing.
-  4  Invalid input: bad command-line arguments, or the workbook is unreadable
-     or has the wrong shape.
-  5  Internal auditor error. Re-run with the same arguments and attach
-     stderr to a bug report.
+  4  Invalid input: bad command-line arguments or config, a workbook, CSV or
+     suppression file that cannot be read, or an output path that cannot be
+     written. stderr says what to fix.
+  5  Internal auditor error, a bug: stderr has the traceback to attach to a
+     bug report.
   6  Audit incomplete: a check failed or ran out of time, or a size limit
      (limits.max_formulas, limits.max_cells) skipped part of the workbook.
      The findings reported are real but partial; the limitations say what
@@ -1141,6 +1172,19 @@ def _configure_streams() -> None:
             pass
 
 
+def _report_internal_error(stage: str) -> None:
+    """Explain an exit 5 on stderr with the exception type and traceback, for a bug report."""
+    error_type, error, _ = sys.exc_info()
+    summary = "".join(traceback.format_exception_only(error_type, error)).strip()
+    print(
+        f"Internal audit error {stage}: {summary}\n"
+        f"This is a bug in spreadsheet-auditor {__version__}, not a problem with the workbook. "
+        "Please report it with the traceback below.",
+        file=sys.stderr,
+    )
+    traceback.print_exc(file=sys.stderr)
+
+
 class _ArgumentParser(argparse.ArgumentParser):
     """Exit 4 on a usage error instead of argparse's 2.
 
@@ -1183,7 +1227,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Report format. Inferred from --out extension when omitted.",
     )
     parser.add_argument("--config", help="Optional JSON, YAML, or YML config path")
-    parser.add_argument("--ignore", default=".audit-ignore", help="Suppression file path (default '.audit-ignore').")
+    parser.add_argument(
+        "--ignore",
+        default=None,
+        help="Suppression file path. Default '.audit-ignore' in the working folder, used when it exists.",
+    )
     parser.add_argument(
         "--fail-on",
         default="Critical",
@@ -1252,6 +1300,14 @@ def main(argv: list[str] | None = None) -> int:
         if not args.workbook:
             parser.error("workbook is required unless --healthcheck or --demo is used")
 
+        # The default file is optional; a file named on the command line is not,
+        # or a mistyped path would drop every suppression without a word.
+        if args.ignore is None:
+            args.ignore = ".audit-ignore"
+        elif not Path(args.ignore).is_file():
+            print(f"Preflight failed: suppression file not found: {args.ignore}", file=sys.stderr)
+            return 4
+
         source = Path(args.workbook)
         targets = [
             (flag, Path(target))
@@ -1278,8 +1334,11 @@ def main(argv: list[str] | None = None) -> int:
         except PreflightError as exc:
             print(f"Preflight failed: {exc}", file=sys.stderr)
             return 4
-        except Exception as exc:
-            print(f"Internal audit error: {exc}", file=sys.stderr)
+        except ConfigError as exc:
+            print(f"Config error: {exc}", file=sys.stderr)
+            return 4
+        except Exception:
+            _report_internal_error("while auditing")
             return 5
 
         try:
@@ -1298,8 +1357,12 @@ def main(argv: list[str] | None = None) -> int:
                 for note in payload.get("coverage", {}).get("limitations", []):
                     if note.startswith("The annotated copy"):
                         print(f"Warning: {note}", file=sys.stderr)
-        except Exception as exc:
-            print(f"Failed to write output: {exc}", file=sys.stderr)
+        except OSError as exc:
+            # A missing folder, a file open in Excel, no permission: fixable by the user.
+            print(f"Could not write output: {exc}", file=sys.stderr)
+            return 4
+        except Exception:
+            _report_internal_error("while writing output")
             return 5
 
         # Even with --quiet: a CI log that shows only the exit code should

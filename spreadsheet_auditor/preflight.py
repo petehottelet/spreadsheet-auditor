@@ -43,11 +43,18 @@ def preflight(path: str | Path, max_uncompressed_mb: int = 250) -> dict:
             "(soffice --headless --convert-to xlsx FILE) or re-save it from Excel."
         )
 
+    try:
+        size_bytes, digest = workbook_path.stat().st_size, sha256_file(workbook_path)
+    except OSError as exc:
+        # A folder with a workbook's name, or a file this user may not read.
+        raise PreflightError(
+            f"Could not read {workbook_path} ({exc.strerror or exc}); check that it is a file you can open."
+        ) from exc
     result = {
         "path": str(workbook_path),
         "extension": workbook_path.suffix.lower(),
-        "size_bytes": workbook_path.stat().st_size,
-        "sha256": sha256_file(workbook_path),
+        "size_bytes": size_bytes,
+        "sha256": digest,
         "archive_checked": False,
         "macros_present": False,
     }

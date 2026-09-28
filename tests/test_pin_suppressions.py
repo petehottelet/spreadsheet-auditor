@@ -90,7 +90,16 @@ def test_pinning_keeps_crlf_line_endings(tmp_path):
     assert raw.count(b"\n") == raw.count(b"\r\n") == 2
 
 
-def test_pinning_without_a_file_says_so(tmp_path, capsys):
-    _run(_model(tmp_path / "v1.xlsx"), tmp_path / "missing-ignore", "--pin-suppressions")
+def test_pinning_without_the_default_file_says_so(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)  # no .audit-ignore here
+    audit.main([str(_model(tmp_path / "v1.xlsx")), "--quiet", "--fail-on", "None", "--pin-suppressions"])
     assert "nothing to pin" in capsys.readouterr().err
-    assert not (tmp_path / "missing-ignore").exists()
+    assert not (tmp_path / ".audit-ignore").exists()
+
+
+def test_a_named_suppression_file_that_is_missing_exits_4(tmp_path, capsys):
+    missing = tmp_path / "missing-ignore"
+    code = audit.main([str(_model(tmp_path / "v1.xlsx")), "--quiet", "--ignore", str(missing), "--pin-suppressions"])
+    assert code == 4
+    assert f"suppression file not found: {missing}" in capsys.readouterr().err
+    assert not missing.exists()

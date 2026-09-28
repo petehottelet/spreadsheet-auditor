@@ -30,6 +30,13 @@ def _workbook_with_ref_error(tmp_path: Path) -> Path:
     return path
 
 
+def _no_suppressions(tmp_path: Path) -> Path:
+    """An empty suppression file, so no `.audit-ignore` in the working folder applies."""
+    path = tmp_path / "no-suppressions"
+    path.touch()
+    return path
+
+
 def _crash(self, ctx):
     raise RuntimeError("simulated bug")
 
@@ -38,11 +45,11 @@ def test_a_crashed_check_fails_the_gate_instead_of_passing(tmp_path, monkeypatch
     workbook = _workbook_with_ref_error(tmp_path)
     out = tmp_path / "findings.json"
     # Without the crash the Critical LIVE_ERROR at C5 fails the default gate.
-    assert audit.main([str(workbook), "--json", str(out), "--ignore", str(tmp_path / "none")]) == 1
+    assert audit.main([str(workbook), "--json", str(out), "--ignore", str(_no_suppressions(tmp_path))]) == 1
 
     # With it, that finding is lost; the run used to exit 0 as if the workbook were clean.
     monkeypatch.setattr(LiveErrorCheck, "run", _crash)
-    code = audit.main([str(workbook), "--json", str(out), "--ignore", str(tmp_path / "none")])
+    code = audit.main([str(workbook), "--json", str(out), "--ignore", str(_no_suppressions(tmp_path))])
     assert code == 6
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["coverage"]["complete"] is False
@@ -58,7 +65,7 @@ def test_a_crashed_check_fails_the_gate_instead_of_passing(tmp_path, monkeypatch
 def test_incomplete_outranks_fail_on_none(tmp_path, monkeypatch):
     workbook = _workbook_with_ref_error(tmp_path)
     monkeypatch.setattr(LiveErrorCheck, "run", _crash)
-    code = audit.main([str(workbook), "--quiet", "--fail-on", "None", "--ignore", str(tmp_path / "none")])
+    code = audit.main([str(workbook), "--quiet", "--fail-on", "None", "--ignore", str(_no_suppressions(tmp_path))])
     assert code == 6
 
 
@@ -86,7 +93,7 @@ def _incomplete_payload(tmp_path, monkeypatch) -> dict:
     workbook = _workbook_with_ref_error(tmp_path)
     out = tmp_path / "findings.json"
     monkeypatch.setattr(LiveErrorCheck, "run", _crash)
-    audit.main([str(workbook), "--json", str(out), "--quiet", "--ignore", str(tmp_path / "none")])
+    audit.main([str(workbook), "--json", str(out), "--quiet", "--ignore", str(_no_suppressions(tmp_path))])
     return json.loads(out.read_text(encoding="utf-8"))
 
 
@@ -117,7 +124,7 @@ def test_payload_validates_and_reports_say_the_audit_is_partial(tmp_path, monkey
 def test_complete_audit_reports_success(tmp_path):
     workbook = _workbook_with_ref_error(tmp_path)
     out = tmp_path / "findings.json"
-    audit.main([str(workbook), "--json", str(out), "--quiet", "--ignore", str(tmp_path / "none")])
+    audit.main([str(workbook), "--json", str(out), "--quiet", "--ignore", str(_no_suppressions(tmp_path))])
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["coverage"]["complete"] is True and payload["coverage"]["incomplete"] == []
     assert render_sarif(payload)["runs"][0]["invocations"][0]["executionSuccessful"] is True

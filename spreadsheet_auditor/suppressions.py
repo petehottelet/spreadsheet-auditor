@@ -53,6 +53,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .config_loader import ConfigError
 from .locations import anchor, format_target, location_matches, split_location
 
 
@@ -77,9 +78,11 @@ def load_suppressions(
             # A copy: apply_suppressions counts matches on the entry.
             suppressions.append(dict(entry, source=f"config suppressions[{index}]"))
     if ignore_path and Path(ignore_path).exists():
-        for line_no, raw in enumerate(
-            Path(ignore_path).read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        try:
+            text = Path(ignore_path).read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ConfigError(f"Suppression file {ignore_path} is not UTF-8 text; save it as UTF-8") from exc
+        for line_no, raw in enumerate(text.splitlines(), start=1):
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
