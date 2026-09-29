@@ -95,6 +95,27 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Low/Info export note (as for workbooks), whitespace-only cells are skipped,
   and the report cap applies to CSV audits too; a padded notes column used to
   produce one finding per row.
+- **`IFERROR_MASK` reports only a failure passed off as data.** It used to
+  flag every `IFERROR` and `IFNA`, and on SpreadsheetBench about seven in ten
+  were deliberate: a lookup miss shown as `""`, an end-of-list extraction, a
+  chain of lookups, a wrapper around an `IF` that already handles its cases,
+  or around `COUNTIFS`, which cannot fail. It now reports a wrapper whose
+  expression can fail (a division, a lookup, an average, a text or date
+  conversion, arithmetic on a cell) when the error comes back as something
+  that reads as a real value: a number, a number written as text, a cell, or
+  a calculation. Google Sheets placeholder formulas are still reported, and
+  the evidence names what can fail and what replaces it. On SpreadsheetBench
+  the rule reports 644 findings instead of 1,763; of the 75 findings labeled
+  in earlier precision samples, the new rule keeps 19 of the 25 real ones
+  and 7 of the 50 false alarms.
+- **`BLANK_PRECEDENT` is off by default.** None of its 25 sampled findings
+  on SpreadsheetBench was a mistake: what remained was blanks that mean zero
+  by design, such as one side of a debit/credit pair. Turn it on with
+  `"checks": {"BLANK_PRECEDENT": "error"}` for data that must never have
+  gaps. With both changes, no SpreadsheetBench workbook reaches the report
+  cap (6 did) and the audit reports 3,760 findings instead of 4,620.
+- The seeded `IFERROR_MASK` case is now `=IFERROR(B2/B99,0)`: a division by
+  a blank cell whose `#DIV/0!` becomes 0.
 
 ### Fixed
 

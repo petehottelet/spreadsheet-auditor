@@ -185,6 +185,7 @@ class ReferenceIntegrityCheck(Check):
 
     def run(self, ctx: CheckContext) -> list[Finding]:
         from ..audit import detect_reference_issues
+        from ..config_loader import rule_enabled
 
         return detect_reference_issues(
             ctx.formula_wb,
@@ -193,6 +194,7 @@ class ReferenceIntegrityCheck(Check):
             ctx.unsupported_features,
             names=ctx.names,
             budget=ctx.budget,
+            blank_precedents=rule_enabled(ctx.config or {}, "BLANK_PRECEDENT"),
         )
 
 
