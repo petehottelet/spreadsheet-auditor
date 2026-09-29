@@ -116,8 +116,33 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   cap (6 did) and the audit reports 3,760 findings instead of 4,620.
 - The seeded `IFERROR_MASK` case is now `=IFERROR(B2/B99,0)`: a division by
   a blank cell whose `#DIV/0!` becomes 0.
+- **A config mistake stops the audit with exit 4.** A mistyped section,
+  setting or rule name (`"limit"`, `"LIVE_EROR"`) was ignored, so the audit
+  ran on defaults: the rule the config meant to turn off still failed the
+  build, and the raised limit never applied. An unknown name, a value of the
+  wrong type, or a check level other than error, warn, review or off now
+  exits 4 and names the nearest known name (`did you mean 'LIVE_ERROR'?`), as
+  do a missing config file, JSON or YAML that does not parse (with its line
+  and column), and a file that is not UTF-8. Rule names in `checks` match in
+  any case. `schemas/config.schema.json` rejects the same unknown names and
+  now lists the `finance` section and every accepted level.
+- **Input the auditor cannot read exits 4 and says what to do**, not 5: a
+  workbook whose contents do not parse, a folder or unreadable file in its
+  place, a CSV in neither UTF-8 nor Windows-1252, a suppression file that is
+  not UTF-8, and an output path in a missing folder or held open by another
+  program.
+- A suppression file named with `--ignore` must exist; a mistyped path used
+  to drop every suppression without a word. The default `.audit-ignore` is
+  still read only when it exists.
+- **Exit 5 is a bug in the auditor, and stderr says so**: the stage that
+  failed, the exception, and the traceback to attach to a bug report. It used
+  to print one line, with no traceback, for bugs and bad input alike.
 
 ### Fixed
+
+- A CSV saved from Excel as "CSV (Comma delimited)" is Windows-1252, and one
+  accented character in it made the audit exit 5. Such a CSV is now read as
+  Windows-1252, with a note in the limitations.
 
 - A suppression that matches no finding is reported in the coverage
   limitations, unless its rule is turned off, its rule went unchecked in an

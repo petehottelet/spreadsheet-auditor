@@ -12,9 +12,16 @@ from spreadsheet_auditor import audit
 from spreadsheet_auditor.finding import Finding
 
 
+def _no_suppressions(tmp_path: Path) -> Path:
+    """An empty suppression file, so no `.audit-ignore` in the working folder applies."""
+    path = tmp_path / "no-suppressions"
+    path.touch()
+    return path
+
+
 def _run(path: Path, tmp_path: Path, config: dict | None = None) -> dict:
     out = tmp_path / "findings.json"
-    args = [str(path), "--json", str(out), "--quiet", "--fail-on", "None", "--ignore", str(tmp_path / "none")]
+    args = [str(path), "--json", str(out), "--quiet", "--fail-on", "None", "--ignore", str(_no_suppressions(tmp_path))]
     if config is not None:
         (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
         args += ["--config", str(tmp_path / "config.json")]

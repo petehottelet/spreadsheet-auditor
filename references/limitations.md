@@ -148,8 +148,9 @@ See [`SECURITY.md`](../SECURITY.md) for the full threat model.
 | 1 | Completed; findings at or above the `--fail-on` threshold |
 | 2 | Completed with coverage limitations, only when `--strict` or `--fail-on None` is set |
 | 3 | Healthcheck failed: required dependency missing |
-| 4 | Preflight/security failure (unreadable, unsupported, oversized, or invalid input) |
-| 5 | Internal audit error |
+| 4 | Invalid input: bad arguments or config, an unreadable, unsupported or oversized workbook, CSV or suppression file, or an output path that cannot be written |
+| 5 | Internal audit error, a bug: stderr has the traceback |
+| 6 | Incomplete: a check failed or timed out, or a size limit skipped part of the workbook |
 
 Benign limitations such as missing recalculation or optional packages do not
 fail a normal run; use `--strict` to surface them as exit code `2` in CI.

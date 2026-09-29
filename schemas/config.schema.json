@@ -1,11 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Spreadsheet Auditor Config",
+  "description": "The auditor rejects, with exit code 4, a config holding a section, setting or rule it does not know, or a value of the wrong type.",
   "type": "object",
+  "additionalProperties": false,
   "properties": {
     "mode": { "type": "string" },
     "scope": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "include_sheets": { "type": "array", "items": { "type": "string" } },
         "exclude_sheets": { "type": "array", "items": { "type": "string" } },
@@ -14,6 +17,7 @@
     },
     "materiality": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "absolute": { "type": "number" },
         "relative": { "type": "number" },
@@ -22,6 +26,7 @@
     },
     "limits": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "max_cells": { "type": "integer", "minimum": 0 },
         "max_formulas": { "type": "integer", "minimum": 0 },
@@ -53,18 +58,30 @@
     },
     "checks": {
       "type": "object",
+      "description": "Rule ID (such as LIVE_ERROR) or its lowercase alias (such as live_errors) to setting. Names and settings match in any case; true means error and false means off.",
       "additionalProperties": {
         "oneOf": [
-          { "type": "string", "enum": ["error", "warn", "review", "off"] },
+          {
+            "type": "string",
+            "enum": ["error", "on", "true", "warn", "warning", "review", "off", "false", "disabled", "disable"]
+          },
           { "type": "boolean" }
         ]
       }
     },
     "recalc": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
         "timeout_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "finance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" }
       }
     }
   }
