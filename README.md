@@ -142,7 +142,7 @@ spreadsheet-auditor --demo --summary
 
 See `spreadsheet-auditor --help` for the full flag reference, including
 `--strict`, `--show-suppressed`, `--quiet`, `--config`, `--ignore`,
-`--recalc-timeout`, and `--healthcheck --json`.
+`--pin-suppressions`, `--recalc-timeout`, and `--healthcheck --json`.
 
 ## Outputs
 
@@ -152,8 +152,9 @@ See `spreadsheet-auditor --help` for the full flag reference, including
   (self-contained, no network).
 - **JSON findings** for reruns, CI, and downstream tooling. Validates against
   [`schemas/findings.schema.json`](schemas/findings.schema.json). Each finding
-  carries a stable `fingerprint` for diffing across runs and for fingerprint-
-  based suppression.
+  carries a `fingerprint` built from the flagged cell's content, which stays
+  the same across runs and inserted rows or columns, for diffing and for
+  fingerprint-based suppression.
 - **SARIF 2.1.0** for GitHub code scanning. See
   [`examples/github-actions/code-scanning.yml`](examples/github-actions/code-scanning.yml).
 - **Annotated workbook copy** with comments at finding cells (`--annotated`).
@@ -170,11 +171,19 @@ See `spreadsheet-auditor --help` for the full flag reference, including
 | 1 | Completed; findings at or above `--fail-on` |
 | 2 | Completed with coverage limitations (only with `--strict` or `--fail-on None`) |
 | 3 | Healthcheck failed: required dependency missing |
-| 4 | Preflight/security failure |
+| 4 | Invalid input: bad command-line arguments, or a preflight/security failure |
 | 5 | Internal error |
+| 6 | Incomplete: a check failed or timed out, or `limits.max_formulas`/`limits.max_cells` skipped part of the workbook |
 
 Benign limitations (no recalculation engine, missing optional packages) do not
 fail a normal run. Use `--strict` to surface them as exit code `2` in CI.
+
+An incomplete audit exits `6` whatever `--fail-on` says, because a partial run
+that found nothing is not a clean workbook. The findings it reports are real;
+`coverage.incomplete` in the JSON (and a banner in the reports) says what was
+not checked, and SARIF marks the run `executionSuccessful: false`. Raise
+`limits.timeout_seconds`, `limits.max_formulas` or `limits.max_cells` to
+audit a larger workbook in full.
 
 ## Agent Skill usage
 
@@ -274,14 +283,35 @@ value-dependent checks.
 **Does it support Google Sheets?** Not directly. Export to `.xlsx` and audit
 that.
 
-**How are false positives handled?** Suppress them by `(rule_id, range, reason)`
-or by `fingerprint`. The range may be a cell, a range, a whole column or row,
-or a bare sheet name; a finding is suppressed when its cell lies inside that
-target on the same sheet, never by text prefix (`Imports!A1` does not hide
-`Imports!A10`). A reason is required; suppressions missing a reason are
-ignored and called out in the report's coverage limitations. Suppressed findings
-stay in the JSON payload (auditable) but are hidden from the report unless
-`--show-suppressed` is passed.
+**How are false positives handled?** Suppress them in `.audit-ignore` (or the
+config's `suppressions`), always with a reason:
+
+```text
+LIVE_ERROR Model!C5 fingerprint:3f9c2a1b7d4e5f60 accepted: legacy link, FIN-12
+BROKEN_REFERENCE Imports raw feed, cells start empty
+LITERAL_CONSTANT 'Revenue Detail'!B2:B40 contract uplift rates
+```
+
+To accept one finding, copy the line the Markdown report prints under it (the
+first line above). It pins the suppression to the finding's fingerprint, which
+is built from the flagged cell's content, row label and sheet: the line keeps
+suppressing that finding when rows or columns are inserted, never hides a
+different finding that lands on the address, and the report says when the
+finding has moved away from the address written in the line. Without a
+fingerprint, a target follows its address, which is right for an area such as
+a raw-data sheet or an import range; an unpinned one-cell line would also hide
+whatever later lands on that cell, so the report prints the pinned line to
+replace it with, and `--pin-suppressions` rewrites those lines in place (and
+updates the address of pinned lines whose finding has moved), keeping every
+other line of the file. It pins each line to whatever it matches in that run,
+so run it before rows move and review the changes it prints. A target may be a cell, a range, a whole column or row, or a
+bare sheet name (a target without `!` is always a sheet, even `Q1`); quote
+sheet names that contain spaces. A finding is suppressed when its cell lies
+inside the target on the same sheet, never by text prefix (`Imports!A1` does
+not hide `Imports!A10`). Suppressions that are malformed, or that match no
+finding (fixed, or the cells changed), are called out in the report's coverage
+limitations. Suppressed findings stay in the JSON payload (auditable) but are
+hidden from the report unless `--show-suppressed` is passed.
 
 ## Contributing
 

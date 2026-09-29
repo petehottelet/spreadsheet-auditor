@@ -112,7 +112,9 @@ def run_one(workbook: Path, out_json: Path, timeout: int, extra_args: list[str] 
     except subprocess.TimeoutExpired:
         return {"status": "timeout", "exit_code": None, "elapsed": round(time.monotonic() - started, 3)}
     elapsed = round(time.monotonic() - started, 3)
-    record: dict = {"status": "ok" if proc.returncode in (0, 1, 2) else "error", "exit_code": proc.returncode, "elapsed": elapsed}
+    # 6 is an audit that skipped part of the workbook: its findings are real,
+    # so it is read like any other run and flagged through "complete".
+    record: dict = {"status": "ok" if proc.returncode in (0, 1, 2, 6) else "error", "exit_code": proc.returncode, "elapsed": elapsed}
     if record["status"] != "ok" or not out_json.exists():
         record["status"] = "error"
         record["stderr"] = (proc.stderr or "").strip()[-600:]
@@ -130,6 +132,7 @@ def run_one(workbook: Path, out_json: Path, timeout: int, extra_args: list[str] 
             "limitations": len(payload["coverage"].get("limitations", [])),
             "unsupported": payload["coverage"].get("unsupported_features", []),
             "truncated": [k for k, v in (payload["coverage"].get("truncated") or {}).items() if v],
+            "complete": payload["coverage"].get("complete", True),
         }
     )
     return record
@@ -205,6 +208,7 @@ def summarize(source: str, data_dir: Path, include_glob: str | None, seed: int, 
         "ok": len(ok),
         "errors": sum(1 for r in records.values() if r["status"] == "error"),
         "timeouts": sum(1 for r in records.values() if r["status"] == "timeout"),
+        "incomplete": sum(1 for r in ok if not r.get("complete", True)),
         "formulas": formulas,
         "recalc": dict(recalc),
         "findings_total": sum(rule_findings.values()),
@@ -241,7 +245,8 @@ def _auditor_version() -> str:
 def render_run_table(summary: dict) -> str:
     lines = [
         f"source: {summary['source']}   workbooks: {summary['workbooks']}   ok: {summary['ok']}   "
-        f"errors: {summary['errors']}   timeouts: {summary['timeouts']}   formulas: {summary['formulas']}",
+        f"errors: {summary['errors']}   timeouts: {summary['timeouts']}   "
+        f"incomplete: {summary.get('incomplete', 0)}   formulas: {summary['formulas']}",
         f"findings: {summary['findings_total']} in {summary['workbooks_with_findings']} workbooks   "
         f"elapsed median/p95/max: {summary['elapsed']['median']}/{summary['elapsed']['p95']}/{summary['elapsed']['max']} s",
         "",

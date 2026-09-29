@@ -28,7 +28,7 @@ def _run(path: Path, *extra: str) -> tuple[dict, subprocess.CompletedProcess]:
         encoding="utf-8",
         errors="replace",
     )
-    assert result.returncode in (0, 1, 2), result.stderr
+    assert result.returncode in (0, 1, 2, 6), result.stderr
     return json.loads(result.stdout), result
 
 
@@ -133,9 +133,11 @@ def test_max_cells_cap_skips_grid_checks_and_deprecated_limit_is_noted(tmp_path)
         json.dumps({"limits": {"max_cells": 5, "max_range_expansion_cells": 10}}), encoding="utf-8"
     )
 
-    capped, _ = _run(path, "--config", str(config))
+    capped, result = _run(path, "--config", str(config))
     assert "HARDCODE_IN_FORMULA_BLOCK" not in {f["rule_id"] for f in capped["findings"]}
     assert capped["coverage"]["truncated"]["cells"] is True
+    assert result.returncode == 6 and capped["coverage"]["complete"] is False
+    assert "HARDCODE_IN_FORMULA_BLOCK" in capped["coverage"]["incomplete"][0]["rules"]
     notes = capped["coverage"]["limitations"]
     assert any("cell-grid checks" in note for note in notes)
     assert any("max_range_expansion_cells is deprecated" in note for note in notes)

@@ -36,6 +36,27 @@
         "external_links_present": { "type": "boolean" },
         "unsupported_features": { "type": "array", "items": { "type": "string" } },
         "limitations": { "type": "array", "items": { "type": "string" } },
+        "complete": {
+          "type": "boolean",
+          "description": "False when part of the workbook was not checked; the CLI then exits 6."
+        },
+        "incomplete": {
+          "type": "array",
+          "description": "Why part of the workbook was not checked. Each message also appears in limitations.",
+          "items": {
+            "type": "object",
+            "required": ["reason", "message", "rules"],
+            "properties": {
+              "reason": { "enum": ["check_failed", "timeout", "formula_cap", "cell_cap"] },
+              "message": { "type": "string" },
+              "rules": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Rules that were not checked, or were checked only in part; empty when every rule is affected."
+              }
+            }
+          }
+        },
         "recalculation": {
           "type": "object",
           "properties": {
@@ -62,7 +83,8 @@
           "properties": {
             "formulas": { "type": "boolean" },
             "findings": { "type": "boolean" },
-            "cells": { "type": "boolean" }
+            "cells": { "type": "boolean" },
+            "timeout": { "type": "boolean" }
           }
         }
       }

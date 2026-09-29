@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpuslib import DATA_DIR, RESULTS_DIR, ROOT, now_iso, run_one, write_json, write_text  # noqa: E402
 
 sys.path.insert(0, str(ROOT))
-from spreadsheet_auditor.locations import location_matches  # noqa: E402
+from spreadsheet_auditor.locations import location_matches, split_location  # noqa: E402
 
 FAULT_TYPE_NAMES = {
     "AOR": "arithmetic operator replaced",
@@ -127,11 +127,11 @@ def convert_batch(sources: list[Path], data_root: Path, converted_root: Path, ba
 
 
 def _covers(finding_location: str, target: str) -> bool:
-    return any(location_matches(target, piece.strip()) for piece in finding_location.split(",") if piece.strip())
+    return any(location_matches(target, piece) for piece in split_location(finding_location))
 
 
 def _same_line(finding_location: str, sheet: str, col: str, row: int) -> bool:
-    match = _ANCHOR_RE.match(finding_location.split(",", 1)[0].strip())
+    match = _ANCHOR_RE.match((split_location(finding_location) or [""])[0])
     if not match or match.group("sheet").strip("'").casefold() != sheet.casefold():
         return False
     return match.group("col").upper() == col or int(match.group("row")) == row

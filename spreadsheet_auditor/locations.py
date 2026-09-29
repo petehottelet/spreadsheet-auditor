@@ -2,7 +2,10 @@
 
 Used by suppressions and by ``scope.headline_outputs`` matching. Locations are
 ``Sheet!A1``, ``Sheet!A1:B10``, whole columns/rows (``Sheet!A:A``), or a
-comma-joined list of those (``Model!A37, Model!A38``).
+comma-joined list of those (``Model!A37, Model!A38``). Finding locations
+carry sheet names unquoted, and a sheet name may itself contain a comma
+(``P&L, 2025!B1``) or an exclamation mark; targets written by users may quote
+them (``'P&L, 2025'!B1``).
 """
 
 from __future__ import annotations
@@ -18,8 +21,18 @@ _CELL_RE = re.compile(r"^([A-Z]{1,3})(\d{1,7})$")
 _RANGE_RE = re.compile(r"^([A-Z]{1,3})(\d{1,7}):([A-Z]{1,3})(\d{1,7})$")
 _COLS_RE = re.compile(r"^([A-Z]{1,3}):([A-Z]{1,3})$")
 _ROWS_RE = re.compile(r"^(\d{1,7}):(\d{1,7})$")
+# CSV findings use R1C1 coordinates (``CSV!R2C1``).
+_R1C1_RE = re.compile(r"^R\d+C\d+$")
 
 Box = tuple[int, int, int, int]
+
+
+def unquote_sheet(sheet: str) -> str:
+    """``'O''Brien'`` -> ``O'Brien``; an unquoted name is returned stripped."""
+    sheet = sheet.strip()
+    if len(sheet) >= 2 and sheet[0] == "'" and sheet[-1] == "'":
+        return sheet[1:-1].replace("''", "'")
+    return sheet
 
 
 def _split(piece: str) -> tuple[str | None, str]:
@@ -27,10 +40,73 @@ def _split(piece: str) -> tuple[str | None, str]:
     if "!" not in piece:
         return None, piece
     sheet, addr = piece.rsplit("!", 1)
-    sheet = sheet.strip()
-    if len(sheet) >= 2 and sheet[0] == "'" and sheet[-1] == "'":
-        sheet = sheet[1:-1].replace("''", "'")
-    return sheet, addr.strip()
+    return unquote_sheet(sheet), addr.strip()
+
+
+_PLAIN_SHEET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
+def format_target(piece: str) -> str:
+    """Write one location piece as a target, quoting the sheet name when Excel would.
+
+    ``Revenue Detail!B1`` -> ``'Revenue Detail'!B1``; ``O'Brien!A1`` ->
+    ``'O''Brien'!A1``; ``Budget!B14`` is left as it is.
+    """
+    sheet, addr = _split(piece)
+    if sheet is None:
+        return piece.strip()
+    if _PLAIN_SHEET_RE.match(sheet) and _box(sheet) is None:
+        return f"{sheet}!{addr}"
+    return "'" + sheet.replace("'", "''") + f"'!{addr}"
+
+
+def target_sheet(target: str) -> str | None:
+    """The sheet a suppression or headline target names (a bare target is a sheet)."""
+    if not target.strip():
+        return None
+    sheet, addr = _split(target)
+    return sheet if sheet is not None else unquote_sheet(addr)
+
+
+def _is_address(addr: str) -> bool:
+    text = addr.replace("$", "").replace(" ", "").upper()
+    return _box(text) is not None or bool(_R1C1_RE.match(text))
+
+
+def split_location(location: str) -> list[str]:
+    """Split a comma-joined location into its pieces.
+
+    A comma ends a piece only when the text before it is a complete
+    ``Sheet!address``; otherwise it belongs to a sheet name, so
+    ``P&L, 2025!B1, P&L, 2025!B2`` is two pieces, not four.
+    """
+    pieces: list[str] = []
+    pending = ""
+    for segment in (location or "").split(","):
+        pending = f"{pending},{segment}" if pending else segment
+        sheet, addr = _split(pending)
+        if sheet is not None and _is_address(addr):
+            pieces.append(pending.strip())
+            pending = ""
+    if pending.strip():
+        pieces.append(pending.strip())
+    return pieces
+
+
+def anchor(location: str) -> tuple[str, int, int] | None:
+    """``(sheet, row, col)`` of the top-left cell of a location's first piece.
+
+    A whole column anchors on row 1 and a whole row on column A. ``None`` when
+    the location names no sheet or no A1-style address.
+    """
+    pieces = split_location(location)
+    if not pieces:
+        return None
+    sheet, addr = _split(pieces[0])
+    box = _box(addr) if sheet else None
+    if box is None:
+        return None
+    return sheet, box[1], box[0]
 
 
 def _box(addr: str) -> Box | None:
@@ -75,25 +151,24 @@ def _norm_text(text: str) -> str:
 def location_matches(location: str, target: str) -> bool:
     """True when ``target`` covers ``location``.
 
-    ``target`` is a cell, a range, a whole column/row, or a bare sheet name
-    (the whole sheet). A multi-cell ``location`` matches when any of its
-    pieces is covered. Sheet names compare case-insensitively and ``$``
-    markers are ignored. Locations that are not A1-style (for example CSV
-    ``R1C2`` coordinates) match only on exact text. Nothing is matched by
-    substring, so ``Imports!A1`` never covers ``Imports!A10``.
+    ``target`` is ``Sheet!cell``, ``Sheet!range``, ``Sheet!A:A`` or
+    ``Sheet!5:5``, or a bare sheet name for the whole sheet. A target without
+    ``!`` is always a sheet name, even one that reads like a cell (``Q1``,
+    ``FY2025``). A multi-cell ``location`` matches when any of its pieces is
+    covered. Sheet names compare case-insensitively and ``$`` markers are
+    ignored. Locations that are not A1-style (for example CSV ``R1C2``
+    coordinates) match only on exact text. Nothing is matched by substring,
+    so ``Imports!A1`` never covers ``Imports!A10``.
     """
     if not location or not target:
         return False
     target = target.strip()
     t_sheet, t_addr = _split(target)
-    t_box = _box(t_addr)
-    whole_sheet = t_sheet is None and t_box is None and bool(t_addr)
-    whole_sheet_key = t_addr.strip("'").casefold() if whole_sheet else None
+    whole_sheet = t_sheet is None
+    whole_sheet_key = unquote_sheet(t_addr).casefold() if whole_sheet else None
+    t_box = None if whole_sheet else _box(t_addr)
     t_sheet_key = (t_sheet or "").casefold()
-    for piece in location.split(","):
-        piece = piece.strip()
-        if not piece:
-            continue
+    for piece in split_location(location):
         if _norm_text(piece) == _norm_text(target):
             return True
         p_sheet, p_addr = _split(piece)
@@ -102,7 +177,7 @@ def location_matches(location: str, target: str) -> bool:
             if p_sheet_key == whole_sheet_key:
                 return True
             continue
-        if t_sheet is not None and p_sheet_key != t_sheet_key:
+        if p_sheet_key != t_sheet_key:
             continue
         if t_box is None:
             if _norm_text(p_addr) == _norm_text(t_addr):

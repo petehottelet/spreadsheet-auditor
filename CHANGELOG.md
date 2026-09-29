@@ -9,6 +9,50 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- **An incomplete audit exits 6.** A check that raised an exception or ran
+  out of time, or a `limits.max_formulas`/`limits.max_cells` cap that skipped
+  part of the workbook, used to add a line to the limitations and exit as if
+  the audit were whole. A workbook with 1,830 live errors audited under a
+  15-second budget reported no findings and exited 0; it now exits 6.
+  Exit 6 takes precedence over 1 and applies whatever `--fail-on` says.
+  `coverage.complete` and `coverage.incomplete` (reason, message, and the
+  rules not checked) say what happened; the Markdown and HTML reports open
+  with a banner, `--summary` prints `audit : INCOMPLETE`, stderr names the
+  cause even with `--quiet`, and SARIF sets `executionSuccessful: false`
+  with tool execution notifications.
+- **Command-line usage errors exit 4 instead of 2**, since 2 means a
+  completed audit with coverage limitations; a script that accepted 2 read a
+  mistyped flag as a finished audit.
+- Checks run formula integrity (live errors and broken references first)
+  and the reconciliations before the grid scans, so a time budget that runs
+  out drops the slower checks first.
+- **Fingerprints follow the flagged cell, not its address.** A fingerprint
+  now hashes the rule, the sheet, the cell's row label, and its content (a
+  formula rewritten relative to its own cell, or a constant), numbered in
+  sheet order when several findings share all of that. Inserting a row no
+  longer changes every fingerprint, and a fingerprint suppression no longer
+  passes to whatever lands on the old address. Existing fingerprint
+  suppressions need the new fingerprint once; the report now names each stale
+  one. SARIF carries it as `partialFingerprints["spreadsheetAuditor/v2"]`.
+- **A one-cell suppression can be pinned to its finding.** A location line
+  such as `LIVE_ERROR Model!C5 accepted` also hid any later finding of that
+  rule on C5: after a row went in above the model, the accepted `#REF!` came
+  back at C6 and a new `#REF!` typed at C5 was hidden. A line may now carry
+  the fingerprint it accepts, `LIVE_ERROR Model!C5 fingerprint:<fp> <reason>`
+  (config: `rule_id`, `range` and `fingerprint` together); the fingerprint
+  decides the match, so the line keeps suppressing the accepted finding at C6,
+  leaves the new one reported, and the report says the finding has moved away
+  from C5. The Markdown report prints this pinned line under every finding,
+  and each run names the pinned replacement for every unpinned one-cell line
+  that matched. A pinned line whose finding is gone says what now sits at its
+  address.
+- **`--pin-suppressions`** rewrites the `--ignore` file after the audit: each
+  unpinned one-cell line that matched becomes its pinned form, reason kept,
+  and each pinned line whose finding has moved gets the finding's current
+  address. Comments, blank lines, area lines, stale lines and the file's
+  newline style are kept, the file is replaced atomically, and every change is
+  printed on stderr with the formula it was pinned to. A line is pinned to
+  whatever it matches in that run, so run it before rows move.
 - `FORMULA_DRIFT` leaves summary cells alone when they are not part of the
   run beside them: a cell where the run's formula would add up only text
   labels (a link under "Total Tax" heading a column of names), and one of a
@@ -19,6 +63,23 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   already labeled were false or unsure; the re-drawn sample puts drift at 62%
   precision (41% to 79%), up from 52%. EUSES recall is unchanged at 528 of
   695 injected faults.
+
+### Fixed
+
+- A suppression that matches no finding is reported in the coverage
+  limitations, unless its rule is turned off, its rule went unchecked in an
+  incomplete audit, or its sheet is out of scope.
+- `'Revenue Detail'!B1` in `.audit-ignore` was split at the space and
+  suppressed findings on the sheet `Revenue`; quoted sheet names (with `''`
+  for an apostrophe) now parse, and an unquoted sheet name with a space is
+  rejected with the quoted form to use.
+- A bare target that reads like a cell (`Q1`, `FY2025`) suppressed that
+  address on every sheet; a target without `!` is now always a sheet name, as
+  documented.
+- Sheet names containing a comma (`P&L, 2025`) could not be suppressed or
+  annotated, and their findings had no `cell` in the JSON.
+- `--annotated` no longer fails on a finding located at a whole column or row
+  (no built-in rule reports one; a custom check could).
 
 ## [0.3.0] - 2026-09-25
 

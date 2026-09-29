@@ -18,13 +18,16 @@ from __future__ import annotations
 
 from .base import Check, CheckContext, checks, discovered_modules, register
 
-# Import built-in check modules so their `@register` calls run.
-# Custom checks added via plug-in entry points are loaded lazily by callers.
+# Import built-in check modules so their `@register` calls run. Import order
+# is run order: when the time budget runs out, the checks not yet run are
+# skipped, so the formula-integrity checks (live errors and broken references
+# first, which are right every time) and the Critical reconciliations go
+# before the slower grid scans and the opt-in finance pack.
+from . import formula_integrity  # noqa: F401
+from . import reconciliation  # noqa: F401
+from . import ranges  # noqa: F401
 from . import data_hygiene  # noqa: F401
 from . import finance  # noqa: F401
-from . import formula_integrity  # noqa: F401
-from . import ranges  # noqa: F401
-from . import reconciliation  # noqa: F401
 
 __all__ = [
     "Check",

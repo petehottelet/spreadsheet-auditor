@@ -41,7 +41,10 @@
         "properties": {
           "rule_id": { "type": "string" },
           "range": { "type": "string" },
-          "fingerprint": { "type": "string" },
+          "fingerprint": {
+            "type": "string",
+            "description": "The finding's fingerprint. With rule_id and range, it pins the suppression to that finding: the fingerprint decides the match, and range documents where the finding was accepted."
+          },
           "reason": { "type": "string" },
           "expiry": { "type": "string" },
           "owner": { "type": "string" }

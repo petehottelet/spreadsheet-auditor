@@ -95,8 +95,26 @@ def _result(finding: dict, workbook_uri: str) -> dict:
         },
     }
     if fingerprint:
-        result["partialFingerprints"] = {"spreadsheetAuditor/v1": fingerprint}
+        # v2 hashes the flagged cell's content rather than its address (v1),
+        # so an inserted row no longer closes and reopens every alert.
+        result["partialFingerprints"] = {"spreadsheetAuditor/v2": fingerprint}
     return result
+
+
+def _notifications(coverage: dict) -> list[dict]:
+    """Tool execution notifications: what went unchecked (errors) and other limitations (notes)."""
+    incomplete = coverage.get("incomplete") or []
+    notes = [
+        {"level": "error", "message": {"text": entry["message"]}, "descriptor": {"id": entry["reason"]}}
+        for entry in incomplete
+    ]
+    unchecked = {entry["message"] for entry in incomplete}
+    notes += [
+        {"level": "note", "message": {"text": text}}
+        for text in coverage.get("limitations") or []
+        if text not in unchecked
+    ]
+    return notes
 
 
 def render_sarif(payload: dict) -> dict:
@@ -105,6 +123,7 @@ def render_sarif(payload: dict) -> dict:
     workbook_uri = Path(workbook.get("path", "workbook.xlsx")).as_posix()
     tool_version = payload.get("tool_version") or payload.get("audit_version") or "unknown"
     rules = _rules_from_findings(findings)
+    coverage = payload.get("coverage", {})
 
     run = {
         "tool": {
@@ -125,8 +144,11 @@ def render_sarif(payload: dict) -> dict:
         ],
         "invocations": [
             {
-                "executionSuccessful": True,
+                # False when a check failed or timed out or a size cap skipped
+                # part of the workbook: the results are then partial.
+                "executionSuccessful": bool(coverage.get("complete", True)),
                 "endTimeUtc": payload.get("timestamp"),
+                "toolExecutionNotifications": _notifications(coverage),
             }
         ],
     }

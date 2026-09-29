@@ -96,14 +96,20 @@ replacement of the original workbook.
 - External workbooks are referenced but not available.
 - Formulas use unsupported syntax, dynamic arrays, data tables, structured
   references, Power Query, Data Model, add-ins, UDFs, or macros.
-- Runtime limits cause expensive graph or range checks to be skipped.
+- Runtime limits cause expensive graph or range checks to be skipped. A
+  check that fails or runs out of time, or a size cap that skips formulas or
+  cells, makes the audit incomplete: the CLI exits 6, `coverage.complete` is
+  false, and `coverage.incomplete` names the rules that were not checked.
 - The workbook is password-protected or corrupt.
 - Suppressions hide findings; the report's summary always shows the
   suppressed count. Every suppression requires a reason; malformed
   suppressions (missing reason, unparseable line) are ignored and reported as
-  a coverage limitation so a dropped suppression is never silent. Suppression
-  targets are matched by location (a cell, range, whole column/row, or sheet
-  name), never by text prefix.
+  a coverage limitation so a dropped suppression is never silent, and so is a
+  suppression that matched no finding. A line pinned to a fingerprint
+  follows the flagged cell's content through inserted rows and columns and
+  never hides a different finding; an unpinned target (a cell, range, whole
+  column/row, or sheet name) follows the address, never a text prefix, so the
+  report prints the pinned replacement for every unpinned one-cell line.
 
 Never execute macros. Never follow external links without explicit user
 approval and sandbox controls.
