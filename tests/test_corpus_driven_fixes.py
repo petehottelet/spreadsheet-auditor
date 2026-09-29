@@ -346,8 +346,11 @@ def test_compared_text_codes_inside_sumproduct_are_not_numbers(tmp_path):
     ws["E1"] = "=SUM(B2:B5)"  # the control: a SUM does consume the codes as numbers
     path = tmp_path / "codes.xlsx"
     wb.save(path)
-    found = {f["location"]: f["severity"] for f in _audit(path).get("NUMBERS_STORED_AS_TEXT", [])}
-    assert found == {"Raw!B2": "High", "Raw!B3": "High", "Raw!B4": "High", "Raw!B5": "High"}
+    [found] = _audit(path).get("NUMBERS_STORED_AS_TEXT", [])
+    # One finding for the column, naming the other three codes.
+    assert (found["location"], found["severity"]) == ("Raw!B2", "High")
+    assert "4 numeric-looking text values in column B are read as numbers" in found["evidence"][1]
+    assert "B3 '9941', B4 '9940', B5 '9942'" in found["evidence"][1]
     ws["E1"] = None
     wb.save(path)
     assert "NUMBERS_STORED_AS_TEXT" not in _audit(path)

@@ -57,6 +57,30 @@
             }
           }
         },
+        "finding_counts": {
+          "type": "object",
+          "description": "Active findings counted before limits.max_reported_findings trims the list.",
+          "required": ["total", "shown", "suppressed", "by_severity", "by_rule"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "shown": { "type": "integer", "minimum": 0 },
+            "suppressed": { "type": "integer", "minimum": 0 },
+            "by_severity": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "by_rule": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["rule_id", "severity", "error_confidence", "count"],
+                "properties": {
+                  "rule_id": { "type": "string" },
+                  "severity": { "type": "string" },
+                  "error_confidence": { "type": "string" },
+                  "count": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
         "recalculation": {
           "type": "object",
           "properties": {

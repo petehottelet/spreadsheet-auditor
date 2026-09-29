@@ -128,3 +128,13 @@ def test_assign_keys_disambiguates_findings_that_share_a_location():
     assert keys[0].startswith(base + "|") and keys[1].startswith(base + "|")
     corpuslib.assign_keys(items)
     assert [item["key"] for item in items] == keys
+
+
+def test_recorded_paths_are_never_absolute(tmp_path):
+    # Run summaries, samples and reports are committed; an absolute path
+    # would publish the maintainer's home directory.
+    inside = corpuslib.RESULTS_DIR / "spreadsheetbench-grouped"
+    assert corpuslib.display_path(inside) == "benchmarks/corpus/results/spreadsheetbench-grouped"
+    other_checkout = tmp_path / "elsewhere" / "benchmarks" / "corpus" / "data"
+    assert corpuslib.display_path(other_checkout) == "benchmarks/corpus/data"
+    assert corpuslib.display_path(tmp_path / "loose") == "loose"

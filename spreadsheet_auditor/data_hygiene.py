@@ -20,6 +20,8 @@ MIN_NUMERIC_COLUMN = 3
 # A column where this many values, and at least four in five of them, carry
 # padding was padded by an export; it gets one note, not one finding per cell.
 MIN_PADDED_COLUMN = 3
+# Column-level findings name this many of their other cells.
+MAX_SHOWN = 8
 
 
 def _sheets(workbook, allowed_sheet_names: set[str] | None):
@@ -73,44 +75,66 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
         text_per_col: dict[int, int] = defaultdict(int)
         for cell in text_numbers:
             text_per_col[cell.column] += 1
+        # One finding per column and kind: a pasted column of text numbers is
+        # one conversion to make, not one finding per row.
+        consumed: dict[int, list] = defaultdict(list)
+        in_numeric_column: dict[int, list] = defaultdict(list)
         for cell in text_numbers:
-            value = cell.value
-            loc = location(ws.title, cell.row, cell.column)
             if index.numeric_contains(ws.title, cell.row, cell.column):
-                findings.append(
-                    Finding(
-                        rule_id="NUMBERS_STORED_AS_TEXT",
-                        severity="High",
-                        error_confidence="Likely defect",
-                        detection_mode="DET",
-                        location=loc,
-                        title="Numeric-looking value stored as text",
-                        evidence=[
-                            f"Cell contains text value {value!r} and a formula consumes it as a number; "
-                            "SUM-style functions skip text and arithmetic on it fails."
-                        ],
-                        suggested_fix="Convert the value to a number or confirm it is intentionally text.",
-                    )
-                )
+                consumed[cell.column].append(cell)
             elif (
                 numeric_per_col[cell.column] >= MIN_NUMERIC_COLUMN
                 and numeric_per_col[cell.column] > text_per_col[cell.column]
             ):
-                findings.append(
-                    Finding(
-                        rule_id="NUMBERS_STORED_AS_TEXT",
-                        severity="Medium",
-                        error_confidence="Review",
-                        detection_mode="DET",
-                        location=loc,
-                        title="Numeric-looking text in a numeric column",
-                        evidence=[
-                            f"Cell contains text value {value!r} in a column that otherwise holds {numeric_per_col[cell.column]} numbers."
-                        ],
-                        suggested_fix="Convert the value to a number or confirm it is intentionally text.",
-                    )
+                in_numeric_column[cell.column].append(cell)
+        for col, cells in consumed.items():
+            lead = cells[0]
+            evidence = [
+                f"Cell contains text value {lead.value!r} and a formula consumes it as a number; "
+                "SUM-style functions skip text and arithmetic on it fails."
+            ]
+            if len(cells) > 1:
+                evidence.append(_others(cells, f"numeric-looking text values in column {get_column_letter(col)} are read as numbers"))
+            findings.append(
+                Finding(
+                    rule_id="NUMBERS_STORED_AS_TEXT",
+                    severity="High",
+                    error_confidence="Likely defect",
+                    detection_mode="DET",
+                    location=location(ws.title, lead.row, lead.column),
+                    title="Numeric-looking value stored as text",
+                    evidence=evidence,
+                    suggested_fix="Convert the values to numbers or confirm they are intentionally text.",
                 )
+            )
+        for col, cells in in_numeric_column.items():
+            lead = cells[0]
+            evidence = [
+                f"Cell contains text value {lead.value!r} in a column that otherwise holds {numeric_per_col[col]} numbers."
+            ]
+            if len(cells) > 1:
+                evidence.append(_others(cells, f"numeric-looking text values sit in number column {get_column_letter(col)}"))
+            findings.append(
+                Finding(
+                    rule_id="NUMBERS_STORED_AS_TEXT",
+                    severity="Medium",
+                    error_confidence="Review",
+                    detection_mode="DET",
+                    location=location(ws.title, lead.row, lead.column),
+                    title="Numeric-looking text in a numeric column",
+                    evidence=evidence,
+                    suggested_fix="Convert the values to numbers or confirm they are intentionally text.",
+                )
+            )
     return findings
+
+
+def _others(cells: list, what: str) -> str:
+    """Evidence line naming the other cells of a column-level finding, with their values."""
+    shown = ", ".join(f"{cell.coordinate} {cell.value!r}" for cell in cells[1:MAX_SHOWN + 1])
+    if len(cells) - 1 > MAX_SHOWN:
+        shown += f", and {len(cells) - 1 - MAX_SHOWN} more"
+    return f"{len(cells)} {what}; the others are {shown}."
 
 
 def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIndex) -> list[Finding]:
@@ -215,23 +239,40 @@ def _duplicate_keys(workbook, allowed_sheet_names, budget, index: ReferenceIndex
             if not any(start <= cell.row <= end for start, end in intervals[cell.column]):
                 continue
             by_col[cell.column][value.strip().lower()].append(location(ws.title, cell.row, cell.column))
+        # One finding per searched column: a list with many repeated keys is
+        # one list to clean up, led by its first repeated key.
         for col in columns:
-            for key, locs in by_col[col].items():
-                if len(locs) > 1:
-                    findings.append(
-                        Finding(
-                            rule_id="DUPLICATE_KEY",
-                            severity="Medium",
-                            error_confidence="Review",
-                            detection_mode="DET",
-                            location=", ".join(locs[:5]),
-                            title="Duplicate key in lookup range",
-                            evidence=[
-                                f"Normalized key {key!r} appears {len(locs)} times in a range searched by lookup formulas; only the first match is returned."
-                            ],
-                            suggested_fix="Make the keys unique or confirm the lookup is meant to return the first match.",
-                        )
-                    )
+            repeated = [(key, locs) for key, locs in by_col[col].items() if len(locs) > 1]
+            if not repeated:
+                continue
+            key, locs = repeated[0]
+            evidence = [
+                f"Normalized key {key!r} appears {len(locs)} times in a range searched by lookup formulas; only the first match is returned."
+            ]
+            if len(repeated) > 1:
+                shown = "; ".join(
+                    f"{other!r} {len(other_locs)} times ({', '.join(loc.rsplit('!', 1)[1] for loc in other_locs[:4])}"
+                    + (", ..." if len(other_locs) > 4 else "")
+                    + ")"
+                    for other, other_locs in repeated[1:MAX_SHOWN + 1]
+                )
+                if len(repeated) - 1 > MAX_SHOWN:
+                    shown += f"; and {len(repeated) - 1 - MAX_SHOWN} more"
+                evidence.append(
+                    f"{len(repeated)} keys repeat in column {get_column_letter(col)}; the others are {shown}."
+                )
+            findings.append(
+                Finding(
+                    rule_id="DUPLICATE_KEY",
+                    severity="Medium",
+                    error_confidence="Review",
+                    detection_mode="DET",
+                    location=", ".join(locs[:5]),
+                    title="Duplicate key in lookup range" if len(repeated) == 1 else "Duplicate keys in lookup range",
+                    evidence=evidence,
+                    suggested_fix="Make the keys unique or confirm the lookup is meant to return the first match.",
+                )
+            )
     return findings
 
 

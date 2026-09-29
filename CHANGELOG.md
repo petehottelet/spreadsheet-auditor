@@ -63,6 +63,38 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   already labeled were false or unsure; the re-drawn sample puts drift at 62%
   precision (41% to 79%), up from 52%. EUSES recall is unchanged at 528 of
   695 injected faults.
+- **A mistake repeated down a column is one finding.** A formula filled
+  down a column that errors in every row was one Critical finding per row: a
+  SpreadsheetBench workbook whose lookup reads its own column reported 278
+  for one column, and the 200-finding report cap then hid the workbook's
+  other findings. Now `LIVE_ERROR` groups errors by sheet, error value and
+  relative formula (and the same error typed as a value), including errors
+  inside a cycle, which have no root; `BROKEN_REFERENCE` groups `#REF!` and
+  unresolved formulas by relative formula; `CIRCULAR_REFERENCE` groups cells
+  that each reference only themselves; `NUMBERS_STORED_AS_TEXT` is one
+  finding per column and kind; `DUPLICATE_KEY` is one finding per searched
+  column; and `HIDDEN_STRUCTURE_IN_TOTAL` is one finding per sheet for its
+  hidden rows and one for its hidden columns, named as runs (one workbook
+  had 31 findings on a single cell, one per hidden column). Each finding
+  sits at the top-left cell and lists the others with a count. On
+  SpreadsheetBench the auditor reports 4,620 findings instead of 11,123:
+  `LIVE_ERROR` 385 instead of 5,057 (at most 19 in a workbook, from 200),
+  `NUMBERS_STORED_AS_TEXT` 58 from 847, `DUPLICATE_KEY` 72 from 647,
+  `BROKEN_REFERENCE` 134 from 479, `CIRCULAR_REFERENCE` 9 from 171 and
+  `HIDDEN_STRUCTURE_IN_TOTAL` 52 from 154. No workbook reports more findings
+  than before.
+- **The report cap keeps every rule.** `limits.max_reported_findings` used
+  to keep the first findings in severity order, so one rule could take every
+  place. Each rule now keeps its most severe finding and the remaining places
+  go by severity; the limitation note says how many findings of each rule
+  were left out, and `coverage.finding_counts` holds the counts before the
+  cap, which `--summary` and the reports now show ("5 Critical ... (3 of 6
+  shown)"). On SpreadsheetBench 6 workbooks reach the cap instead of 22, and
+  142 findings the old cap hid are shown.
+- CSV whitespace is one finding per column, a column padded throughout is a
+  Low/Info export note (as for workbooks), whitespace-only cells are skipped,
+  and the report cap applies to CSV audits too; a padded notes column used to
+  produce one finding per row.
 
 ### Fixed
 

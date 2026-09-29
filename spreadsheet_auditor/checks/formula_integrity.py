@@ -5,9 +5,17 @@ from __future__ import annotations
 from collections import defaultdict
 
 from ..finding import Finding
+from ..formula_parser import normalize_formula
+from ..locations import anchor
 from .base import Check, CheckContext, register
 
 MAX_DEPENDENTS_SHOWN = 8
+
+
+def _position(location: str) -> tuple:
+    """Sort key in sheet order: row, then column (``D11`` before ``D100``)."""
+    spot = anchor(location)
+    return spot if spot is not None else (location, 0, 0)
 # Functions that can swallow or branch around an error literal, so a formula
 # containing one does not necessarily evaluate to it.
 ERROR_HANDLERS = {
@@ -80,11 +88,10 @@ class LiveErrorCheck(Check):
         roots = [loc for loc in errors if not any(dep in errors for dep in graph.get(loc, ()))]
         # The root's formula is where the error is born; the report shows it so
         # the cause can be read without opening the workbook.
-        formula_at = {cell["location"]: cell["formula"] for cell in ctx.formulas}
+        cell_at = {cell["location"]: cell for cell in ctx.formulas}
         covered: set[str] = set()
-        findings: list[Finding] = []
-        for root in sorted(roots):
-            propagated: list[str] = []
+        propagated_from: dict[str, set[str]] = {}
+        for root in roots:
             seen = {root}
             stack = [root]
             while stack:
@@ -92,31 +99,69 @@ class LiveErrorCheck(Check):
                 for dependent in reverse.get(node, ()):
                     if dependent in errors and dependent not in seen:
                         seen.add(dependent)
-                        propagated.append(dependent)
                         stack.append(dependent)
-            covered.add(root)
-            covered.update(propagated)
+            covered.update(seen)
+            propagated_from[root] = seen - {root}
+
+        # Errors inside a cycle have no root (a lookup whose table spans its
+        # own column: every row reads the others); each is its own source.
+        for loc in set(errors) - covered:
+            propagated_from[loc] = set()
+
+        # A formula filled down a column that errors in every row is one
+        # mistake, not one per row: sources that share a sheet, an error value
+        # and a relative formula (or are the same error typed as a constant)
+        # are one finding, led by their top-left cell.
+        groups: dict[tuple, list[str]] = defaultdict(list)
+        for root in propagated_from:
+            cell = cell_at.get(root)
+            shape = normalize_formula(cell["formula"], cell["row"], cell["col"]) if cell else "constant"
+            groups[(root.rsplit("!", 1)[0], errors[root], shape)].append(root)
+        findings: list[Finding] = []
+        for (_sheet, error_value, shape), members in groups.items():
+            members.sort(key=_position)
+            lead = members[0]
+            dependents = set().union(*(propagated_from[root] for root in members)) - set(members)
             findings.append(
-                self._finding(root, errors[root], sorted(propagated), root in static, formula_at.get(root))
+                self._finding(
+                    lead,
+                    error_value,
+                    sorted(dependents, key=_position),
+                    lead in static,
+                    cell_at[lead]["formula"] if lead in cell_at else None,
+                    members,
+                    shape == "constant",
+                )
             )
-        for loc in sorted(set(errors) - covered):  # error cycles with no root
-            findings.append(self._finding(loc, errors[loc], [], loc in static, formula_at.get(loc)))
         return findings
 
     @staticmethod
     def _finding(
-        loc: str, error_value: str, propagated: list[str], static: bool = False, formula: str | None = None
+        loc: str,
+        error_value: str,
+        propagated: list[str],
+        static: bool = False,
+        formula: str | None = None,
+        members: list[str] | None = None,
+        constant: bool = False,
     ) -> Finding:
         if static:
             evidence = [f"Formula contains {error_value}, so the cell evaluates to that error whatever its inputs."]
         else:
             evidence = [f"Cell contains {error_value}."]
+        if members and len(members) > 1:
+            others = members[1:]
+            shown = ", ".join(others[:MAX_DEPENDENTS_SHOWN])
+            if len(others) > MAX_DEPENDENTS_SHOWN:
+                shown += f", and {len(others) - MAX_DEPENDENTS_SHOWN} more"
+            what = f"{error_value} is typed as a value" if constant else f"the same relative formula evaluates to {error_value}"
+            evidence.append(f"{what[0].upper()}{what[1:]} in {len(members)} cells on this sheet; the others are {shown}.")
         if propagated:
             shown = ", ".join(propagated[:MAX_DEPENDENTS_SHOWN])
             if len(propagated) > MAX_DEPENDENTS_SHOWN:
-                shown += ", ..."
+                shown += f", and {len(propagated) - MAX_DEPENDENTS_SHOWN} more"
             evidence.append(
-                f"The error propagates to {len(propagated)} dependent cell(s): {shown}. Fixing this cell clears them."
+                f"The error propagates to {len(propagated)} dependent cell(s): {shown}. Fixing the source clears them."
             )
         return Finding(
             rule_id="LIVE_ERROR",

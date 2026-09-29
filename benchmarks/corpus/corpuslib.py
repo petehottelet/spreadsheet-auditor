@@ -37,6 +37,26 @@ WORKBOOK_SUFFIXES = {".xlsx", ".xlsm"}
 VALUE_DEPENDENT_RULES = {"TOTAL_MISMATCH", "CROSS_FOOT_FAILURE", "LIVE_ERROR"}
 
 
+def display_path(path: str | Path) -> str:
+    """A directory as the run summaries, samples and reports record it.
+
+    These files are committed, so they carry a path relative to the
+    repository (``benchmarks/corpus/results/spreadsheetbench``), never the
+    absolute path of the machine that made them. A directory outside the
+    repository (another checkout's data) is recorded from its
+    ``benchmarks/corpus`` part on, or by its name.
+    """
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(ROOT).as_posix()
+    except ValueError:
+        parts = resolved.parts
+        for index in range(len(parts) - 1):
+            if parts[index] == "benchmarks" and parts[index + 1] == "corpus":
+                return "/".join(parts[index:])
+        return resolved.name
+
+
 def load_sources() -> dict:
     return json.loads((CORPUS_DIR / "sources.json").read_text(encoding="utf-8"))["sources"]
 
@@ -198,7 +218,7 @@ def summarize(source: str, data_dir: Path, include_glob: str | None, seed: int, 
         unsupported.update(record.get("unsupported", []))
     return {
         "source": source,
-        "data_dir": str(data_dir),
+        "data_dir": display_path(data_dir),
         "include_glob": include_glob,
         "seed": seed,
         "limit": limit,

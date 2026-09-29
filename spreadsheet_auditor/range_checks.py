@@ -555,34 +555,38 @@ def detect_hidden_structure(
                         seen_keys.add(key)
                         groups[key].append(cell)
 
-    # Hidden rows that feed the same visible formulas are one fact: "rows 46,
-    # 48 and 60 of the receipts sheet are hidden and still counted".
-    merged: dict[tuple[str, str, tuple[str, ...]], list[int]] = defaultdict(list)
-    dependents_of: dict[tuple[str, str, tuple[str, ...]], list[dict]] = {}
+    # The hidden rows (or columns) of one sheet are one fact, whichever
+    # formulas each of them feeds: "columns R to X of the scores sheet are
+    # hidden and still counted". Reporting each hidden column separately put
+    # 31 findings on one cell of one workbook.
+    merged: dict[tuple[str, str], list[int]] = defaultdict(list)
+    dependents_of: dict[tuple[str, str], dict[str, dict]] = defaultdict(dict)
     for key in sorted(groups):
-        dependents = sorted(groups[key], key=lambda c: (c["sheet"], c["row"], c["col"]))
         target, kind, number = key
-        merged_key = (target, kind, tuple(c["location"] for c in dependents))
-        merged[merged_key].append(number)
-        dependents_of[merged_key] = dependents
+        merged[(target, kind)].append(number)
+        for cell in groups[key]:
+            dependents_of[(target, kind)][cell["location"]] = cell
 
     findings: list[Finding] = []
     for merged_key in sorted(merged):
-        target, kind, _ = merged_key
+        target, kind = merged_key
         numbers = merged[merged_key]
-        dependents = dependents_of[merged_key]
+        dependents = sorted(dependents_of[merged_key].values(), key=lambda c: (c["sheet"], c["row"], c["col"]))
         first = dependents[0]
         if kind == "row":
-            what = f"Hidden row {numbers[0]} on {target}" if len(numbers) == 1 else f"Hidden rows {_number_list(numbers)} on {target}"
+            what = f"Hidden row {numbers[0]} on {target}" if len(numbers) == 1 else f"Hidden rows {_spans(numbers)} on {target}"
         elif kind == "col":
-            letters = [get_column_letter(number) for number in numbers]
-            what = f"Hidden column {letters[0]} on {target}" if len(letters) == 1 else f"Hidden columns {_number_list(letters)} on {target}"
+            what = (
+                f"Hidden column {get_column_letter(numbers[0])} on {target}"
+                if len(numbers) == 1
+                else f"Hidden columns {_spans(numbers, get_column_letter)} on {target}"
+            )
         else:
             what = f"Hidden sheet {target!r}"
         verb = "feeds" if len(numbers) == 1 else "feed"
         shown = ", ".join(c["location"] for c in dependents[:MAX_DEPENDENTS_SHOWN])
         if len(dependents) > MAX_DEPENDENTS_SHOWN:
-            shown += ", ..."
+            shown += f", and {len(dependents) - MAX_DEPENDENTS_SHOWN} more"
         findings.append(
             Finding(
                 rule_id="HIDDEN_STRUCTURE_IN_TOTAL",
@@ -597,6 +601,17 @@ def detect_hidden_structure(
             )
         )
     return findings
+
+
+def _spans(numbers: list[int], label=str) -> str:
+    """``[46, 47, 48, 60]`` -> ``46 to 48, 60``; columns pass ``get_column_letter`` as ``label``."""
+    runs: list[list[int]] = []
+    for number in sorted(set(numbers)):
+        if runs and number == runs[-1][1] + 1:
+            runs[-1][1] = number
+        else:
+            runs.append([number, number])
+    return _number_list([label(a) if a == b else f"{label(a)} to {label(b)}" for a, b in runs])
 
 
 def _number_list(items: list) -> str:
