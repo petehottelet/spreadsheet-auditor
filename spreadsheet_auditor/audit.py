@@ -783,6 +783,7 @@ def detect_reference_issues(
     """
     from bisect import bisect_left
 
+    from .error_masks import PLACEHOLDER, Mask
     from .error_masks import masks as error_masks
     from .formula_parser import external_source, is_formula, parse_formula
     from .grouping import group_by_pattern, locations, pattern_note
@@ -831,7 +832,7 @@ def detect_reference_issues(
         return filled * 4 >= (high - low + 1) * 3
 
     findings: list[Finding] = []
-    masked: list[tuple[dict, set[str]]] = []
+    masked: list[tuple[dict, list[Mask]]] = []
     # Broken formulas are reported once per relative pattern: a #REF! filled
     # down a column is one repair, not one finding per row.
     deleted: list[dict] = []
@@ -869,15 +870,18 @@ def detect_reference_issues(
             if found:
                 masked.append((cell, found))
 
-        # A cell the formula tests for blank anywhere (=""; ISBLANK; a
-        # comparison; inside IFERROR) is handled wherever else it appears.
-        tested = {
-            ((ref.sheet or cell["sheet"]).casefold(), ref.ref) for ref in parsed.references if ref.guarded
-        }
-        # A row whose inputs are all blank (a day off on a timesheet, an
-        # unused template row) is not a broken link; only a lone blank among
-        # filled inputs is.
-        row_inputs_blank = _row_inputs_all_blank(formula_wb, cell, parsed)
+        tested: set[tuple[str, str]] = set()
+        row_inputs_blank = False
+        if blank_precedents:
+            # A cell the formula tests for blank anywhere (=""; ISBLANK; a
+            # comparison; inside IFERROR) is handled wherever else it appears.
+            tested = {
+                ((ref.sheet or cell["sheet"]).casefold(), ref.ref) for ref in parsed.references if ref.guarded
+            }
+            # A row whose inputs are all blank (a day off on a timesheet, an
+            # unused template row) is not a broken link; only a lone blank among
+            # filled inputs is.
+            row_inputs_blank = _row_inputs_all_blank(formula_wb, cell, parsed)
         for ref in parsed.references:
             ok, reason = reference_in_bounds(ref, cell["sheet"], formula_wb)
             if not ok:
@@ -982,13 +986,17 @@ def detect_reference_issues(
     for members in group_by_pattern([cell for cell, _ in masked]):
         lead = members[0]
         mask = masks_of[id(lead)][0]
-        if mask.sources == ("a Google Sheets placeholder",):
+        if mask.sources == (PLACEHOLDER,):
             evidence = [
                 (
                     f"{mask.function} wraps a Google Sheets placeholder and returns its cached value, "
                     f"{mask.fallback}: the cell holds a frozen value, not a live calculation."
                 )
             ]
+            suggested_fix = (
+                "Replace the frozen placeholder with a formula Excel evaluates, "
+                "or with a plain value if the cell is meant to be static."
+            )
         else:
             evidence = [
                 (
@@ -996,6 +1004,10 @@ def detect_reference_issues(
                     "which reads as a real value to anyone looking at the cell and to every formula that uses it."
                 )
             ]
+            suggested_fix = (
+                'Return a visible marker for the failure ("" or NA()) or fix the input the error comes from; '
+                "keep the replacement only if it is the right result when the calculation fails."
+            )
         note = pattern_note(members)
         if note:
             evidence.append(note)
@@ -1010,10 +1022,7 @@ def detect_reference_issues(
                 title="Error replaced by a value that reads as data",
                 formula=lead["formula"],
                 evidence=evidence,
-                suggested_fix=(
-                    'Return a visible marker for the failure ("" or NA()) or fix the input the error comes from; '
-                    "keep the replacement only if it is the right result when the calculation fails."
-                ),
+                suggested_fix=suggested_fix,
             )
         )
     return findings

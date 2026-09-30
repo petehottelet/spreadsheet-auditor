@@ -340,6 +340,33 @@ def test_blank_precedent_in_empty_row_is_quiet_but_anomalous_blank_is_flagged(tm
     assert _rules(_audit(path, "--config", str(config)))["BLANK_PRECEDENT"] == ["S!C3"]
 
 
+def test_blank_precedent_analysis_is_skipped_while_the_rule_is_off(tmp_path, monkeypatch):
+    from spreadsheet_auditor import audit
+
+    calls = []
+    original = audit._row_inputs_all_blank
+
+    def counting(formula_wb, cell, parsed):
+        calls.append(cell["location"])
+        return original(formula_wb, cell, parsed)
+
+    monkeypatch.setattr(audit, "_row_inputs_all_blank", counting)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws.append(["Qty", "Price", "Amount"])
+    ws.append([2, 5, "=A2*B2"])
+    ws.append([3, None, "=A3*B3"])
+    path = _save(wb, tmp_path, "blanks.xlsx")
+    out = tmp_path / "findings.json"
+    audit.main([str(path), "--json", str(out), "--quiet", "--fail-on", "None"])
+    assert calls == []
+    config = tmp_path / "blank_on.json"
+    config.write_text(json.dumps({"checks": {"BLANK_PRECEDENT": "error"}}), encoding="utf-8")
+    audit.main([str(path), "--json", str(out), "--quiet", "--fail-on", "None", "--config", str(config)])
+    assert calls == ["S!C2", "S!C3"]
+
+
 # --- the seeded corpora are fully catalogued ---------------------------------
 
 

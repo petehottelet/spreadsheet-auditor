@@ -68,7 +68,7 @@ the resulting report/JSON/HTML/annotated outputs ready to inspect.
 
 | Category | Checks |
 |---|---|
-| Formula integrity | live errors (`#REF!`, `#DIV/0!`, `#VALUE!`, `#N/A`, ...), broken/deleted references, references to blank precedents, circular references, formula drift across a row/column, `IFERROR`/`IFNA` error masking |
+| Formula integrity | live errors (`#REF!`, `#DIV/0!`, `#VALUE!`, `#N/A`, ...), broken/deleted references, references to blank precedents (off by default), circular references, formula drift across a row/column, `IFERROR`/`IFNA` error masking |
 | Hardcodes & inputs | numeric literals embedded in formulas, hardcoded plug values inside a formula block |
 | Ranges | aggregate ranges that exclude adjacent data (off-by-one), ranges that include subtotal/total rows, inconsistent aggregate range lengths across peers, hidden rows/columns/sheets inside totals |
 | Reconciliation | totals that double-count a component (`=SUM(B2:B5)+B5`), bare `SUM` totals whose cached value differs from their components, row totals vs column totals that don't cross-foot |
