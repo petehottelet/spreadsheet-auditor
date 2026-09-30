@@ -4,8 +4,9 @@ A formula filled across a block normalizes to a single relative pattern. A
 rule that fires on the pattern (an embedded literal, an IFERROR wrapper, a
 volatile function) would otherwise fire once per cell, and a schedule sheet
 turns into hundreds of identical findings. Reporting the pattern once, at its
-first cell, with the other cells listed as evidence, keeps the location
-suppressible and the report readable.
+first cell, with the other cells listed as evidence and kept as the finding's
+``members``, keeps the report readable; suppressions and headline outputs
+still see every cell.
 """
 
 from __future__ import annotations
@@ -26,6 +27,11 @@ def group_by_pattern(cells: list[dict]) -> list[list[dict]]:
         key = (cell["sheet"], normalize_formula(cell["formula"], cell["row"], cell["col"]))
         groups.setdefault(key, []).append(cell)
     return list(groups.values())
+
+
+def locations(members: list[dict]) -> list[str]:
+    """The cells of a group, lead first: a finding's ``members``."""
+    return [cell["location"] for cell in members]
 
 
 def pattern_note(members: list[dict], does: str = "appears") -> str | None:

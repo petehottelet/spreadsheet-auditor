@@ -22,6 +22,10 @@ SARIF_SCHEMA = (
     "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
 )
 
+# Related locations listed per result; a column of 20,000 repeated errors
+# keeps the full list in properties.members instead.
+MAX_RELATED_LOCATIONS = 100
+
 _SEVERITY_TO_LEVEL = {
     "Critical": "error",
     "High": "error",
@@ -94,6 +98,22 @@ def _result(finding: dict, workbook_uri: str) -> dict:
             "range": range_,
         },
     }
+    others = [member for member in finding.get("members") or [] if member != location]
+    if others:
+        # The other cells of a repeated mistake; properties.members has all of them.
+        result["relatedLocations"] = [
+            {
+                "id": index,
+                "physicalLocation": {
+                    "artifactLocation": {"uri": workbook_uri},
+                    "region": {"startLine": 1, "startColumn": 1},
+                },
+                "logicalLocations": [{"name": member, "kind": "cell"}],
+                "message": {"text": f"Same issue as {location}."},
+            }
+            for index, member in enumerate(others[:MAX_RELATED_LOCATIONS], start=1)
+        ]
+        result["properties"]["members"] = [location, *others]
     if fingerprint:
         # v2 hashes the flagged cell's content rather than its address (v1),
         # so an inserted row no longer closes and reopens every alert.

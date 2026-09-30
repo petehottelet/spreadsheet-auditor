@@ -191,3 +191,77 @@ def test_hidden_columns_of_one_sheet_are_one_finding(tmp_path):
         "Hidden columns C to E on S feed 3 visible formula(s): S!H2, S!H3, S!H4.",
         "Hidden row 5 on S feeds 1 visible formula(s): S!H4.",
     }
+
+
+# --- a grouped finding stands for all of its cells ----------------------------
+
+
+def _broken_column(path: Path) -> Path:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    for row in range(2, 22):
+        ws.cell(row, 1, row)
+        ws.cell(row, 2, f"=A{row}+SUM(#REF!)")
+    wb.save(path)
+    return path
+
+
+def _run_with(path: Path, tmp_path: Path, ignore_text: str, config: dict | None = None) -> dict:
+    ignore = tmp_path / "suppressions"
+    ignore.write_text(ignore_text, encoding="utf-8")
+    out = tmp_path / "findings.json"
+    args = [str(path), "--json", str(out), "--quiet", "--fail-on", "None", "--ignore", str(ignore)]
+    if config is not None:
+        (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+        args += ["--config", str(tmp_path / "config.json")]
+    audit.main(args)
+    return json.loads(out.read_text(encoding="utf-8"))
+
+
+def test_a_suppression_hides_a_grouped_finding_only_when_it_covers_every_cell(tmp_path):
+    path = _broken_column(tmp_path / "broken.xlsx")
+    [finding] = _by_rule(_run(path, tmp_path))["BROKEN_REFERENCE"]
+    assert finding["members"] == [f"S!B{row}" for row in range(2, 22)]
+
+    for target in ("S!B2:B3", "S!B10:B21"):
+        payload = _run_with(path, tmp_path, f"BROKEN_REFERENCE {target} only these rows\n")
+        [finding] = _by_rule(payload)["BROKEN_REFERENCE"]
+        assert finding["suppressed"] is False, target
+        notes = payload["coverage"]["limitations"]
+        [partial] = [note for note in notes if "so the finding stays reported" in note]
+        assert "cover all of them (S!B2:B21)" in partial and "fingerprint:" in partial
+        assert not [note for note in notes if "matched no finding" in note], target
+
+    for target in ("S!B2:B21", "S!B:B", "S"):
+        payload = _run_with(path, tmp_path, f"BROKEN_REFERENCE {target} known broken block\n")
+        assert _by_rule(payload)["BROKEN_REFERENCE"][0]["suppressed"] is True, target
+
+
+def test_any_cell_of_a_grouped_finding_can_be_the_headline_output(tmp_path):
+    path = _broken_column(tmp_path / "broken.xlsx")
+    for headline in ("S!B2", "S!B10"):
+        payload = _run(path, tmp_path, {"scope": {"headline_outputs": [headline]}})
+        [finding] = _by_rule(payload)["BROKEN_REFERENCE"]
+        assert finding["severity"] == "Critical", headline
+        assert finding["impact"]["feeds_headline_output"] is True
+
+
+def test_annotated_copy_and_sarif_mark_every_cell_of_a_grouped_finding(tmp_path):
+    from openpyxl import load_workbook
+
+    from spreadsheet_auditor.sarif import render_sarif
+
+    path = _broken_column(tmp_path / "broken.xlsx")
+    annotated = tmp_path / "annotated.xlsx"
+    audit.main([str(path), "--quiet", "--fail-on", "None", "--ignore", str(_no_suppressions(tmp_path)),
+                "--annotated", str(annotated)])
+    ws = load_workbook(annotated)["S"]
+    assert "same issue is in 19 other cell(s)" in ws["B2"].comment.text
+    assert "Same issue as S!B2" in ws["B21"].comment.text
+
+    payload = _run(path, tmp_path)
+    [result] = [r for r in render_sarif(payload)["runs"][0]["results"] if r["ruleId"] == "BROKEN_REFERENCE"]
+    related = [loc["logicalLocations"][0]["name"] for loc in result["relatedLocations"]]
+    assert related == [f"S!B{row}" for row in range(3, 22)]
+    assert result["properties"]["members"][0] == "S!B2"

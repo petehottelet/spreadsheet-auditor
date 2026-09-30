@@ -109,7 +109,9 @@ replacement of the original workbook.
   follows the flagged cell's content through inserted rows and columns and
   never hides a different finding; an unpinned target (a cell, range, whole
   column/row, or sheet name) follows the address, never a text prefix, so the
-  report prints the pinned replacement for every unpinned one-cell line.
+  report prints the pinned replacement for every unpinned one-cell line. A
+  finding that stands for several cells is suppressed only by a target that
+  covers all of them.
 
 Never execute macros. Never follow external links without explicit user
 approval and sandbox controls.

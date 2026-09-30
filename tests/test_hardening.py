@@ -161,8 +161,13 @@ def test_whole_column_sheet_and_multi_location_suppressions():
     apply_suppressions(sheet, [{"rule_id": "BROKEN_REFERENCE", "range": "Imports", "reason": "r"}])
     assert [f.location for f in sheet if f.suppressed] == ["Imports!Z99"]
 
+    # A finding on several cells is hidden only by a target covering all of them.
     multi = [_finding("Model!A37, Model!A38", rule_id="DUPLICATE_KEY")]
-    apply_suppressions(multi, [{"rule_id": "DUPLICATE_KEY", "range": "Model!A38", "reason": "r"}])
+    one_cell = {"rule_id": "DUPLICATE_KEY", "range": "Model!A38", "reason": "r"}
+    apply_suppressions(multi, [one_cell])
+    assert not multi[0].suppressed
+    assert one_cell["partial_findings"] == [(multi[0], 1, 2)]
+    apply_suppressions(multi, [{"rule_id": "DUPLICATE_KEY", "range": "Model!A37:A38", "reason": "r"}])
     assert multi[0].suppressed
 
 

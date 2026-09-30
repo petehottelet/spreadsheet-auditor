@@ -712,19 +712,19 @@ def extract_numeric_literals(formula: str) -> list[str]:
     return parse_formula(formula).numeric_literals
 
 
-def _relative_row(row: int, absolute: bool, origin_row: int) -> str:
+def _relative_row(row: int, absolute: bool, origin_row: int, stable: bool = False) -> str:
     if absolute:
-        return f"R{row}"
+        return "R$" if stable else f"R{row}"
     return "R" if row == origin_row else f"R[{row - origin_row}]"
 
 
-def _relative_col(col: int, absolute: bool, origin_col: int) -> str:
+def _relative_col(col: int, absolute: bool, origin_col: int, stable: bool = False) -> str:
     if absolute:
-        return f"C{col}"
+        return "C$" if stable else f"C{col}"
     return "C" if col == origin_col else f"C[{col - origin_col}]"
 
 
-def _normalize_operand(text: str, origin_row: int, origin_col: int) -> str:
+def _normalize_operand(text: str, origin_row: int, origin_col: int, stable: bool = False) -> str:
     prefix = ""
     if text.startswith("@"):
         prefix, text = "@", text[1:]
@@ -733,6 +733,9 @@ def _normalize_operand(text: str, origin_row: int, origin_col: int) -> str:
     sheet, rest = split_sheet(text)
     if sheet is None and STRUCTURED_RE.match(text):
         return prefix + text.upper()
+    if stable and sheet is not None:
+        # Rows inserted on the other sheet move the address, not the meaning.
+        return f"{prefix}{sheet.upper()}!@"
     parts = rest.split(":")
     normalized: list[str] = []
     if CELL_OR_RANGE_RE.match(rest):
@@ -742,8 +745,8 @@ def _normalize_operand(text: str, origin_row: int, origin_col: int) -> str:
                 return prefix + text.upper()
             col_abs, col, row_abs, row = match.groups()
             normalized.append(
-                _relative_row(int(row), bool(row_abs), origin_row)
-                + _relative_col(column_index_from_string(col.upper()), bool(col_abs), origin_col)
+                _relative_row(int(row), bool(row_abs), origin_row, stable)
+                + _relative_col(column_index_from_string(col.upper()), bool(col_abs), origin_col, stable)
             )
     elif WHOLE_COLUMN_RE.match(rest):
         for part in parts:
@@ -752,7 +755,7 @@ def _normalize_operand(text: str, origin_row: int, origin_col: int) -> str:
                 return prefix + text.upper()
             col_abs, col = match.groups()
             normalized.append(
-                _relative_col(column_index_from_string(col.upper()), bool(col_abs), origin_col)
+                _relative_col(column_index_from_string(col.upper()), bool(col_abs), origin_col, stable)
             )
     elif WHOLE_ROW_RE.match(rest):
         for part in parts:
@@ -760,7 +763,7 @@ def _normalize_operand(text: str, origin_row: int, origin_col: int) -> str:
             if match is None:
                 return prefix + text.upper()
             row_abs, row = match.groups()
-            normalized.append(_relative_row(int(row), bool(row_abs), origin_row))
+            normalized.append(_relative_row(int(row), bool(row_abs), origin_row, stable))
     else:
         return prefix + text.upper()
     body = ":".join(normalized)
@@ -769,12 +772,16 @@ def _normalize_operand(text: str, origin_row: int, origin_col: int) -> str:
     return prefix + body
 
 
-def normalize_formula(formula: str, origin_row: int, origin_col: int) -> str:
+def normalize_formula(formula: str, origin_row: int, origin_col: int, stable: bool = False) -> str:
     """Rewrite references relative to the formula's own cell (R1C1 style).
 
     Two formulas that follow the same relative pattern normalize to the same
     string regardless of where they sit. Absolute markers are honoured, so a
     row of formulas that all anchor to ``$B$1`` still shares one pattern.
+
+    ``stable`` drops what a row or column inserted elsewhere would change:
+    absolute coordinates become ``R$``/``C$`` and a reference to another
+    sheet keeps only the sheet name. Finding identities use it.
     """
     tokens = _tokenize(formula)
     if tokens is None:
@@ -784,10 +791,10 @@ def normalize_formula(formula: str, origin_row: int, origin_col: int) -> str:
         if ttype == Token.WSPACE:
             continue
         if ttype == Token.OPERAND and subtype == Token.RANGE:
-            out.append(_normalize_operand(value, origin_row, origin_col))
+            out.append(_normalize_operand(value, origin_row, origin_col, stable))
         elif ttype == Token.FUNC and subtype == Token.OPEN and ":" in value[:-1]:
             left, name = value[:-1].rsplit(":", 1)
-            out.append(_normalize_operand(left, origin_row, origin_col) + ":" + name.upper() + "(")
+            out.append(_normalize_operand(left, origin_row, origin_col, stable) + ":" + name.upper() + "(")
         elif ttype == Token.OPERAND and subtype == Token.TEXT:
             out.append(value)
         else:

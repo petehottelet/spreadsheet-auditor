@@ -140,6 +140,9 @@ def _suppression_notes(
     * An unpinned one-cell line that matched: it follows the address, so a
       different finding that later lands there would be hidden too; the note
       gives the pinned line to replace it with.
+    * A location line that covers some but not all cells of a finding that
+      stands for several: the finding stays reported, and the note says how
+      to cover it whole.
     * A suppression that matched nothing although it could have: its finding
       was fixed, or its cells moved. Suppressions that could not have matched
       this run stay quiet: their rule is turned off, their rule was not
@@ -156,11 +159,22 @@ def _suppression_notes(
     allowed = {name.casefold() for name in allowed_sheets or ()}
     notes = []
     for suppression in suppressions:
-        rule = suppression.get("rule_id")
+        rule = str(suppression["rule_id"]).upper() if suppression.get("rule_id") else None
         target = str(suppression.get("range") or "")
         pin = suppression.get("fingerprint")
         head = f"Suppression ({suppression.get('source', 'suppression')}) {describe(suppression)}"
         matched = suppression.get("matched_findings") or []
+        partial = [entry for entry in suppression.get("partial_findings") or [] if not entry[0].suppressed]
+        for finding, inside, total in partial:
+            span = _span(finding.covered())
+            cover = f"cover all of them ({span})" if span else "cover all of them"
+            notes.append(
+                f"{head} covers {inside} of the {total} cells of the {finding.rule_id} finding at "
+                f"{finding.location}, so the finding stays reported. To accept it, {cover} or pin the line "
+                f"to it: {pinned_line(finding.rule_id, finding.location, finding.fingerprint, suppression.get('reason') or '<reason>')}"
+            )
+        if partial and not matched:
+            continue
         if matched:
             if suppression.get("rewritten"):
                 continue  # --pin-suppressions just brought this line up to date
@@ -208,6 +222,22 @@ def _suppression_notes(
                 )
         notes.append(f"{head} matched no finding. {why}")
     return notes
+
+
+def _span(cells: list[str]) -> str | None:
+    """The smallest target covering ``cells`` when they share a sheet, quoted as the file needs."""
+    from openpyxl.utils.cell import get_column_letter
+
+    from .locations import anchor, format_target
+
+    spots = [anchor(cell) for cell in cells]
+    if not spots or any(spot is None for spot in spots) or len({spot[0] for spot in spots}) != 1:
+        return None
+    rows = [spot[1] for spot in spots]
+    cols = [spot[2] for spot in spots]
+    top_left = f"{get_column_letter(min(cols))}{min(rows)}"
+    bottom_right = f"{get_column_letter(max(cols))}{max(rows)}"
+    return format_target(f"{spots[0][0]}!{top_left}:{bottom_right}")
 
 
 def _finding_counts(findings: list[Finding]) -> dict:
@@ -652,7 +682,7 @@ def detect_reference_issues(
 
     from .error_masks import masks as error_masks
     from .formula_parser import external_source, is_formula, parse_formula
-    from .grouping import group_by_pattern, pattern_note
+    from .grouping import group_by_pattern, locations, pattern_note
     from .reference_resolver import boundaries, existing_cell, find_sheet, reference_in_bounds
     from .workbook_inventory import iter_existing_cells
 
@@ -796,6 +826,7 @@ def detect_reference_issues(
                 error_confidence="Defect",
                 detection_mode="DET",
                 location=lead["location"],
+                members=locations(members),
                 title="Formula contains deleted reference",
                 formula=lead["formula"],
                 evidence=evidence,
@@ -816,6 +847,7 @@ def detect_reference_issues(
                 error_confidence="Likely defect",
                 detection_mode="DET",
                 location=lead["location"],
+                members=locations(members),
                 title="Formula reference cannot be resolved cleanly",
                 formula=lead["formula"],
                 evidence=evidence,
@@ -832,6 +864,7 @@ def detect_reference_issues(
                 error_confidence="Info",
                 detection_mode="DET",
                 location=cells[0]["location"],
+                members=locations(cells),
                 title="Formulas reference an external workbook",
                 formula=cells[0]["formula"],
                 evidence=[
@@ -870,6 +903,7 @@ def detect_reference_issues(
                 error_confidence="Review",
                 detection_mode="HEUR",
                 location=lead["location"],
+                members=locations(members),
                 title="Error replaced by a value that reads as data",
                 formula=lead["formula"],
                 evidence=evidence,
@@ -936,7 +970,8 @@ def apply_impact_escalation(findings: list[Finding], config: dict) -> list[Findi
     for finding in findings:
         should_escalate = False
 
-        if any(location_matches(finding.location, target) for target in headline_outputs):
+        # Any cell of a repeated mistake can be the headline output.
+        if any(location_matches(cell, target) for cell in finding.covered() for target in headline_outputs):
             finding.impact["feeds_headline_output"] = True
             should_escalate = True
 
@@ -967,7 +1002,7 @@ def detect_cycles(
     :func:`spreadsheet_auditor.dependency_graph.build_dependency_graph`.
     """
     from .dependency_graph import build_dependency_graph, find_cycles
-    from .grouping import group_by_pattern, pattern_note
+    from .grouping import group_by_pattern, locations, pattern_note
 
     graph = build_dependency_graph(formulas, names=names, extents=extents, budget=budget)
     cell_at = {item["location"]: item for item in formulas}
@@ -993,6 +1028,7 @@ def detect_cycles(
                 error_confidence="Likely defect",
                 detection_mode="DET",
                 location=members[0],
+                members=list(members),
                 title=title,
                 evidence=evidence,
                 suggested_fix="Confirm whether iterative calculation is intentional; otherwise break the circular dependency.",
@@ -1012,6 +1048,7 @@ def detect_cycles(
                 error_confidence="Likely defect",
                 detection_mode="DET",
                 location=lead["location"],
+                members=locations(group),
                 title="Formula references its own cell",
                 formula=lead["formula"],
                 evidence=evidence,

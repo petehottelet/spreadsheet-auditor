@@ -102,6 +102,7 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
                     error_confidence="Likely defect",
                     detection_mode="DET",
                     location=location(ws.title, lead.row, lead.column),
+                    members=[location(ws.title, cell.row, cell.column) for cell in cells],
                     title="Numeric-looking value stored as text",
                     evidence=evidence,
                     suggested_fix="Convert the values to numbers or confirm they are intentionally text.",
@@ -121,6 +122,7 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
                     error_confidence="Review",
                     detection_mode="DET",
                     location=location(ws.title, lead.row, lead.column),
+                    members=[location(ws.title, cell.row, cell.column) for cell in cells],
                     title="Numeric-looking text in a numeric column",
                     evidence=evidence,
                     suggested_fix="Convert the values to numbers or confirm they are intentionally text.",
@@ -194,6 +196,7 @@ def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIn
                         error_confidence="Info",
                         detection_mode="DET",
                         location=location(ws.title, lead.row, lead.column),
+                        members=[location(ws.title, cell.row, cell.column) for cell in candidates],
                         title="Column of padded text values",
                         evidence=[
                             f"{len(candidates)} of {len(cells)} text values in column {get_column_letter(col)} carry leading or "
@@ -268,6 +271,10 @@ def _duplicate_keys(workbook, allowed_sheet_names, budget, index: ReferenceIndex
                     error_confidence="Review",
                     detection_mode="DET",
                     location=", ".join(locs[:5]),
+                    members=[loc for _key, key_locs in repeated for loc in key_locs],
+                    # Which keys repeat is what the finding is about: a new
+                    # duplicate makes it a different finding.
+                    identity_hint="keys:" + ";".join(sorted(k for k, _ in repeated)),
                     title="Duplicate key in lookup range" if len(repeated) == 1 else "Duplicate keys in lookup range",
                     evidence=evidence,
                     suggested_fix="Make the keys unique or confirm the lookup is meant to return the first match.",

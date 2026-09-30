@@ -37,6 +37,22 @@ def unquote_sheet(sheet: str) -> str:
 
 def _split(piece: str) -> tuple[str | None, str]:
     piece = piece.strip()
+    if piece.startswith("'"):
+        # A quoted name may hold "!" itself: 'Wow!'!A1, or 'Wow!' for the sheet.
+        index = 1
+        while True:
+            close = piece.find("'", index)
+            if close < 0:
+                break
+            if piece[close + 1 : close + 2] == "'":
+                index = close + 2
+                continue
+            rest = piece[close + 1 :]
+            if not rest.strip():
+                return None, piece
+            if rest.startswith("!"):
+                return unquote_sheet(piece[: close + 1]), rest[1:].strip()
+            break
     if "!" not in piece:
         return None, piece
     sheet, addr = piece.rsplit("!", 1)

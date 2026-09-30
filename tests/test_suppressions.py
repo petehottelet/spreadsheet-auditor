@@ -152,13 +152,16 @@ def test_a_bare_target_is_a_sheet_even_when_it_reads_like_a_cell():
 def test_sheet_names_with_commas_match_and_parse():
     finding = _make_finding(location="P&L, 2025!B1, P&L, 2025!B7")
     assert (finding.sheet, finding.cell) == ("P&L, 2025", "B1")
-    for target in ("'P&L, 2025'!B7", "P&L, 2025!B1:B3", "'P&L, 2025'"):
+    assert finding.covered() == ["P&L, 2025!B1", "P&L, 2025!B7"]
+    for target in ("'P&L, 2025'!B1:B7", "P&L, 2025!B:B", "'P&L, 2025'"):
         finding.suppressed = False
         apply_suppressions([finding], [{"rule_id": "BROKEN_REFERENCE", "range": target, "reason": "r"}])
         assert finding.suppressed, target
-    finding.suppressed = False
-    apply_suppressions([finding], [{"rule_id": "BROKEN_REFERENCE", "range": "P&L", "reason": "r"}])
-    assert not finding.suppressed
+    # One of its two cells, or another sheet, is not enough.
+    for target in ("'P&L, 2025'!B7", "P&L, 2025!B1:B3", "P&L"):
+        finding.suppressed = False
+        apply_suppressions([finding], [{"rule_id": "BROKEN_REFERENCE", "range": target, "reason": "r"}])
+        assert not finding.suppressed, target
 
 
 def test_every_covering_suppression_counts_its_match():

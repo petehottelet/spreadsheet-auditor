@@ -169,6 +169,7 @@ class LiveErrorCheck(Check):
             error_confidence="Defect",
             detection_mode="DET",
             location=loc,
+            members=list(members or []),
             title="Cell contains live spreadsheet error",
             formula=formula,
             evidence=evidence,

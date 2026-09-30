@@ -152,9 +152,11 @@ See `spreadsheet-auditor --help` for the full flag reference, including
   (self-contained, no network).
 - **JSON findings** for reruns, CI, and downstream tooling. Validates against
   [`schemas/findings.schema.json`](schemas/findings.schema.json). Each finding
-  carries a `fingerprint` built from the flagged cell's content, which stays
-  the same across runs and inserted rows or columns, for diffing and for
-  fingerprint-based suppression.
+  carries a `fingerprint` built from the flagged cell's content and labels
+  (workbook findings; CSV findings hash their location), which stays the same
+  across runs and inserted rows or columns, for diffing and for
+  fingerprint-based suppression, and `members`, every cell a repeated mistake
+  covers.
 - **SARIF 2.1.0** for GitHub code scanning. See
   [`examples/github-actions/code-scanning.yml`](examples/github-actions/code-scanning.yml).
 - **Annotated workbook copy** with comments at finding cells (`--annotated`).
@@ -295,10 +297,13 @@ LITERAL_CONSTANT 'Revenue Detail'!B2:B40 contract uplift rates
 
 To accept one finding, copy the line the Markdown report prints under it (the
 first line above). It pins the suppression to the finding's fingerprint, which
-is built from the flagged cell's content, row label and sheet: the line keeps
-suppressing that finding when rows or columns are inserted, never hides a
-different finding that lands on the address, and the report says when the
-finding has moved away from the address written in the line. Without a
+is built from the flagged cell's content, its row and column labels, and its
+sheet: the line keeps suppressing that finding when rows or columns are
+inserted, never hides a different finding that lands on the address, and the
+report says when the finding has moved away from the address written in the
+line. When two findings of a rule look alike in all of that, the line also
+needs its address to match, and adding or fixing one of them turns the line
+stale rather than letting it pass to the other. Without a
 fingerprint, a target follows its address, which is right for an area such as
 a raw-data sheet or an import range; an unpinned one-cell line would also hide
 whatever later lands on that cell, so the report prints the pinned line to
@@ -309,7 +314,10 @@ so run it before rows move and review the changes it prints. A target may be a c
 bare sheet name (a target without `!` is always a sheet, even `Q1`); quote
 sheet names that contain spaces. A finding is suppressed when its cell lies
 inside the target on the same sheet, never by text prefix (`Imports!A1` does
-not hide `Imports!A10`). Suppressions that are malformed, or that match no
+not hide `Imports!A10`). A finding that stands for several cells (a mistake
+repeated down a column, listed in its `members`) is suppressed only when the
+target covers all of them; a target covering some is reported with the range
+that would cover them all. Suppressions that are malformed, or that match no
 finding (fixed, or the cells changed), are called out in the report's coverage
 limitations. Suppressed findings stay in the JSON payload (auditable) but are
 hidden from the report unless `--show-suppressed` is passed.

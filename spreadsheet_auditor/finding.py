@@ -26,10 +26,25 @@ class Finding:
     limitations: list[str] = field(default_factory=list)
     suppressed: bool = False
     id: str = ""
+    #: Every cell the finding stands for, its location first, when it reports
+    #: a mistake repeated in several cells (a formula filled down a column, a
+    #: list of repeated keys). Empty means the cells of ``location``.
+    members: list[str] = field(default_factory=list)
     #: What the flagged cell holds, set by
     #: :func:`spreadsheet_auditor.identity.assign_identities`; the fingerprint
     #: hashes it instead of the location when present.
     identity: str | None = field(default=None, repr=False, compare=False)
+    #: Extra text a check adds to the identity when the cell alone does not
+    #: say what the finding is about (the repeated keys of a lookup list).
+    identity_hint: str | None = field(default=None, repr=False, compare=False)
+    #: True when another finding of the rule has the same identity apart from
+    #: its place in sheet order; a pinned suppression must then also match the
+    #: finding's address.
+    identity_shared: bool = field(default=False, repr=False, compare=False)
+
+    def covered(self) -> list[str]:
+        """The locations this finding stands for: its members, or the pieces of its location."""
+        return list(self.members) if self.members else split_location(self.location)
 
     @property
     def fingerprint(self) -> str:
@@ -70,6 +85,7 @@ class Finding:
             "detection_mode": self.detection_mode,
             "mode": self.detection_mode,
             "location": self.location,
+            "members": self.covered(),
             "sheet": self.sheet,
             "cell": self.cell,
             "range": self.range,

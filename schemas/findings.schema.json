@@ -128,6 +128,11 @@
           "detection_mode": { "enum": ["DET", "HEUR"] },
           "mode": { "type": "string" },
           "location": { "type": "string" },
+          "members": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Every cell the finding stands for, location first: the cells of a mistake repeated down a column, or of a list of repeated keys. A location suppression hides the finding only when it covers all of them."
+          },
           "sheet": { "type": ["string", "null"] },
           "cell": { "type": ["string", "null"] },
           "range": { "type": ["string", "null"] },
