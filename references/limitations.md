@@ -84,7 +84,9 @@ statically and never wait for recalculation.
 ## Annotated copies
 
 `--annotated` writes a separate copy through openpyxl, which does not
-preserve drawings, charts, images, form controls, or embedded objects. The
+preserve drawings, charts, images, form controls, or embedded objects. It
+takes an `.xlsx` or `.xlsm` workbook and a copy path with the same extension
+(a CSV has nowhere to hold comments). The
 audit counts those parts during preflight and, when any exist, records a
 limitation and prints a warning so the copy is never mistaken for a
 replacement of the original workbook.
@@ -99,7 +101,10 @@ replacement of the original workbook.
 - Runtime limits cause expensive graph or range checks to be skipped. A
   check that fails or runs out of time, or a size cap that skips formulas or
   cells, makes the audit incomplete: the CLI exits 6, `coverage.complete` is
-  false, and `coverage.incomplete` names the rules that were not checked.
+  false, and `coverage.incomplete` says what was not checked. It names the
+  skipped rules when a check failed or timed out (and the grid rules when
+  `max_cells` skipped them); a `max_formulas` entry names no rules, because
+  the formulas past the cap went unchecked by every rule.
 - The workbook is password-protected or corrupt.
 - Suppressions hide findings; the report's summary always shows the
   suppressed count. Every suppression requires a reason; malformed

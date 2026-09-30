@@ -56,6 +56,7 @@ require `--show-suppressed` to surface them.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -81,21 +82,33 @@ def load_suppressions(
             if not entry.get("reason"):
                 warn(f"Suppression ignored (missing required 'reason'): {entry!r}")
                 continue
+            if not entry.get("fingerprint") and not (entry.get("rule_id") and entry.get("range")):
+                # Nothing to match a finding on; left in, it could only fail later.
+                warn(f"Suppression ignored (needs 'rule_id' and 'range', or 'fingerprint'): {entry!r}")
+                continue
             # A copy: apply_suppressions counts matches on the entry.
             suppressions.append(dict(entry, source=f"config suppressions[{index}]"))
     if ignore_path and Path(ignore_path).exists():
+        if Path(ignore_path).is_dir():
+            raise ConfigError(f"Suppression file {ignore_path} is a folder, not a file")
         try:
             text = Path(ignore_path).read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             raise ConfigError(f"Suppression file {ignore_path} is not UTF-8 text; save it as UTF-8") from exc
+        except OSError as exc:
+            raise ConfigError(
+                f"Could not read suppression file {ignore_path} ({exc.strerror or exc}); check that you can open it"
+            ) from exc
         for line_no, raw in enumerate(text.splitlines(), start=1):
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
             entry, problem = _parse_ignore_line(line)
             if entry is not None:
+                # The path as pin_suppression_file spells it, whether the user
+                # typed ./dir/.audit-ignore or used forward slashes on Windows.
                 suppressions.append(
-                    dict(entry, source=f"{ignore_path}:{line_no}", path=str(ignore_path), line=line_no)
+                    dict(entry, source=f"{ignore_path}:{line_no}", path=str(Path(ignore_path)), line=line_no)
                 )
             else:
                 warn(f"Suppression ignored ({ignore_path}:{line_no}); {problem}: {line!r}")
@@ -230,6 +243,10 @@ def pin_suppression_file(path: str | Path, suppressions: list[dict]) -> list[dic
         suppression["rewritten"] = True
     if not replacements:
         return []
+    # A read-only file says "do not edit"; replacing it by rename would
+    # succeed on Linux and quietly drop that.
+    if not os.access(path, os.W_OK):
+        raise _unwritable(path, "it is read-only")
     raw = path.read_bytes().decode("utf-8")
     newline = "\r\n" if "\r\n" in raw else "\n"
     lines = raw.splitlines()
@@ -239,9 +256,20 @@ def pin_suppression_file(path: str | Path, suppressions: list[dict]) -> list[dic
         lines[line_no - 1] = newline.join(new)
     text = newline.join(lines) + (newline if raw.endswith(("\n", "\r")) else "")
     scratch = path.with_name(path.name + ".pinning")
-    scratch.write_bytes(text.encode("utf-8"))
-    os.replace(scratch, path)
+    try:
+        scratch.write_bytes(text.encode("utf-8"))
+        os.replace(scratch, path)
+    except OSError as exc:
+        with contextlib.suppress(OSError):
+            scratch.unlink(missing_ok=True)
+        raise _unwritable(path, exc.strerror or str(exc)) from exc
     return changes
+
+
+def _unwritable(path: Path, why: str) -> ConfigError:
+    return ConfigError(
+        f"Could not rewrite suppression file {path} ({why}); make it writable, or run without --pin-suppressions"
+    )
 
 
 def is_one_cell(target: str) -> bool:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 import contextlib
 import csv
 import importlib.resources
@@ -11,12 +12,20 @@ import sys
 import tempfile
 import time
 import traceback
+import zipfile
 from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import __version__
 from .budget import AuditTimeout, Budget
-from .config_loader import ConfigError, allowed_sheets, apply_check_settings, load_config, sheet_is_allowed
+from .config_loader import (
+    ConfigError,
+    allowed_sheets,
+    apply_check_settings,
+    load_config,
+    scope_sheet_notes,
+    sheet_is_allowed,
+)
 from .finding import Finding, assign_ids, sort_findings
 from .locations import location_matches
 from .names import NameTable
@@ -327,6 +336,45 @@ def _known_rules() -> set[str]:
     return {rule for check_cls in registered_checks() for rule in check_cls.rule_ids}
 
 
+def _workbook_read_errors() -> tuple[type[BaseException], ...]:
+    """The exceptions a malformed workbook raises while it loads.
+
+    Only these mean bad input (exit 4). Anything else is a bug in the auditor
+    and must reach exit 5 with its traceback, not pass as a broken workbook.
+    """
+    from xml.etree.ElementTree import ParseError
+
+    from openpyxl.utils.exceptions import InvalidFileException
+
+    errors: list[type[BaseException]] = [
+        zipfile.BadZipFile, KeyError, ValueError, EOFError, InvalidFileException, ParseError,
+    ]
+    # The XML parsers openpyxl uses when they are installed.
+    with contextlib.suppress(ImportError):
+        from lxml.etree import XMLSyntaxError
+
+        errors.append(XMLSyntaxError)
+    with contextlib.suppress(ImportError):
+        from defusedxml import DefusedXmlException
+
+        errors.append(DefusedXmlException)
+    return tuple(errors)
+
+
+_READER_MODULES = ("openpyxl", "lxml", "defusedxml", "xml", "zipfile", "et_xmlfile")
+
+
+def _raised_by_reader(exc: BaseException) -> bool:
+    """True when ``exc`` was raised inside the workbook reader's code, not the auditor's."""
+    tb = exc.__traceback__
+    if tb is None:
+        return False
+    while tb.tb_next is not None:
+        tb = tb.tb_next
+    module = tb.tb_frame.f_globals.get("__name__", "")
+    return module.split(".", 1)[0] in _READER_MODULES
+
+
 def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
     from .identity import assign_identities
     from .suppressions import apply_suppressions, load_suppressions
@@ -393,16 +441,23 @@ def audit_workbook(args: argparse.Namespace) -> tuple[dict, int]:
         # exactly what the author wrote; LibreOffice re-serializes formulas
         # (for example ``=SUM(#ref!)``) in its converted copy. That copy, when
         # recalculation ran, only supplies cached values.
+        read_errors = _workbook_read_errors()
         try:
             formula_wb = load_workbook_formulas(input_path)
             value_wb = load_workbook_values(analysis_path)
         except Exception as exc:
-            # The file passed preflight as a zip but its contents do not parse.
+            # The file passed preflight as a zip but its contents do not parse:
+            # a parse error, or anything the workbook reader itself raises on
+            # a value it cannot take (openpyxl's TypeError for a malformed
+            # attribute). An error raised in the auditor's own code is a bug.
+            if isinstance(exc, MemoryError) or not (isinstance(exc, read_errors) or _raised_by_reader(exc)):
+                raise
             raise PreflightError(
                 f"The workbook could not be read ({type(exc).__name__}: {exc}); open it in Excel, "
                 "save a copy, and audit the copy."
             ) from exc
         inv = inventory(input_path, formula_wb, value_wb, preflight_info)
+        limitations.extend(scope_sheet_notes(config, [ws.title for ws in formula_wb.worksheets]))
         include, exclude = allowed_sheets(config)
         allowed_sheet_names = {
             ws.title for ws in formula_wb.worksheets if sheet_is_allowed(ws.title, include, exclude)
@@ -571,29 +626,21 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
     # workbook rule, it gets an Info note). Whitespace-only cells are spacers.
     padded: dict[int, list[tuple[int, str]]] = defaultdict(list)
     filled: Counter = Counter()
-    # Excel's "CSV (Comma delimited)" is Windows-1252 on Western Windows
-    # systems; only "CSV UTF-8" is UTF-8.
-    raw = path.read_bytes()
     encoding_notes: list[str] = []
+    text = _csv_text(path.read_bytes(), encoding_notes)
+    _allow_long_csv_fields()
     try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            text = raw.decode("cp1252")
-        except UnicodeDecodeError as exc:
-            raise PreflightError(
-                "The CSV is neither UTF-8 nor Windows-1252 text; save it as 'CSV UTF-8' and audit that."
-            ) from exc
-        encoding_notes.append(
-            "The CSV is not UTF-8, so it was read as Windows-1252, the encoding of Excel's 'CSV (Comma delimited)'."
-        )
-    for row_idx, row in enumerate(csv.reader(io.StringIO(text, newline="")), start=1):
-        for col_idx, value in enumerate(row, start=1):
-            if not value.strip():
-                continue
-            filled[col_idx] += 1
-            if value != value.strip():
-                padded[col_idx].append((row_idx, value))
+        for row_idx, row in enumerate(csv.reader(io.StringIO(text, newline="")), start=1):
+            for col_idx, value in enumerate(row, start=1):
+                if not value.strip():
+                    continue
+                filled[col_idx] += 1
+                if value != value.strip():
+                    padded[col_idx].append((row_idx, value))
+    except csv.Error as exc:
+        raise PreflightError(
+            f"The CSV could not be parsed ({exc}); open it in Excel, save it as 'CSV UTF-8', and audit that."
+        ) from exc
     findings: list[Finding] = []
     for col_idx, cells in sorted(padded.items()):
         row_idx, value = cells[0]
@@ -662,6 +709,62 @@ def audit_csv(path: Path, preflight_info: dict, config: dict | None = None, igno
         },
         findings,
     )
+
+
+# UTF-32 first: its little-endian mark starts with UTF-16's.
+_CSV_BYTE_ORDER_MARKS = (
+    (codecs.BOM_UTF32_LE, "utf-32"),
+    (codecs.BOM_UTF32_BE, "utf-32"),
+    (codecs.BOM_UTF16_LE, "utf-16"),
+    (codecs.BOM_UTF16_BE, "utf-16"),
+)
+
+
+def _csv_text(raw: bytes, encoding_notes: list[str]) -> str:
+    """Decode a CSV, noting on ``encoding_notes`` when it had to be read as Windows-1252."""
+    # Excel's "Unicode Text" and some exports are UTF-16, recognized by their
+    # byte-order mark.
+    for mark, codec in _CSV_BYTE_ORDER_MARKS:
+        if raw.startswith(mark):
+            try:
+                return raw.decode(codec)
+            except UnicodeDecodeError as exc:
+                raise PreflightError(
+                    f"The CSV starts with a {codec.upper()} byte-order mark but is not {codec.upper()} text; "
+                    "save it as 'CSV UTF-8' and audit that."
+                ) from exc
+    # Excel's "CSV (Comma delimited)" is Windows-1252 on Western Windows
+    # systems; only "CSV UTF-8" is UTF-8.
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("cp1252")
+        except UnicodeDecodeError as exc:
+            raise PreflightError(
+                "The CSV is neither UTF-8 nor Windows-1252 text; save it as 'CSV UTF-8' and audit that."
+            ) from exc
+        encoding_notes.append(
+            "The CSV is not UTF-8, so it was read as Windows-1252, the encoding of Excel's 'CSV (Comma delimited)'."
+        )
+    # Text never holds NUL. UTF-16 without a byte-order mark decodes as either
+    # 8-bit encoding (ASCII-only UTF-16 is even valid UTF-8), with a NUL beside
+    # every letter, and would pass as a clean audit of junk.
+    if "\x00" in text:
+        raise PreflightError(
+            "The CSV holds NUL characters, so it is not UTF-8 or Windows-1252 text (it may be UTF-16 "
+            "without a byte-order mark); save it as 'CSV UTF-8' and audit that."
+        )
+    return text
+
+
+def _allow_long_csv_fields() -> None:
+    # The csv module stops at 128 KiB per field, and a notes column can hold
+    # more. The limit is a C long: 32 bits on Windows, even in 64-bit Python.
+    try:
+        csv.field_size_limit(sys.maxsize)
+    except OverflowError:
+        csv.field_size_limit(2**31 - 1)
 
 
 def detect_reference_issues(
@@ -1066,11 +1169,25 @@ def _infer_format(path: str | None, explicit: str | None) -> str:
     lower = path.lower()
     if lower.endswith((".html", ".htm")):
         return "html"
+    # Before .json: report.sarif.json is SARIF, not findings JSON.
+    if lower.endswith((".sarif", ".sarif.json")):
+        return "sarif"
     if lower.endswith(".json"):
         return "json"
-    if lower.endswith(".sarif") or lower.endswith(".sarif.json"):
-        return "sarif"
     return "markdown"
+
+
+def _render_report(payload: dict, fmt: str, show_suppressed: bool = False) -> str:
+    """The report in ``fmt``, for stdout."""
+    if fmt == "html":
+        return render_html(payload, show_suppressed=show_suppressed)
+    if fmt == "json":
+        return json.dumps(payload, indent=2)
+    if fmt == "sarif":
+        from .sarif import render_sarif
+
+        return json.dumps(render_sarif(payload), indent=2)
+    return render_markdown(payload, show_suppressed=show_suppressed)
 
 
 def _write_report(
@@ -1193,6 +1310,49 @@ def _summary_lines(payload: dict, fail_on: str) -> list[str]:
     return lines
 
 
+def _exit_reason(payload: dict, code: int, fail_on: str, strict: bool) -> str | None:
+    """One line saying why a finished audit exits 1 or 2, for a CI log that shows only stderr."""
+    coverage = payload.get("coverage", {})
+    if code == 1:
+        # Counted before the report cap, as the exit code is.
+        by_severity = (coverage.get("finding_counts") or {}).get("by_severity") or Counter(
+            finding["severity"] for finding in payload["findings"] if not finding.get("suppressed")
+        )
+        threshold = FAIL_ORDER.get(fail_on, 99)
+        count = sum(n for severity, n in by_severity.items() if FAIL_ORDER.get(severity, 99) <= threshold)
+        return f"Exit 1: {count} finding(s) at or above --fail-on {fail_on}."
+    if code == 2:
+        flag = "--strict" if strict else "--fail-on None"
+        count = len(coverage.get("limitations") or [])
+        return f"Exit 2: {count} coverage limitation(s) under {flag}; --summary lists them."
+    return None
+
+
+def _seconds(text: str) -> int:
+    """A whole number of seconds, 1 or more, for --recalc-timeout."""
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"must be a whole number of seconds, not {text!r}") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 second or more, not {value}")
+    return value
+
+
+def _annotated_problem(workbook: str, annotated: str | None) -> str | None:
+    """Why --annotated cannot write its copy, or None when it can."""
+    if not annotated:
+        return None
+    source, target = Path(workbook).suffix.lower(), Path(annotated).suffix.lower()
+    if source not in {".xlsx", ".xlsm"}:
+        return f"--annotated copies an .xlsx or .xlsm workbook, and {workbook} is not one; drop --annotated."
+    if target != source:
+        # The copy keeps the workbook's file type (and an .xlsm its macros);
+        # Excel will not open a file whose extension says otherwise.
+        return f"--annotated {annotated} must end in {source}, like the workbook it copies."
+    return None
+
+
 def _configure_streams() -> None:
     """Never let a non-ASCII cell label crash report output on a legacy console encoding."""
     for stream in (sys.stdout, sys.stderr):
@@ -1251,17 +1411,24 @@ def main(argv: list[str] | None = None) -> int:
         const="-",
         default=None,
         help=(
-            "Findings JSON output path. Pass '-' (or no value) to write JSON to stdout. "
+            "Findings JSON output path. Pass '-' (or no value) to write JSON to stdout, which then "
+            "holds only the JSON: the summary and status line go to stderr. "
             "With --healthcheck, --json (no value) emits the machine-readable healthcheck report."
         ),
     )
-    parser.add_argument("--annotated", help="Optional annotated workbook output path. The source workbook is never modified.")
+    parser.add_argument(
+        "--annotated",
+        help=(
+            "Optional annotated copy of an .xlsx or .xlsm workbook, at a path with the workbook's extension. "
+            "The source workbook is never modified."
+        ),
+    )
     parser.add_argument(
         "--format",
         choices=["markdown", "json", "html", "sarif"],
         default=None,
         dest="report_format",
-        help="Report format. Inferred from --out extension when omitted.",
+        help="Report format. Inferred from --out extension when omitted; without --out, the report is printed on stdout.",
     )
     parser.add_argument("--config", help="Optional JSON, YAML, or YML config path")
     parser.add_argument(
@@ -1294,7 +1461,10 @@ def main(argv: list[str] | None = None) -> int:
         "--quiet",
         "-q",
         action="store_true",
-        help="Suppress all stdout output. Useful in CI when only the exit code matters.",
+        help=(
+            "Suppress all stdout output. Useful in CI when only the exit code matters; stderr still "
+            "says why the exit code is not 0."
+        ),
     )
     parser.add_argument(
         "--demo",
@@ -1316,7 +1486,9 @@ def main(argv: list[str] | None = None) -> int:
             "matches in this run, so run it before rows move and review the changes printed on stderr."
         ),
     )
-    parser.add_argument("--recalc-timeout", type=int, default=None, help="Override recalculation timeout in seconds.")
+    parser.add_argument(
+        "--recalc-timeout", type=_seconds, default=None, help="Override recalculation timeout in seconds (1 or more)."
+    )
     parser.add_argument("--healthcheck", action="store_true", help="Report environment/runtime readiness and exit.")
     args = parser.parse_args(argv)
 
@@ -1341,6 +1513,9 @@ def main(argv: list[str] | None = None) -> int:
         # or a mistyped path would drop every suppression without a word.
         if args.ignore is None:
             args.ignore = ".audit-ignore"
+        elif Path(args.ignore).is_dir():
+            print(f"Preflight failed: suppression file {args.ignore} is a folder, not a file", file=sys.stderr)
+            return 4
         elif not Path(args.ignore).is_file():
             print(f"Preflight failed: suppression file not found: {args.ignore}", file=sys.stderr)
             return 4
@@ -1365,6 +1540,19 @@ def main(argv: list[str] | None = None) -> int:
             if target and target != "-" and source.exists() and Path(target).exists() and source.samefile(target):
                 print(f"Preflight failed: {flag} {target} is the workbook being audited; write to a new file.", file=sys.stderr)
                 return 4
+        problem = _annotated_problem(args.workbook, args.annotated)
+        if problem:
+            print(f"Preflight failed: {problem}", file=sys.stderr)
+            return 4
+        # --format without --out prints the report on stdout, where --json -
+        # already puts the findings.
+        if args.json_out == "-" and not args.out and not args.summary and args.report_format not in (None, "json"):
+            print(
+                f"Preflight failed: --json - and --format {args.report_format} would both write to stdout; "
+                f"give the {args.report_format} report a file with --out.",
+                file=sys.stderr,
+            )
+            return 4
 
         try:
             payload, code = audit_workbook(args)
@@ -1403,36 +1591,37 @@ def main(argv: list[str] | None = None) -> int:
             return 5
 
         # Even with --quiet: a CI log that shows only the exit code should
-        # still say why the audit is partial.
+        # still say why the audit is partial, or why it failed the gate.
         for entry in payload.get("coverage", {}).get("incomplete", []):
             print(f"Audit incomplete: {entry['message']}", file=sys.stderr)
+        reason = _exit_reason(payload, code, args.fail_on, args.strict)
+        if reason:
+            print(reason, file=sys.stderr)
 
         if args.quiet:
             return code
 
+        # With the findings JSON on stdout, anything else printed there would
+        # stop it from parsing.
+        console = sys.stderr if args.json_out == "-" else sys.stdout
         if args.summary:
             for line in _summary_lines(payload, args.fail_on):
-                print(line)
+                print(line, file=console)
             return code
 
-        if not args.out and not args.json_out:
-            if args.report_format == "html":
-                print(render_html(payload, show_suppressed=args.show_suppressed))
-            elif args.report_format == "json":
-                print(json.dumps(payload, indent=2))
-            else:
-                print(render_markdown(payload, show_suppressed=args.show_suppressed))
-        elif not args.out and args.json_out == "-":
-            # already printed JSON above; nothing else to do
-            pass
-        else:
-            counts = Counter(f["severity"] for f in payload["findings"] if not f.get("suppressed"))
-            done = "complete" if payload.get("coverage", {}).get("complete", True) else "incomplete"
-            print(
-                f"Audit {done}: {counts.get('Critical', 0)} Critical, "
-                f"{counts.get('High', 0)} High, {counts.get('Medium', 0)} Medium, "
-                f"{counts.get('Low', 0)} Low."
-            )
+        if not args.out and args.json_out == "-":
+            return code  # stdout holds the findings JSON
+        if not args.out and (args.report_format or not args.json_out):
+            print(_render_report(payload, args.report_format or "markdown", show_suppressed=args.show_suppressed))
+            return code
+        counts = Counter(f["severity"] for f in payload["findings"] if not f.get("suppressed"))
+        done = "complete" if payload.get("coverage", {}).get("complete", True) else "incomplete"
+        print(
+            f"Audit {done}: {counts.get('Critical', 0)} Critical, "
+            f"{counts.get('High', 0)} High, {counts.get('Medium', 0)} Medium, "
+            f"{counts.get('Low', 0)} Low.",
+            file=console,
+        )
         return code
 
 

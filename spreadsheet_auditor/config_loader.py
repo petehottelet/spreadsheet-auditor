@@ -67,6 +67,8 @@ def load_config(path: str | None, known_rules: set[str] | None = None) -> dict[s
         return config
 
     config_path = Path(path)
+    if config_path.is_dir():
+        raise ConfigError(f"Config file {config_path} is a folder, not a file")
     if not config_path.is_file():
         raise ConfigError(f"Config file not found: {config_path}")
     suffix = config_path.suffix.lower()
@@ -76,6 +78,11 @@ def load_config(path: str | None, known_rules: set[str] | None = None) -> dict[s
         text = config_path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ConfigError(f"Config file {config_path} is not UTF-8 text") from exc
+    except OSError as exc:
+        # No read permission, or a file another program holds locked.
+        raise ConfigError(
+            f"Could not read config file {config_path} ({exc.strerror or exc}); check that you can open it"
+        ) from exc
     if suffix == ".json":
         try:
             loaded = json.loads(text)
@@ -88,6 +95,11 @@ def load_config(path: str | None, known_rules: set[str] | None = None) -> dict[s
 
     if not isinstance(loaded, dict):
         raise ConfigError(f"Config file {config_path} must hold a mapping of sections such as checks and limits")
+    # A section with nothing under it (YAML `checks:` followed only by
+    # comments, or JSON null) is left out, so it keeps the defaults it would
+    # otherwise replace.
+    loaded = {section: value for section, value in loaded.items() if value is not None}
+    _store_whole_numbers(loaded)
     if known_rules is not None:
         validate_config(loaded, known_rules)
     _merge_dict(config, loaded)
@@ -138,17 +150,44 @@ _DESCRIPTIONS = {
 }
 
 
-def _unknown(what: str, name: str, known) -> ConfigError:
+def _by_lower(known) -> dict[str, str]:
     # Matched in any case, suggested as written in the auditor; a rule ID sorts
     # last, so it wins over an alias spelled the same (volatile_function).
-    by_lower = {key.lower(): key for key in sorted(map(str, known), reverse=True)}
+    return {key.lower(): key for key in sorted(map(str, known), reverse=True)}
+
+
+def _close_match(name: str, known) -> str | None:
+    by_lower = _by_lower(known)
     match = difflib.get_close_matches(str(name).lower(), by_lower, n=1, cutoff=0.6)
-    hint = f"; did you mean '{by_lower[match[0]]}'?" if match else f"; known {what}s: {', '.join(sorted(by_lower.values()))}"
+    return by_lower[match[0]] if match else None
+
+
+def _unknown(what: str, name: str, known) -> ConfigError:
+    match = _close_match(name, known)
+    hint = f"; did you mean '{match}'?" if match else f"; known {what}s: {', '.join(sorted(_by_lower(known).values()))}"
     return ConfigError(f"Unknown {what} '{name}' in config{hint}")
 
 
+def _is_whole(value: Any) -> bool:
+    # YAML and JSON writers may spell 50000 as 50000.0.
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int) or (isinstance(value, float) and value.is_integer())
+
+
+def _store_whole_numbers(loaded: dict[str, Any]) -> None:
+    """Store a whole-number setting written as 50000.0 as 50000: readers use it as a count and a slice bound."""
+    for section, shape in SECTIONS.items():
+        values = loaded.get(section)
+        if not isinstance(shape, dict) or not isinstance(values, dict):
+            continue
+        for key, kind in shape.items():
+            item = values.get(key)
+            if kind in (_COUNT, _POSITIVE) and isinstance(item, float) and _is_whole(item):
+                values[key] = int(item)
+
+
 def _fits(value: Any, kind: str) -> bool:
-    is_int = isinstance(value, int) and not isinstance(value, bool)
     if kind == _TEXT:
         return isinstance(value, str)
     if kind == _TEXTS:
@@ -156,10 +195,20 @@ def _fits(value: Any, kind: str) -> bool:
     if kind == _NUMBER:
         return isinstance(value, (int, float)) and not isinstance(value, bool)
     if kind == _COUNT:
-        return is_int and value >= 0
+        return _is_whole(value) and value >= 0
     if kind == _POSITIVE:
-        return is_int and value >= 1
+        return _is_whole(value) and value >= 1
     return isinstance(value, bool)
+
+
+def _wrong_value(name: str, value: Any, kind: str) -> ConfigError:
+    message = f"{name} must be {_DESCRIPTIONS[kind]}, not {value!r}"
+    if kind == _TEXTS and isinstance(value, list):
+        numbers = [item for item in value if isinstance(item, (int, float)) and not isinstance(item, bool)]
+        if numbers:
+            # YAML reads `include_sheets: [2024]` as a number, not the sheet named 2024.
+            message += f'; quote a sheet name that looks like a number, as in ["{numbers[0]}"]'
+    return ConfigError(message)
 
 
 def validate_config(loaded: dict[str, Any], known_rules: set[str]) -> None:
@@ -167,6 +216,8 @@ def validate_config(loaded: dict[str, Any], known_rules: set[str]) -> None:
     for section, value in loaded.items():
         if section not in SECTIONS:
             raise _unknown("section", section, SECTIONS)
+        if value is None:
+            continue  # an empty section; every reader treats it as {}
         shape = SECTIONS[section]
         if section == "checks":
             if not isinstance(value, dict):
@@ -189,9 +240,9 @@ def validate_config(loaded: dict[str, Any], known_rules: set[str]) -> None:
                 if key not in shape:
                     raise _unknown(f"{section} setting", key, shape)
                 if not _fits(item, shape[key]):
-                    raise ConfigError(f"{section}.{key} must be {_DESCRIPTIONS[shape[key]]}, not {item!r}")
+                    raise _wrong_value(f"{section}.{key}", item, shape[key])
         elif not _fits(value, shape):
-            raise ConfigError(f"{section} must be {_DESCRIPTIONS[shape]}, not {value!r}")
+            raise _wrong_value(section, value, shape)
 
 
 def _merge_dict(base: dict[str, Any], update: dict[str, Any]) -> None:
@@ -214,6 +265,45 @@ def sheet_is_allowed(sheet_name: str, include: set[str] | None, exclude: set[str
     if include is not None and sheet_name not in include:
         return False
     return sheet_name not in exclude
+
+
+def scope_sheet_notes(config: dict[str, Any], sheet_names: list[str]) -> list[str]:
+    """Limitation notes for scope sheet names this workbook does not have.
+
+    An include list that names none of its sheets would audit nothing and
+    pass as a clean, complete audit, so that is a :class:`ConfigError`.
+    """
+    scope = config.get("scope") or {}
+    include = list(scope.get("include_sheets") or [])
+    existing = set(sheet_names)
+    missing = [name for name in include if name not in existing]
+    if include and len(missing) == len(include):
+        raise ConfigError(
+            f"scope.include_sheets names no sheet of this workbook: {_sheet_list(missing, sheet_names)}. "
+            f"Its sheets are {', '.join(repr(name) for name in sheet_names)}"
+        )
+    notes = []
+    if missing:
+        notes.append(
+            f"scope.include_sheets names sheets this workbook does not have: {_sheet_list(missing, sheet_names)}; "
+            "only the sheets it does have were audited."
+        )
+    missing = [name for name in scope.get("exclude_sheets") or [] if name not in existing]
+    if missing:
+        notes.append(
+            f"scope.exclude_sheets names sheets this workbook does not have, so they excluded nothing: "
+            f"{_sheet_list(missing, sheet_names)}."
+        )
+    return notes
+
+
+def _sheet_list(names: list[str], sheet_names: list[str]) -> str:
+    """The names, quoted, each with the workbook's sheet it was probably meant to be."""
+    shown = []
+    for name in names:
+        match = _close_match(name, sheet_names)
+        shown.append(f"'{name}'" + (f" (did you mean '{match}'?)" if match else ""))
+    return ", ".join(shown)
 
 
 # Rules that stay off unless a config turns them on (for example

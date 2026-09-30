@@ -7,6 +7,7 @@ import pytest
 
 from spreadsheet_auditor.audit import _known_rules
 from spreadsheet_auditor.config_loader import (
+    CHECK_KEY_TO_RULE_ID,
     CHECK_SETTINGS,
     SECTIONS,
     ConfigError,
@@ -67,10 +68,22 @@ def test_schema_publishes_the_sections_settings_and_levels_the_auditor_accepts()
     assert set(levels) == CHECK_SETTINGS
 
 
-def test_schema_rejects_a_mistyped_section_as_the_auditor_does():
+def test_schema_lists_every_rule_name_the_auditor_accepts():
+    names = _schema()["properties"]["checks"]["propertyNames"]["enum"]
+    assert len(names) == len(set(names))
+    assert set(names) == _known_rules() | set(CHECK_KEY_TO_RULE_ID)
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ({"limit": {"max_formulas": 10}}, "did you mean 'limits'"),
+        ({"checks": {"LIVE_EROR": "off"}}, "did you mean 'LIVE_ERROR'"),
+    ],
+)
+def test_schema_rejects_a_mistyped_name_as_the_auditor_does(config, message):
     jsonschema = pytest.importorskip("jsonschema")
-    config = {"limit": {"max_formulas": 10}}
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=config, schema=_schema())
-    with pytest.raises(ConfigError, match="did you mean 'limits'"):
+    with pytest.raises(ConfigError, match=message):
         validate_config(config, _known_rules())
