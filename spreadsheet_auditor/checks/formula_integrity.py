@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 from collections import defaultdict
 
 from ..finding import Finding
@@ -51,7 +52,10 @@ class LiveErrorCheck(Check):
     mode = "DET"
 
     def run(self, ctx: CheckContext) -> list[Finding]:
-        from ..dependency_graph import build_dependency_graph
+        from ..dependency_graph import (
+            build_dependency_graph,
+            strongly_connected_components,
+        )
         from ..formula_parser import parse_formula
         from ..workbook_inventory import scan_live_errors
 
@@ -83,50 +87,53 @@ class LiveErrorCheck(Check):
             for dep in deps:
                 reverse[dep].add(source)
 
-        # A root is an error cell with no erroring precedent: a literal error
-        # value, or the formula where the error is born.
-        roots = [loc for loc in errors if not any(dep in errors for dep in graph.get(loc, ()))]
-        # The root's formula is where the error is born; the report shows it so
-        # the cause can be read without opening the workbook.
+        # A source is where an error is born: an error cell that reads no other
+        # error (a literal error value, or the formula where it arises), or
+        # every cell of an error cycle nothing outside it feeds (a lookup whose
+        # table spans its own column: every row reads the others). Everything
+        # else is downstream of a source.
+        reads = {loc: {dep for dep in graph.get(loc, ()) if dep in errors} for loc in errors}
+        components = strongly_connected_components(reads)
+        component_of = {loc: index for index, component in enumerate(components) for loc in component}
+        fed = {component_of[loc] for loc in errors for dep in reads[loc] if component_of[dep] != component_of[loc]}
+        sources = [loc for index, component in enumerate(components) if index not in fed for loc in component]
+        source_set = set(sources)
+        # The source's formula is where the error is born; the report shows it
+        # so the cause can be read without opening the workbook.
         cell_at = {cell["location"]: cell for cell in ctx.formulas}
-        covered: set[str] = set()
-        propagated_from: dict[str, set[str]] = {}
-        for root in roots:
-            seen = {root}
-            stack = [root]
-            while stack:
-                node = stack.pop()
-                for dependent in reverse.get(node, ()):
-                    if dependent in errors and dependent not in seen:
-                        seen.add(dependent)
-                        stack.append(dependent)
-            covered.update(seen)
-            propagated_from[root] = seen - {root}
-
-        # Errors inside a cycle have no root (a lookup whose table spans its
-        # own column: every row reads the others); each is its own source.
-        for loc in set(errors) - covered:
-            propagated_from[loc] = set()
 
         # A formula filled down a column that errors in every row is one
         # mistake, not one per row: sources that share a sheet, an error value
         # and a relative formula (or are the same error typed as a constant)
-        # are one finding, led by their top-left cell.
+        # are one finding, led by their top-left cell. Each group is traced
+        # once, from all its cells together, so a column of sources feeding a
+        # running total costs one pass, not one per row.
         groups: dict[tuple, list[str]] = defaultdict(list)
-        for root in propagated_from:
-            cell = cell_at.get(root)
+        for source in sources:
+            cell = cell_at.get(source)
             shape = normalize_formula(cell["formula"], cell["row"], cell["col"]) if cell else "constant"
-            groups[(root.rsplit("!", 1)[0], errors[root], shape)].append(root)
+            groups[(source.rsplit("!", 1)[0], errors[source], shape)].append(source)
         findings: list[Finding] = []
         for (_sheet, error_value, shape), members in groups.items():
             members.sort(key=_position)
             lead = members[0]
-            dependents = set().union(*(propagated_from[root] for root in members)) - set(members)
+            reached = set(members)
+            stack = list(members)
+            while stack:
+                if ctx.budget is not None:
+                    ctx.budget.tick()
+                node = stack.pop()
+                for dependent in reverse.get(node, ()):
+                    if dependent in errors and dependent not in reached:
+                        reached.add(dependent)
+                        stack.append(dependent)
+            dependents = reached - source_set
             findings.append(
                 self._finding(
                     lead,
                     error_value,
-                    sorted(dependents, key=_position),
+                    len(dependents),
+                    heapq.nsmallest(MAX_DEPENDENTS_SHOWN, dependents, key=_position),
                     lead in static,
                     cell_at[lead]["formula"] if lead in cell_at else None,
                     members,
@@ -139,7 +146,8 @@ class LiveErrorCheck(Check):
     def _finding(
         loc: str,
         error_value: str,
-        propagated: list[str],
+        propagated_count: int,
+        propagated_shown: list[str],
         static: bool = False,
         formula: str | None = None,
         members: list[str] | None = None,
@@ -156,12 +164,12 @@ class LiveErrorCheck(Check):
                 shown += f", and {len(others) - MAX_DEPENDENTS_SHOWN} more"
             what = f"{error_value} is typed as a value" if constant else f"the same relative formula evaluates to {error_value}"
             evidence.append(f"{what[0].upper()}{what[1:]} in {len(members)} cells on this sheet; the others are {shown}.")
-        if propagated:
-            shown = ", ".join(propagated[:MAX_DEPENDENTS_SHOWN])
-            if len(propagated) > MAX_DEPENDENTS_SHOWN:
-                shown += f", and {len(propagated) - MAX_DEPENDENTS_SHOWN} more"
+        if propagated_count:
+            shown = ", ".join(propagated_shown)
+            if propagated_count > len(propagated_shown):
+                shown += f", and {propagated_count - len(propagated_shown)} more"
             evidence.append(
-                f"The error propagates to {len(propagated)} dependent cell(s): {shown}. Fixing the source clears them."
+                f"The error propagates to {propagated_count} dependent cell(s): {shown}. Fixing the source clears them."
             )
         return Finding(
             rule_id="LIVE_ERROR",

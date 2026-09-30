@@ -265,3 +265,71 @@ def test_annotated_copy_and_sarif_mark_every_cell_of_a_grouped_finding(tmp_path)
     related = [loc["logicalLocations"][0]["name"] for loc in result["relatedLocations"]]
     assert related == [f"S!B{row}" for row in range(3, 22)]
     assert result["properties"]["members"][0] == "S!B2"
+
+
+# --- tracing live errors ------------------------------------------------------
+
+
+def _live_context(cells: dict[str, tuple[object, object]]):
+    """A one-sheet check context from ``{address: (formula or value, cached value)}``."""
+    from spreadsheet_auditor.checks.base import CheckContext
+    from spreadsheet_auditor.workbook_inventory import formula_cells
+
+    formula_wb, value_wb = Workbook(), Workbook()
+    ws, values = formula_wb.active, value_wb.active
+    ws.title = values.title = "S"
+    for address, (content, cached) in cells.items():
+        ws[address] = content
+        values[address] = cached
+    return CheckContext(None, formula_wb, value_wb, {"S"}, formula_cells(formula_wb), {}, {})
+
+
+def test_errors_downstream_of_an_error_cycle_belong_to_its_finding():
+    from spreadsheet_auditor.checks.formula_integrity import LiveErrorCheck
+
+    cells = {f"D{row}": (f"code {row}", f"code {row}") for row in range(2, 7)}
+    cells.update({f"E{row}": (f"=VLOOKUP(G{row},$D$2:$E$6,2,FALSE)", "#N/A") for row in range(2, 7)})
+    cells.update({"F8": ("=SUM(E2:E6)", "#N/A"), "F9": ("=F8*2", "#N/A")})
+    [finding] = LiveErrorCheck().run(_live_context(cells))
+    assert finding.location == "S!E2" and len(finding.members) == 5
+    assert finding.evidence[-1].startswith("The error propagates to 2 dependent cell(s): S!F8, S!F9.")
+
+
+def test_tracing_a_column_of_errors_into_a_running_total_is_linear_and_timed(monkeypatch):
+    import tracemalloc
+
+    from spreadsheet_auditor import dependency_graph
+    from spreadsheet_auditor.checks.formula_integrity import LiveErrorCheck
+
+    # Count only the trace's polls of the budget, not the graph build's.
+    build = dependency_graph.build_dependency_graph
+    monkeypatch.setattr(
+        dependency_graph, "build_dependency_graph", lambda *args, **kwargs: build(*args, **{**kwargs, "budget": None})
+    )
+
+    rows = 3000
+    cells = {}
+    for row in range(2, rows + 2):
+        cells[f"A{row}"] = (f"key {row}", f"key {row}")
+        cells[f"B{row}"] = (f"=VLOOKUP(A{row},$E$1:$F$3,2,FALSE)", "#N/A")
+        cells[f"C{row}"] = (f"=C{row - 1}+B{row}" if row > 2 else "=B2", "#N/A")
+    ctx = _live_context(cells)
+
+    class CountingBudget:
+        ticks = 0
+
+        def tick(self):
+            CountingBudget.ticks += 1
+
+    ctx.budget = CountingBudget()
+    tracemalloc.start()
+    [finding] = LiveErrorCheck().run(ctx)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert len(finding.members) == rows
+    assert f"The error propagates to {rows} dependent cell(s)" in finding.evidence[-1]
+    # One pass for the whole column: tracing every row separately kept a set
+    # of the running total's cells per row, about 200 MB here.
+    assert peak < 60_000_000
+    # The trace polls the time budget, so limits.timeout_seconds can stop it.
+    assert CountingBudget.ticks >= 2 * rows
