@@ -3,7 +3,11 @@
 from openpyxl import Workbook
 
 from spreadsheet_auditor.config_loader import check_setting
-from spreadsheet_auditor.formula_parser import ParsedReference, extract_numeric_literals
+from spreadsheet_auditor.formula_parser import (
+    ParsedReference,
+    extract_numeric_literals,
+    extract_references,
+)
 from spreadsheet_auditor.range_checks import detect_range_length_mismatch
 from spreadsheet_auditor.reconcile import detect_cross_foot_failures
 from spreadsheet_auditor.reference_resolver import reference_in_bounds
@@ -123,6 +127,31 @@ def test_reference_in_bounds_rejects_beyond_excel_grid():
 def test_year_literals_not_flagged():
     assert extract_numeric_literals("=A1*2025") == []
     assert "1.05" in extract_numeric_literals("=A1*1.05")
+
+
+def test_rounding_digits_and_formats_are_structural_but_the_value_is_not():
+    assert extract_numeric_literals("=ROUND(A1*1.0725,2)") == ["1.0725"]
+    assert extract_numeric_literals("=ROUNDUP(A1,3)") == []
+    assert extract_numeric_literals('=TEXT(A1*1.1,"0.00")') == ["1.1"]
+    assert extract_numeric_literals("=MROUND(A1*1.2,0.05)") == ["1.2"]
+    assert extract_numeric_literals("=MOD(A1,7)") == []
+    assert extract_numeric_literals("=MOD(ROW(),3)") == []
+    # Functions whose every argument is structural keep their exemption.
+    assert extract_numeric_literals("=DATE(2026,3,15)") == []
+    assert extract_numeric_literals("=MID(A1,3,5)") == []
+    # Months counted into quarters or halves: calendar facts, not assumptions.
+    assert extract_numeric_literals("=ROUNDUP(MONTH(D2)/3,0)") == []
+    assert extract_numeric_literals("=ROUNDUP(A2/3,0)") == ["3"]
+
+
+def test_explicit_text_to_number_conversions():
+    def converted(formula: str) -> list[bool]:
+        return [ref.converted for ref in extract_references(formula) if ref.ref == "A1"]
+
+    for formula in ("=--A1", "=A1*1", "=A1+0", "=A1/1", "=1*A1", "=VALUE(A1)", "=B1+A1*1", "=A1*1*B1"):
+        assert converted(formula) == [True], formula
+    for formula in ("=A1+B1", "=SUM(A1)", "=B1+A1+0", "=B1/A1*1", "=A1*1%", "=1/A1", "=0-A1", "=B1--A1"):
+        assert converted(formula) == [False], formula
 
 
 def test_check_setting_aliases():

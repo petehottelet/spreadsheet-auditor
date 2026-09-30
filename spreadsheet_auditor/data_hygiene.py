@@ -89,6 +89,9 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
                 in_numeric_column[cell.column].append(cell)
         for col, cells in consumed.items():
             lead = cells[0]
+            if not any(index.unconverted_contains(ws.title, cell.row, cell.column) for cell in cells):
+                findings.append(_converted_text_numbers(ws.title, col, cells))
+                continue
             evidence = [
                 f"Cell contains text value {lead.value!r} and a formula consumes it as a number; "
                 "SUM-style functions skip text and arithmetic on it fails."
@@ -129,6 +132,32 @@ def _numbers_stored_as_text(workbook, allowed_sheet_names, budget, index: Refere
                 )
             )
     return findings
+
+
+def _converted_text_numbers(sheet: str, col: int, cells: list) -> Finding:
+    """Text numbers that every formula reading them as numbers converts first (``--A1``, ``VALUE(A1)``)."""
+    lead = cells[0]
+    evidence = [
+        (
+            f"Cell contains text value {lead.value!r}; every formula that reads it as a number converts it where it "
+            "is used (--, VALUE, *1 or +0), so those results are right, but a SUM or another tool reading the "
+            "cells directly would still skip them."
+        )
+    ]
+    if len(cells) > 1:
+        what = f"numeric-looking text values in column {get_column_letter(col)} are converted where formulas read them"
+        evidence.append(_others(cells, what))
+    return Finding(
+        rule_id="NUMBERS_STORED_AS_TEXT",
+        severity="Low",
+        error_confidence="Info",
+        detection_mode="DET",
+        location=location(sheet, lead.row, lead.column),
+        members=[location(sheet, cell.row, cell.column) for cell in cells],
+        title="Numbers stored as text, converted where used",
+        evidence=evidence,
+        suggested_fix="Convert the values to numbers so the formulas no longer need to, or leave them if they must stay text.",
+    )
 
 
 def _others(cells: list, what: str) -> str:

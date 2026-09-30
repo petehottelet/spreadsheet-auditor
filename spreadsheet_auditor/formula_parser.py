@@ -218,8 +218,8 @@ ARRAY_FUNCS = {
     "CHOOSE",
 }
 # Function argument slots whose numeric literal is structural (a column
-# index, a match type, a string position, a date part, a rounding digit), not
-# an assumption anyone would move to an input cell.
+# index, a match type, a string position, a date part), not an assumption
+# anyone would move to an input cell.
 LITERAL_SLOT_FUNCS = {
     "LEFT",
     "RIGHT",
@@ -246,18 +246,6 @@ LITERAL_SLOT_FUNCS = {
     "CHOOSE",
     "CHOOSECOLS",
     "CHOOSEROWS",
-    "ROUND",
-    "ROUNDUP",
-    "ROUNDDOWN",
-    "MROUND",
-    "CEILING",
-    "CEILING.MATH",
-    "FLOOR",
-    "FLOOR.MATH",
-    "TRUNC",
-    "FIXED",
-    "DOLLAR",
-    "TEXT",
     "AGGREGATE",
     "SUBTOTAL",
     "SMALL",
@@ -271,12 +259,10 @@ LITERAL_SLOT_FUNCS = {
     "PERCENTILE",
     "PERCENTILE.INC",
     "PERCENTILE.EXC",
-    "LOG",
     "BASE",
     "DECIMAL",
     "DAYS360",
     "YEARFRAC",
-    "MOD",
     "SEQUENCE",
     "TAKE",
     "DROP",
@@ -285,6 +271,26 @@ LITERAL_SLOT_FUNCS = {
     "WRAPCOLS",
     "CELL",
     "ROMAN",
+}
+# Functions that round, format or divide a value. Only the arguments after the
+# first (the digits, significance, format, divisor or base) are structural:
+# the first is the value itself, so ``ROUND(A1*1.0725,2)`` still embeds the
+# assumption 1.0725 while its 2 is a rounding digit.
+SHAPING_FUNCS = {
+    "ROUND",
+    "ROUNDUP",
+    "ROUNDDOWN",
+    "MROUND",
+    "CEILING",
+    "CEILING.MATH",
+    "FLOOR",
+    "FLOOR.MATH",
+    "TRUNC",
+    "FIXED",
+    "DOLLAR",
+    "TEXT",
+    "MOD",
+    "LOG",
 }
 LITERAL_SLOTS = {
     ("VLOOKUP", 2),
@@ -305,6 +311,12 @@ _PARSE_CACHE_LIMIT = 250_000
 COMPARISON_OPS = {"=", "<>", "<", ">", "<=", ">="}
 ARITHMETIC_OPS = {"+", "-", "*", "/", "^", "%"}
 _OPERATOR_TYPES = {Token.OP_IN, Token.OP_PRE, Token.OP_POST}
+# Functions that turn text into a number, and the arithmetic that does it
+# without changing the value: ``A1*1``, ``A1/1``, ``A1+0``, ``A1-0``.
+CONVERSION_FUNCS = {"VALUE", "NUMBERVALUE"}
+_IDENTITY_OPS = {"*": 1.0, "/": 1.0, "+": 0.0, "-": 0.0}
+# Binding strength of infix operators; comparisons bind loosest.
+_PRECEDENCE = {"^": 4, "*": 3, "/": 3, "+": 2, "-": 2, "&": 1}
 _EXTERNAL_SOURCE_RE = re.compile(r"^'?(\[[^\]]*\])")
 
 _CELL = r"\$?[A-Za-z]{1,3}\$?\d{1,7}"
@@ -356,6 +368,9 @@ class ParsedReference:
     numeric: bool = False
     #: A whole-column reference here is evaluated row by row as an array.
     array_context: bool = False
+    #: The value is converted to a number explicitly where it is read:
+    #: ``--A1``, ``A1*1``, ``A1/1``, ``A1+0``, ``VALUE(A1)``.
+    converted: bool = False
 
 
 @dataclass
@@ -562,6 +577,79 @@ def _adjacent_operator(tokens: tuple, idx: int, step: int) -> str | None:
     return None
 
 
+def _next_index(tokens: tuple, idx: int | None, step: int) -> int | None:
+    """Index of the token before (``step=-1``) or after (``step=1``) ``idx``, skipping whitespace."""
+    if idx is None:
+        return None
+    j = idx + step
+    while 0 <= j < len(tokens) and tokens[j][1] == Token.WSPACE:
+        j += step
+    return j if 0 <= j < len(tokens) else None
+
+
+def _is_token(tokens: tuple, idx: int | None, ttype: str, value: str) -> bool:
+    return idx is not None and tokens[idx][1] == ttype and tokens[idx][0] == value
+
+
+def _is_identity(tokens: tuple, idx: int | None, op: str) -> bool:
+    """True when the token at ``idx`` is the number that leaves a value unchanged under ``op``."""
+    if idx is None or tokens[idx][1] != Token.OPERAND or tokens[idx][2] != Token.NUMBER:
+        return False
+    try:
+        return float(tokens[idx][0]) == _IDENTITY_OPS[op]
+    except ValueError:
+        return False
+
+
+def _binds_looser(tokens: tuple, idx: int | None, op: str, ties: bool) -> bool:
+    """True when the token at ``idx`` is no operator, or an infix one that binds looser than ``op``.
+
+    ``ties`` accepts an operator as strong as ``op``, which is right on the
+    operand's right side: ``A1*1*B1`` multiplies ``A1*1`` first.
+    """
+    if idx is None or tokens[idx][1] not in _OPERATOR_TYPES:
+        return True
+    if tokens[idx][1] != Token.OP_IN:
+        return False
+    strength = _PRECEDENCE.get(tokens[idx][0], 0)
+    return strength <= _PRECEDENCE[op] if ties else strength < _PRECEDENCE[op]
+
+
+def _explicitly_converted(tokens: tuple, idx: int, func: str | None, arg: int | None, bare: bool) -> bool:
+    """True when the operand at ``idx`` is turned into a number before anything else uses it.
+
+    ``--A1``, ``A1*1``, ``A1/1``, ``A1+0``, ``A1-0``, ``1*A1``, ``0+A1`` and
+    ``VALUE(A1)`` are the idioms for reading a number stored as text.
+    """
+    if bare and func in CONVERSION_FUNCS and arg == 0:
+        return True
+    before = _next_index(tokens, idx, -1)
+    if _is_token(tokens, before, Token.OP_PRE, "-") and _is_token(
+        tokens, _next_index(tokens, before, -1), Token.OP_PRE, "-"
+    ):
+        return True
+    after = _next_index(tokens, idx, 1)
+    if after is not None and tokens[after][1] == Token.OP_IN and tokens[after][0] in _IDENTITY_OPS:
+        op = tokens[after][0]
+        number = _next_index(tokens, after, 1)
+        if (
+            _is_identity(tokens, number, op)
+            and _binds_looser(tokens, _next_index(tokens, number, 1), op, ties=True)
+            and _binds_looser(tokens, before, op, ties=False)
+        ):
+            return True
+    if before is not None and tokens[before][1] == Token.OP_IN and tokens[before][0] in {"*", "+"}:
+        op = tokens[before][0]
+        number = _next_index(tokens, before, -1)
+        if (
+            _is_identity(tokens, number, op)
+            and _binds_looser(tokens, _next_index(tokens, number, -1), op, ties=False)
+            and _binds_looser(tokens, after, op, ties=True)
+        ):
+            return True
+    return False
+
+
 def _operand_context(tokens: tuple, idx: int, stack: list[list]) -> dict:
     """How the operand at ``idx`` is used: its enclosing call and the operators beside it."""
     operators = [op for op in (_adjacent_operator(tokens, idx, -1), _adjacent_operator(tokens, idx, 1)) if op]
@@ -581,6 +669,7 @@ def _operand_context(tokens: tuple, idx: int, stack: list[list]) -> dict:
         # ``SUMPRODUCT((E4:E110=E4)*...)`` compares the column, it does not add it.
         "numeric": arithmetic or (bare and (func in NUMERIC_FUNCS or (func, arg) in NUMERIC_SLOTS)),
         "array_context": comparison or arithmetic or concat or func in ARRAY_FUNCS,
+        "converted": _explicitly_converted(tokens, idx, func, arg, bare),
     }
 
 
@@ -592,7 +681,20 @@ def _literal_is_structural(stack: list[list]) -> bool:
         return True
     if func in {"SUMIFS", "AVERAGEIFS", "MAXIFS", "MINIFS"} and arg >= 2 and arg % 2 == 0:
         return True
+    if func in SHAPING_FUNCS:
+        return arg >= 1
     return func in LITERAL_SLOT_FUNCS or (func, arg) in LITERAL_SLOTS
+
+
+def _groups_months(tokens: tuple, idx: int, closed: dict[int, str]) -> bool:
+    """True for the 3 in ``MONTH(D2)/3``: months counted into quarters (or halves, with 6), a calendar fact."""
+    if tokens[idx][0] not in {"3", "6"}:
+        return False
+    divide = _next_index(tokens, idx, -1)
+    if not _is_token(tokens, divide, Token.OP_IN, "/"):
+        return False
+    call_end = _next_index(tokens, divide, -1)
+    return call_end is not None and closed.get(call_end) == "MONTH"
 
 
 def external_source(raw: str) -> str:
@@ -655,6 +757,8 @@ def _parse(formula: str, names: Any, origin: tuple[str, int, int] | None) -> Par
         return parsed
     # Open function calls, innermost last: [name, index of the argument being read].
     stack: list[list] = []
+    # The function each closing parenthesis ends, by token index.
+    closed: dict[int, str] = {}
     for idx, (value, ttype, subtype) in enumerate(tokens):
         if ttype == Token.FUNC and subtype == Token.OPEN:
             name = value[:-1]
@@ -676,7 +780,7 @@ def _parse(formula: str, names: Any, origin: tuple[str, int, int] | None) -> Par
             stack.append([fname, 0])
         elif ttype == Token.FUNC and subtype == Token.CLOSE:
             if stack:
-                stack.pop()
+                closed[idx] = stack.pop()[0]
         elif ttype == Token.SEP and subtype == Token.ARG:
             if stack:
                 stack[-1][1] += 1
@@ -687,7 +791,7 @@ def _parse(formula: str, names: Any, origin: tuple[str, int, int] | None) -> Par
                 nxt = tokens[idx + 1] if idx + 1 < len(tokens) else None
                 if nxt is not None and nxt[1] == Token.OP_POST and nxt[0] == "%":
                     continue
-                if _keep_literal(value) and not _literal_is_structural(stack):
+                if _keep_literal(value) and not _literal_is_structural(stack) and not _groups_months(tokens, idx, closed):
                     parsed.numeric_literals.append(value)
             elif subtype == Token.ERROR:
                 parsed.error_literals.append(value.upper())

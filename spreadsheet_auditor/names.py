@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 
 from openpyxl.utils.cell import get_column_letter, range_boundaries
 
+from .locations import unquote_sheet
+
 _SPECIFIERS = {"#ALL", "#DATA", "#HEADERS", "#TOTALS", "#THIS ROW"}
 _STRUCTURED_RE = re.compile(r"^(?P<table>[A-Za-z_\\][A-Za-z0-9_.]*)?\[(?P<body>.*)\]$", re.S)
 _ESCAPES = (("'[", "["), ("']", "]"), ("'#", "#"), ("'@", "@"), ("''", "'"))
@@ -57,6 +59,18 @@ def _unescape(item: str) -> str:
     for escaped, plain in _ESCAPES:
         text = text.replace(escaped, plain)
     return text
+
+
+def _sheet_title(sheet) -> str:
+    """The sheet title a defined name's destination points at.
+
+    openpyxl strips the quotes from ``'Bob''s Data'!$A$1`` but keeps the
+    doubled apostrophe, which would never match the sheet ``Bob's Data``.
+    """
+    text = str(sheet).strip()
+    if len(text) >= 2 and text[0] == "'" and text[-1] == "'":
+        return unquote_sheet(text)
+    return text.replace("''", "'")
 
 
 def _split_items(body: str) -> list[tuple[str, str]]:
@@ -209,7 +223,7 @@ class NameTable:
         except Exception:
             destinations = []
         targets = [
-            (str(sheet), str(cells).replace("$", "").upper())
+            (_sheet_title(sheet), str(cells).replace("$", "").upper())
             for sheet, cells in destinations
             if sheet and cells
         ]

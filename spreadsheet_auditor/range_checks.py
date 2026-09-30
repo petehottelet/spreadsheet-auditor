@@ -675,7 +675,7 @@ def detect_literal_constants(formula_cells: list[dict], budget=None) -> list[Fin
 
     Literals in structural argument slots (a VLOOKUP column index, a MID
     length, a date part, a rounding digit) are not reported; see
-    ``LITERAL_SLOT_FUNCS`` in the parser.
+    ``LITERAL_SLOT_FUNCS`` and ``SHAPING_FUNCS`` in the parser.
     """
     hits: list[dict] = []
     literals_of: dict[int, list[str]] = {}
