@@ -213,8 +213,14 @@ def test_whitespace_reports_the_stray_padded_key_not_the_export(tmp_path):
     ws["D2"] = '=COUNTIF(B2:B5,"Fully linked")'
     path = tmp_path / "padding.xlsx"
     wb.save(path)
-    found = {f["location"]: f["severity"] for f in _audit(path).get("WHITESPACE_KEY", [])}
-    assert found == {"S!A3": "Medium", "S!B2": "Low"}
+    findings = _audit(path).get("WHITESPACE_KEY", [])
+    assert {f["location"]: f["severity"] for f in findings} == {"S!A3": "Medium", "S!B2": "Low"}
+    # The padded header and the indented label are not reported, and not called clean either.
+    [name] = [f for f in findings if f["location"] == "S!A3"]
+    assert name["evidence"][0] == (
+        "Raw value is 'Courtney '; 2 other text value(s) in column A are padded too, but only this one is "
+        "read by a formula or in the first column, where keys usually sit."
+    )
 
 
 def test_a_few_padded_keys_in_one_column_are_one_finding_that_names_them(tmp_path):

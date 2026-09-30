@@ -201,10 +201,12 @@ def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIn
         for col in sorted(text_cells):
             cells = text_cells[col]
             candidates = []
+            padded = 0
             for cell in cells:
                 value = cell.value
                 if value == value.strip() or not value.strip():
                     continue
+                padded += 1
                 if cell.row in header_rows and last_row[col] > cell.row:
                     continue  # a title or header over data, not a key
                 referenced = index.contains(ws.title, cell.row, cell.column)
@@ -238,15 +240,22 @@ def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIn
             # A few padded values among clean ones: one finding per column, so
             # its evidence can say truthfully which others are padded.
             lead = candidates[0]
+            letter = get_column_letter(col)
             evidence = [f"Raw value is {lead.value!r}; the other text values in this column are not padded."]
             if len(candidates) > 1:
                 evidence = [
                     f"Raw value is {lead.value!r}.",
-                    _others(
-                        candidates,
-                        f"of {len(cells)} text values in column {get_column_letter(col)} carry leading or trailing whitespace",
-                    ),
+                    _others(candidates, f"of {len(cells)} text values in column {letter} carry leading or trailing whitespace"),
                 ]
+            if padded > len(candidates):
+                # Padded headers, indented labels and values no formula reads
+                # are left out, but the evidence must not call them clean.
+                others = padded - len(candidates)
+                reported = "this one is" if len(candidates) == 1 else f"these {len(candidates)} are"
+                evidence[0] = (
+                    f"Raw value is {lead.value!r}; {others} other text value(s) in column {letter} are padded too, but "
+                    f"only {reported} read by a formula or in the first column, where keys usually sit."
+                )
             findings.append(
                 Finding(
                     rule_id="WHITESPACE_KEY",
