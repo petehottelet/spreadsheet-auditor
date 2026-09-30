@@ -29,7 +29,7 @@ python benchmarks/corpus/run_corpus.py spreadsheetbench --out-dir benchmarks/cor
 python benchmarks/corpus/sample.py spreadsheetbench --results-dir benchmarks/corpus/results/spreadsheetbench-next --name spreadsheetbench-next
 #   ... label the new cards; labels of unchanged findings carry over by key ...
 python benchmarks/corpus/report.py spreadsheetbench --results-dir benchmarks/corpus/results/spreadsheetbench-next \
-    --sample spreadsheetbench-next --baseline-report benchmarks/corpus/baselines/spreadsheetbench-0.2.0.json
+    --sample spreadsheetbench-next --baseline-report benchmarks/corpus/baselines/spreadsheetbench-0.3.0.json
 ```
 
 ## Corpora

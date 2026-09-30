@@ -673,7 +673,7 @@ def render_report(
         f"{run_summary['formulas']:,} formulas, recalculation {run_summary['recalc']}. "
         f"Median audit {run_summary['elapsed']['median']} s, p95 {run_summary['elapsed']['p95']} s, max {run_summary['elapsed']['max']} s.",
         "",
-        f"**Labels:** {labels.get('labeler') or 'none yet'}. {labels.get('protocol', '')}",
+        f"**Labels:** {(labels.get('labeler') or 'none yet').rstrip('.')}. {labels.get('protocol', '')}",
         "",
         "## Headline",
         "",

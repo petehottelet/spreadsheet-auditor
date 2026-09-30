@@ -1,24 +1,24 @@
 {
-  "labeler": "Claude (Fable 5.1) working from the context cards in samples/spreadsheetbench.md, 2026-09-14, and Claude (Opus 5.5) for the seven FORMULA_DRIFT cards first drawn in samples/spreadsheetbench-summary.md, 2026-09-25; every label carries a reason so a maintainer can overrule it.",
+  "labeler": "Claude (Fable 5.1) working from the context cards in samples/spreadsheetbench.md, 2026-09-14; Claude (Opus 5.5) for the seven FORMULA_DRIFT cards first drawn in samples/spreadsheetbench-summary.md, 2026-09-25, and for the cards first drawn in samples/spreadsheetbench-040.md, 2026-09-30. Every label carries a reason so a maintainer can overrule it.",
   "protocol": "TP: the finding points at something a careful reviewer would want to look at, for the reason the rule gives. FP: the rule misread the workbook. unsure: the card was not enough to decide; excluded from precision.",
   "rule_notes": {
-    "BLANK_PRECEDENT": "Was 15,300 findings at 4% precision on 0.2.0 (guarded formulas, template rows, mirror links, blank-ignoring aggregates). Positional and guarded uses, blank-tolerant functions, rows with no inputs and sparse columns are now excluded and 29 findings remain. What is left is one shape: a ledger with paired amount columns (debit or credit, buying or selling, trade size or none) where the blank is a zero by design, plus empty rows inside a block. None of the remaining sample was a defect; the rule is now rare enough to leave, and the next refinement would be to skip a blank whose row holds a filled sibling amount column.",
+    "BLANK_PRECEDENT": "Was 15,300 findings at 4% precision on 0.2.0 (guarded formulas, template rows, mirror links, blank-ignoring aggregates); positional and guarded uses, blank-tolerant functions, rows with no inputs and sparse columns were then excluded and 29 findings remained, none of them a defect: a ledger with paired amount columns (debit or credit, buying or selling) where the blank is a zero by design, plus empty rows inside a block. Since 0.4.0 the rule is off by default and does not run on this corpus; turn it on for data that must never have gaps.",
     "BROKEN_REFERENCE": "Right every time: #REF! formulas, and external links now reported as one Info note per source workbook per sheet (was one High finding per cell).",
     "CIRCULAR_REFERENCE": "Positional idioms (ROWS(A$6:A8), COLUMNS($D7:AA7), ROW(A19)) and the CELL(\"filename\",Q2) sheet-name idiom were 23 of 25 findings on 0.2.0 and are gone. What remains is the deliberate IFERROR(1/(1/F8)) date-freeze self-reference (which needs iterative calculation) and a MAX(B$7:B377)+1 counter that includes its own cell; both are worth a reviewer's attention.",
-    "DUPLICATE_KEY": "Only the searched column of a first-match lookup counts now (VLOOKUP first column, MATCH/XLOOKUP lookup array); SUMIF criteria columns and category grids no longer fire. True positives are duplicate postcodes in a MATCH column, duplicate product names in a list searched by name, and letters listed twice in a rate table. The remaining false positives are lookups that deliberately find the previous occurrence, composite keys where the match is on another column, and product labels repeated as section headers in a grid.",
-    "FORMULA_DRIFT": "0 of 25 on 0.2.0. Rows of unrelated columns, chain seeds, label-link columns that step through another sheet, and short or header-labelled totals rows mixing SUM and AVERAGE are exempt; a SUM that became an AVERAGE inside a longer run of totals is still reported, because that is the 'function replaced' fault the EUSES corpus injects. What remains is mostly real: a first row whose SUMPRODUCT differs from the rows below and evaluates to #VALUE!, a DB() call missing an argument, a typed threshold of 90120 where the rows around use 90, a total that starts one row late, a typed input inside a fill (=525*1.5 beside =BF24*1.5), and a manual override link. Summary cells that are not part of the run beside them are exempt too: a link heading a column of labels (L2 = M14 over a column of names, where the run's SUM would add up text) and one of a row of counts over one block (COUNTIF(F5:F11,1), 2 and 3). Of the six findings this removed, the four already labeled were FP or unsure, and EUSES recall did not move. Remaining false positives are summary or totals rows whose different formula is the design (a ratio of totals, a 'planned' row that averages under rows that sum, a wins row that counts under an 'average' header) and example sheets where every cell is a different formula.",
-    "HARDCODE_IN_FORMULA_BLOCK": "8% on 0.2.0: input columns between two formula columns sharing a pattern (running sums, unit x quantity). Those are now recognised from the other axis, and the true positives dominate: a constant typed over an IF, a difference, a rolling sum or a scaled copy in a column of identical formulas. Remaining false positives are input columns on sparse sheets or one-row tables, where the cells above and below the constant are empty and the check has nothing to compare, and input columns whose neighbouring formula lines hold plugs of their own.",
+    "DUPLICATE_KEY": "Only the searched column of a first-match lookup counts (VLOOKUP first column, MATCH/XLOOKUP lookup array), one finding per searched column since 0.4.0, and error values such as #N/A are not keys. True positives are duplicate postcodes in a MATCH column, product names listed twice in a list searched by name, letters listed twice in a rate table, and a lookup that finds the oldest sale where the sheet wants the latest. The false positives dominate the 0.4.0 sample: composite keys whose match is decided by another column (group and material, material and validity dates, category by region, day label by date), product labels repeated as section headers over quantities in one family of bay-map grids (several copies of it in the sample), rows of data repeated per ID, and lookups that deliberately find the previous occurrence. The next refinement is to recognise a composite key: a lookup whose other criteria or neighbouring key column tell the rows apart.",
+    "FORMULA_DRIFT": "0 of 25 on 0.2.0. Rows of unrelated columns, chain seeds, label-link columns that step through another sheet, and short or header-labelled totals rows mixing SUM and AVERAGE are exempt; a SUM that became an AVERAGE inside a longer run of totals is still reported, because that is the 'function replaced' fault the EUSES corpus injects. What remains is mostly real: a first row whose SUMPRODUCT differs from the rows below and evaluates to #VALUE!, a DB() call missing an argument, a typed threshold of 90120 where the rows around use 90, a total that starts one row late, a typed input inside a fill (=525*1.5 beside =BF24*1.5), and a manual override link. Summary cells that are not part of the run beside them are exempt too: a link heading a column of labels (L2 = M14 over a column of names, where the run's SUM would add up text) and one of a row of counts over one block (COUNTIF(F5:F11,1), 2 and 3). Of the six findings this removed, the four already labeled were FP or unsure, and EUSES recall did not move. Remaining false positives are summary or totals rows whose different formula is the design (a ratio of totals, a 'planned' row that averages under rows that sum, a wins row that counts under an 'average' header) and example sheets where every cell is a different formula. In the 0.4.0 sample two false positives compute exactly what their neighbours do in another spelling ($-anchored references to the same cells, SUM(x) around a product); comparing the cells a formula resolves to would remove them.",
+    "HARDCODE_IN_FORMULA_BLOCK": "8% on 0.2.0: input columns between two formula columns sharing a pattern (running sums, unit x quantity). Those are now recognised from the other axis, and the true positives dominate: a constant typed over an IF, a difference, a rolling sum or a scaled copy in a column of identical formulas. Remaining false positives are input columns on sparse sheets or one-row tables, where the cells above and below the constant are empty and the check has nothing to compare, and input columns whose neighbouring formula lines hold plugs of their own. In the 0.4.0 sample the four false positives are the Actual input columns of one budget workbook family.",
     "HIDDEN_STRUCTURE_IN_TOTAL": "Hidden helper columns feeding scores, hidden rows still counted by SUMIFS, hidden lookup tables and hidden source sheets: every sampled finding was a disclosure a reviewer wants. AGGREGATE and SUBTOTAL variants that skip hidden rows no longer count, and hidden rows feeding the same formulas are reported together.",
-    "IFERROR_MASK": "Disclosure rule, now one finding per formula pattern per sheet. Judged TP when the fallback silently replaces a computational error with a value that feeds other cells: a lookup miss shown as an age or length of stay of 0, an average of 0 for no trades, IFNA(...,0) on an input sheet, a sliding VLOOKUP range whose misses are hidden, an exact-match tier lookup that can never match, and Google Sheets placeholder formulas. FP for the lookup-miss-to-blank idiom, end-of-list extraction, supplier fallback chains, and wrappers around functions that cannot error or whose inner IF already guards the case. Precision stays under a third; the rule is honest about being a review prompt.",
-    "LITERAL_CONSTANT": "Function-slot literals (column indexes, type codes, string positions, date parts, criteria) and the unit constants 60/3600 are now skipped, and one finding per formula pattern replaces one per cell. True positives are thresholds and assumptions: 37.5 hours, a 90-day cutoff, bonus caps and rates, minimum sample sizes, lead times, arithmetic on two typed numbers. Remaining false positives are calendar grid offsets, ROW() comparisons, literals that mirror a column header, RANDBETWEEN bounds, and codes returned by IF.",
-    "LIVE_ERROR": "Every sampled finding was a real error value: #REF! formulas, lookups missing their keys, #VALUE! from external links or text arithmetic, array formulas entered without array evaluation, and error constants pasted into data. Grouping by root cause keeps the volume sane.",
+    "IFERROR_MASK": "Since 0.4.0 a wrapper is reported only when its expression can really fail (a division, a lookup, an average, a text or date conversion, arithmetic on a cell) and the fallback reads as a real value; IFNA counts only what returns #N/A, and errors an ISNUMBER or inner IFERROR absorbs, conversions that fall back to the text they read, second lookups, messages and NA() are skipped. That took the rule from 1,763 findings at 28% to 644 at 60%. True positives: Google Sheets placeholder formulas, lookups that turn a missing age, stay or date into 0, averages and ratios that show 0 when there is nothing to average, and a payment schedule. False positives: one order-sheet layout where a site missing from a lookup really is 0 units (several copies in the sample), ranked lists whose end is a blank, and a 0 returned into a text column such as Gender, which the rule cannot tell from a number column.",
+    "LITERAL_CONSTANT": "Function-slot literals (column indexes, type codes, string positions, date parts, criteria) and the unit constants 60/3600 are skipped, and one finding per formula pattern replaces one per cell. Since 0.4.0 the value a rounding or formatting function works on is checked too (ROUND(A1*1.0725,2) reports 1.0725, not the 2), and a 3 or 6 dividing MONTH() is a calendar fact. True positives are thresholds and assumptions: 37.5 hours, a 90-day cutoff, bonus caps and rates, minimum sample sizes, lead times, pay multipliers, payment terms. One >=10 minimum-sample threshold repeated across many cells with different criteria counts as many patterns. Remaining false positives are calendar grid offsets, ROW() comparisons, literals that mirror a column header, RANDBETWEEN bounds, a MATCH()+3 row offset, and codes returned by IF. The count rose from 1,015 in 0.3.0 because the old report cap had hidden these findings in workbooks flooded by live errors.",
+    "LIVE_ERROR": "Every sampled finding was a real error value: #REF! formulas, lookups missing their keys, #VALUE! from external links or text arithmetic, #DIV/0! averages with nothing to average, array formulas entered without array evaluation, and error constants pasted into data. Since 0.4.0 an error filled down a column is one finding listing its cells, and the cells an error cycle feeds are listed with it; a #REF! can also be reported by BROKEN_REFERENCE on the same cell.",
     "MERGED_CELL_IN_DATA_RANGE": "0 of 25 on 0.2.0 (titles, headers, labels, merged dates whose formulas already fetch the last non-blank value) and 0 of 24 after the first pass (merged title formulas, merged net lines in totals rows, merged weekly limits). Only a merged number read through a range reference now counts; the rule no longer fires on this corpus and keeps its seeded case.",
-    "NUMBERS_STORED_AS_TEXT": "The 'referenced by a formula' variant now needs a numeric consumer and skips leading-zero identifiers and codes that are only compared; the numeric-column variant is unchanged. True positives are ID and count columns that mix text and numeric forms, a pasted amount with a non-breaking space, and batch numbers in both forms. The one false positive was a free-text notes column holding a few bare numbers.",
+    "NUMBERS_STORED_AS_TEXT": "The 'referenced by a formula' variant needs a numeric consumer and skips leading-zero identifiers and codes that are only compared; since 0.4.0 it is one finding per column, and text numbers that every formula converts first (--A1, VALUE, *1) are a Low note. True positives are ID and count columns that mix text and numeric forms, a pasted amount with a non-breaking space, and batch numbers in both forms. The false positives were free-text notes columns holding a few bare numbers.",
     "RANGE_EXCLUSION": "Four true positives (a total whose siblings span all rows while it stops early); the running COUNT($A$9:A9) false positives are exempt.",
     "RANGE_INCLUDES_SUBTOTAL": "The three 0.2.0 findings were a carried-forward total; the constants variant was dropped and the rule no longer fires on this corpus. Its seeded double-count case still passes.",
     "RANGE_LENGTH_MISMATCH": "Every remaining finding is COUNT(D87:F89) in a column of COUNT(D87:F87) formulas, a real fill error in one family of bowling sheets; one-cell links and disjoint debit/credit groups no longer fire.",
     "VOLATILE_FUNCTION": "TODAY/NOW are one Info note per sheet, which is the right weight; RAND/RANDBETWEEN feeding analyses, INDIRECT-built addresses and OFFSET over #REF! are reported per pattern. All worth a look at their level.",
-    "WHITESPACE_KEY": "8% on 0.2.0 (fixed-width export padding, indentation, headers, spacer cells). Export-padded columns get one Info note, headers and indentation are skipped, and what remains is the stray padded key: one padded name among clean ones, a status with a trailing space beside the formula that compares it, leading spaces on postcodes that break the URN match, a trailing newline that turns a duration into #VALUE!. Remaining false positives are report dumps with fixed-width text and uniformly padded account names in a short list.",
+    "WHITESPACE_KEY": "8% on 0.2.0 (fixed-width export padding, indentation, headers, spacer cells). Export-padded columns get one Info note, headers and indentation are skipped, and since 0.4.0 the stray padded keys of a column are one finding that names them all. True positives: a padded name among clean ones, a status with a trailing space beside the formula that compares it, leading spaces on postcodes that break a URN match, a trailing newline that turns a duration into #VALUE!. Remaining false positives: header cells below the first rows (\"Grade \", \"Week \"), report dumps with fixed-width text, captions and prose, and uniformly padded account names in a short list.",
     "WHOLE_COLUMN_REFERENCE": "COUNTIF/SUMIF/VLOOKUP/MATCH/INDEX over whole columns are bounded by Excel and no longer fire, even inside array formulas. Every remaining finding is an array evaluation over a million rows: IF(A2=ZORD!A:A,...), MAX(IF(F:F=...)), LOOKUP(2,1/(J:J<>\"\")), SUMPRODUCT over whole columns."
   },
   "labels": {
@@ -4289,6 +4289,1042 @@
     "e1683f0529fe|FORMULA_DRIFT|HouseBudget!F123": {
       "label": "TP",
       "reason": "The total under a column of row sums (F) sums column G instead; a reviewer would want to confirm which column it should total."
+    },
+    "5d8557dfb652|BROKEN_REFERENCE|July-KPIs!B6": {
+      "label": "TP",
+      "reason": "VLOOKUP table argument is #REF! in 31 cells, and the IFERROR wrapper silently blanks the whole 'Paid Worked Hours' column."
+    },
+    "6d5548493a93|BROKEN_REFERENCE|July-KPIs!F6": {
+      "label": "TP",
+      "reason": "=VLOOKUP(C1,#REF!,2,0) carries a deleted table reference and the cached value is #REF!."
+    },
+    "acb548947286|BROKEN_REFERENCE|Statistics!G6": {
+      "label": "TP",
+      "reason": "COUNTIF range is #REF! in 51 cells while G5 still counts over the WK1 sheet, so the reference was deleted."
+    },
+    "95bb09d93e8b|BROKEN_REFERENCE|Foglio1!G2": {
+      "label": "TP",
+      "reason": "Accurate Info inventory of two cells linking to external workbook [1]; cached '3-2' matches the neighbouring value, so the link note is true and framed at the right severity."
+    },
+    "7dfe4964af12|BROKEN_REFERENCE|Sheet1!B14|0dcee9": {
+      "label": "TP",
+      "reason": "CONCAT(\"Total \",#REF!) inside the header MATCH means the column lookup can never resolve, and IFERROR hides it as blank."
+    },
+    "7bd972dd1e37|BROKEN_REFERENCE|July-KPIs!B6": {
+      "label": "TP",
+      "reason": "VLOOKUP table argument is #REF! in 31 cells, and the IFERROR wrapper silently blanks the whole 'Paid Worked Hours' column."
+    },
+    "43493e031c73|BROKEN_REFERENCE|Dati!CF12": {
+      "label": "TP",
+      "reason": "SUMPRODUCT/OFFSET formula is built entirely on #REF! and the error flows into CF13 and CF14."
+    },
+    "30c6f4937476|BROKEN_REFERENCE|HR!GC3": {
+      "label": "TP",
+      "reason": "=#REF! in 29 cells of the 'Paid last month?' column; the reference really was deleted."
+    },
+    "c05e60f72c61|BROKEN_REFERENCE|Dati!CF12": {
+      "label": "TP",
+      "reason": "SUMPRODUCT/OFFSET formula is built entirely on #REF! and the error flows into CF13 and CF14."
+    },
+    "29e8f5fbc26c|BROKEN_REFERENCE|Result!J1": {
+      "label": "TP",
+      "reason": "=#REF! in J1 and L1, propagating to K1; the reference really was deleted."
+    },
+    "a4ee03c3468a|BROKEN_REFERENCE|HR!D3": {
+      "label": "TP",
+      "reason": "INDEX/MATCH with both ranges as #REF! across the 'Holiday Payment' column (13 cells), and E/F beside it are also #REF!."
+    },
+    "a94eb6a7585f|BROKEN_REFERENCE|HR!GR13": {
+      "label": "TP",
+      "reason": "SUM(#REF!,FZ13,GK13) keeps a deleted operand, so the row total is #REF!."
+    },
+    "0c0e0e5f0156|BROKEN_REFERENCE|Sheet1!B13": {
+      "label": "TP",
+      "reason": "=#REF! in the 'Letter Dates' field; the reference really was deleted."
+    },
+    "ef479c030de6|BROKEN_REFERENCE|Sheet1!B14|0dcee9": {
+      "label": "TP",
+      "reason": "CONCAT(\"Total \",#REF!) inside the header MATCH means the column lookup can never resolve, and IFERROR hides it as blank."
+    },
+    "506d9df5a3af|BROKEN_REFERENCE|TaskAssesment!A4": {
+      "label": "TP",
+      "reason": "Accurate Info inventory of six cells linking to external workbook [2], with plausible cached dates; the note is true and framed at the right severity."
+    },
+    "611a47e3b917|BROKEN_REFERENCE|Sheet1!A19": {
+      "label": "TP",
+      "reason": "IFERROR(#REF!/#REF!,0) divides two deleted references, so the cell can only ever return the fallback."
+    },
+    "596a7d18841b|BROKEN_REFERENCE|Streets!G3": {
+      "label": "TP",
+      "reason": "Accurate Info inventory of two cells linking to external workbook [1] (VLOOKUP into Assistente!R:S); the note is true and framed at the right severity."
+    },
+    "a4ee03c3468a|BROKEN_REFERENCE|HR!GG3": {
+      "label": "TP",
+      "reason": "SUM(#REF!,FZ3) under 'Holiday Payment' keeps a deleted operand, and GG5 shows the same with five #REF! terms."
+    },
+    "a696b4bd2604|BROKEN_REFERENCE|Sheet1!A18": {
+      "label": "TP",
+      "reason": "IFERROR(#REF!/#REF!,0) divides two deleted references, so the cell can only ever return the fallback."
+    },
+    "a94eb6a7585f|BROKEN_REFERENCE|HR!D3": {
+      "label": "TP",
+      "reason": "INDEX/MATCH with both ranges as #REF! across the 'Holiday Payment' column (13 cells), and E/F beside it are also #REF!."
+    },
+    "484f4df3fe7b|BROKEN_REFERENCE|Statistics!G6": {
+      "label": "TP",
+      "reason": "COUNTIF range is #REF! in 51 cells while G5 still counts over the WK1 sheet, so the reference was deleted."
+    },
+    "be2f958d4b41|LIVE_ERROR|Sort!K68": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available, in 36 cells, and it flows into column M."
+    },
+    "40c60acd7755|LIVE_ERROR|Sort!T12": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available, in 56 cells of the Equity column."
+    },
+    "050df5c328bc|LIVE_ERROR|Sheet1!U4": {
+      "label": "TP",
+      "reason": "SUMPRODUCT multiplies by the text header row C3:M3 and its shape differs from the working formulas in U5 and U6, so U4 is a malformed formula showing #VALUE!."
+    },
+    "21865bab73e8|LIVE_ERROR|Sheet1!B8": {
+      "label": "TP",
+      "reason": "RANK of the text placeholder '-' in A8 gives a visible #VALUE! at the end of the rank column."
+    },
+    "5d8557dfb652|LIVE_ERROR|July-KPIs!F6": {
+      "label": "TP",
+      "reason": "=VLOOKUP(C1,#REF!,2,0) evaluates to #REF! whatever its inputs, and the table reference is gone."
+    },
+    "b328dd851137|LIVE_ERROR|Sheet2!A124": {
+      "label": "TP",
+      "reason": "#N/A pasted as a value into a status column of 'Fully linked'/'To be actioned' entries, so this row has no status."
+    },
+    "40c60acd7755|LIVE_ERROR|Sort!K68": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available, in 36 cells, and it flows into column M."
+    },
+    "21865bab73e8|LIVE_ERROR|RS.Food!S26": {
+      "label": "TP",
+      "reason": "INDEX/SMALL(IF) extraction runs past its matches and shows #NUM!, which the card says propagates into 44 dependent cells in columns V:W."
+    },
+    "95fdf876027b|LIVE_ERROR|RESULTS1!C34": {
+      "label": "TP",
+      "reason": "The 'Entry Success %' KPI shows #DIV/0! because COUNT of the ENTRY ATTEMPT column is zero, with no guard."
+    },
+    "970db979d624|LIVE_ERROR|Sheet1!Q6": {
+      "label": "TP",
+      "reason": "#VALUE! pasted as a constant into three data cells (Q6:Q8) among numeric rows."
+    },
+    "f98021ebb2e8|LIVE_ERROR|master!E2": {
+      "label": "TP",
+      "reason": "Garbled formula IF(B2<37.5,\"2\",)*IF(B2>37.5,\"D2,1.5,\") multiplies text and returns #VALUE! in 99 cells of the 'Sum' column."
+    },
+    "e3281236e4b3|LIVE_ERROR|results!U95": {
+      "label": "TP",
+      "reason": "AVERAGEIFS excluding zeros over an all-zero column gives #DIV/0! in 7 summary cells, and this spreads into the row-98 results."
+    },
+    "1e354abd5c10|LIVE_ERROR|Sheet1!C10": {
+      "label": "TP",
+      "reason": "#N/A pasted as values in the split columns for the 'Singapore Cup' rows (8 cells), so those rows have no region or competition."
+    },
+    "b0189d43ef5f|LIVE_ERROR|DATABASECountries!J4": {
+      "label": "TP",
+      "reason": "The SORTBY spill puts a #VALUE! in the TOP 1 value slot (the error sorts first in a descending sort), so the ranking is wrong; the root cause is in the source column, not J4."
+    },
+    "7cc6b0fe1206|LIVE_ERROR|Sort!Q68": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available, in 36 cells."
+    },
+    "29e8f5fbc26c|LIVE_ERROR|Result!J1": {
+      "label": "TP",
+      "reason": "=#REF! evaluates to #REF! whatever its inputs, and it propagates to K1."
+    },
+    "970db979d624|LIVE_ERROR|formamspnc(7)!BI3": {
+      "label": "TP",
+      "reason": "LARGE(IF(...),3) over BI5:BI11 returns #NUM! (and so does BH3), while the MAXIFS beside it returns 0, so the range has no numbers to rank."
+    },
+    "7cc6b0fe1206|LIVE_ERROR|Sort!Q12": {
+      "label": "TP",
+      "reason": "#VALUE! from SUMIF over an external workbook that is not available, in 56 cells of the Equity/Assets column."
+    },
+    "c903fcb4672b|LIVE_ERROR|Sheet1!B8": {
+      "label": "TP",
+      "reason": "RANK of the text placeholder '-' in A8 gives a visible #VALUE! at the end of the rank column."
+    },
+    "0c87c637e542|LIVE_ERROR|Data!AH9": {
+      "label": "TP",
+      "reason": "#VALUE! stored as a constant in four data cells; the surrounding sheet content is scrambled, but the error value is real and would break any calculation over it."
+    },
+    "f49918401273|LIVE_ERROR|Sheet1!B7": {
+      "label": "TP",
+      "reason": "VLOOKUP asks for column 6 of the one-column range A1:A5, so it returns #REF!."
+    },
+    "5cd8c4fe9805|LIVE_ERROR|RESULTS1!C26": {
+      "label": "TP",
+      "reason": "The 'Profit %' KPI divides by the sum of non-negative POINTS, which is zero here (Win % is 0), so it shows #DIV/0! with no guard."
+    },
+    "4d98025351b4|LIVE_ERROR|DesiredSheet1afterdelrow2!C2": {
+      "label": "TP",
+      "reason": "#N/A pasted as values in the split columns for the 'Singapore Cup' rows (8 cells)."
+    },
+    "9792181a96d9|LIVE_ERROR|Exp-DB!G2": {
+      "label": "TP",
+      "reason": "Wildcard INDEX/MATCH lookup misses in 37 rows (column E's VLOOKUP misses the same rows), so those transactions have no category."
+    },
+    "f97f2feedd64|IFERROR_MASK|RESULTS1!R8": {
+      "label": "TP",
+      "reason": "IFERROR(AVERAGEIFS(...),0): a gap/setup bucket with no trades gives #DIV/0! and is shown as an average G/L of 0, indistinguishable from a real break-even result (cached 0 across the block)."
+    },
+    "70420e2dcf7b|IFERROR_MASK|PAYMENT!F8": {
+      "label": "TP",
+      "reason": "Google Sheets DUMMYFUNCTION placeholder: the FILTER price lookup never runs in Excel, so the cell is a frozen cached value, not a live price."
+    },
+    "6fd6aa9b279e|IFERROR_MASK|PAYMENT!C7": {
+      "label": "TP",
+      "reason": "Google Sheets COMPUTED_VALUE placeholder returning the cached 'NAKSHI'; the spilled category list is frozen and will not follow changes to the source data."
+    },
+    "6fd6aa9b279e|IFERROR_MASK|BIRJUPAYMENT!A6": {
+      "label": "TP",
+      "reason": "Google Sheets COMPUTED_VALUE placeholder from a SORT(UNIQUE()) spill; 'PILLOW' is a frozen value, not a live calculation."
+    },
+    "57d001666bfd|IFERROR_MASK|Sheet1!E3": {
+      "label": "TP",
+      "reason": "Patient lookup of length of stay with a 0 fallback; E3:E5 show LOS 0 for unmatched patients, which then feeds the LOS > 14 test as a real stay."
+    },
+    "125be9ba2e04|IFERROR_MASK|RESULTS1!O14": {
+      "label": "TP",
+      "reason": "Entry % ratio wrapped in IFERROR(...,0): a week with no entry attempts divides by zero and shows 0%, indistinguishable from a real 0% entry rate."
+    },
+    "750361651608|IFERROR_MASK|PAYMENT!B5": {
+      "label": "TP",
+      "reason": "Google Sheets COMPUTED_VALUE placeholder returning the cached size '90*100'; the cell is frozen, not calculated."
+    },
+    "30faaaeef9ee|IFERROR_MASK|RESULTS1!T5": {
+      "label": "TP",
+      "reason": "IFERROR(TRIMMEAN(...),0) over the last 5 weeks: with no qualifying trades the #NUM! becomes an average of 0 rather than a blank (unlike the blank-fallback TRIMMEAN variants elsewhere)."
+    },
+    "86bd0c65882c|IFERROR_MASK|Sheet1!M2": {
+      "label": "FP",
+      "reason": "The looked-up field is Gender (text 'Female'/'Male'); a 0 fallback in that column does not read as a real gender, so no failure is passed off as data."
+    },
+    "552f4c55b2df|IFERROR_MASK|OrderSheetFinal!AK6": {
+      "label": "FP",
+      "reason": "Order sheet quantity per site column (D1): a part absent from that site's list is 0 units there by design, and the row-4 SUM correctly totals them."
+    },
+    "1a947d3f59c7|IFERROR_MASK|Sheet1!E27": {
+      "label": "TP",
+      "reason": "Same payment-schedule IFERROR(...,0) pattern as the example labels: a blank frequency or bad date silently becomes a zero payment feeding the totals."
+    },
+    "750361651608|IFERROR_MASK|BIRJUPAYMENT!D8": {
+      "label": "TP",
+      "reason": "Google Sheets DUMMYFUNCTION placeholder around a FILTER price lookup; the cell is a frozen cached value that does not recalculate in Excel."
+    },
+    "57d001666bfd|IFERROR_MASK|Sheet1!J2": {
+      "label": "TP",
+      "reason": "Patient lookup of date of birth with a 0 fallback; a missing record becomes date serial 0, which reads as a date in a column that feeds age calculations."
+    },
+    "552f4c55b2df|IFERROR_MASK|OrderSheetFinal!T6": {
+      "label": "FP",
+      "reason": "Order sheet quantity per site column (S14.2): an item absent from the site's list is legitimately 0 units, so the fallback is the correct value."
+    },
+    "86bd0c65882c|IFERROR_MASK|Sheet1!N12": {
+      "label": "TP",
+      "reason": "Patient lookup of surgery date with a 0 fallback; a missing record becomes date 0, which O copies into the procedure month-and-year column as if real."
+    },
+    "70420e2dcf7b|IFERROR_MASK|Sheet7!F5": {
+      "label": "TP",
+      "reason": "Google Sheets DUMMYFUNCTION placeholder with cached price 4; the price is frozen and G5's amount (420) is typed, so nothing recalculates."
+    },
+    "6741b8e20874|IFERROR_MASK|OrderSheetFinal!Z6": {
+      "label": "FP",
+      "reason": "Order sheet quantity per site column (C4.1): a part not listed for that site is 0 units by design; the miss is not a failure."
+    },
+    "4ea284d68c01|IFERROR_MASK|Sheet1!AI2": {
+      "label": "FP",
+      "reason": "LARGE(range,ROW()) k-th score extraction with a blank fallback is the end-of-list idiom, and AJ tests AI for blank."
+    },
+    "783ba9a086e8|IFERROR_MASK|OrderSheetFinal!U6": {
+      "label": "FP",
+      "reason": "Order sheet quantity per site column (S14.3): an item absent from that site's list is 0 units by design."
+    },
+    "f97f2feedd64|IFERROR_MASK|RESULTS1!V5": {
+      "label": "TP",
+      "reason": "IFERROR(TRIMMEAN(...),0) for the last 5 weeks: an empty selection is reported as an average of 0 points rather than no data."
+    },
+    "6741b8e20874|IFERROR_MASK|OrderSheetFinal!AM6": {
+      "label": "FP",
+      "reason": "Order sheet quantity per site column (D3): 0 for a part not on that site's list is the intended value, summed in row 4."
+    },
+    "1ee00a60f590|IFERROR_MASK|Sheet1!CG2": {
+      "label": "FP",
+      "reason": "LARGE(range,ROW()) ranking list with a blank fallback is the end-of-list idiom; the neighbouring ID# formula tests for the blank."
+    },
+    "4ea284d68c01|IFERROR_MASK|Sheet1!AS2": {
+      "label": "FP",
+      "reason": "LARGE(range,ROW()) k-th score extraction; the blank fallback marks the end of the list and AT tests for it."
+    },
+    "30faaaeef9ee|IFERROR_MASK|RESULTS1!S8": {
+      "label": "TP",
+      "reason": "IFERROR(AVERAGEIFS(...),0): a setup/gap bucket with no trades shows an average G/L of 0 instead of no data (cached 0 throughout)."
+    },
+    "783ba9a086e8|IFERROR_MASK|OrderSheetFinal!AO6": {
+      "label": "FP",
+      "reason": "Order sheet quantity per site column (T3): a part absent from the site's list is legitimately 0 units."
+    },
+    "970db979d624|LITERAL_CONSTANT|formamspnc(7)!DG6": {
+      "label": "FP",
+      "reason": "The 6 is a code returned by IF equal to the number of conditions tested (neighbours return 4, 5, 7), not an assumption."
+    },
+    "c212843d66a8|LITERAL_CONSTANT|LeadTimes!K9": {
+      "label": "TP",
+      "reason": "WORKDAY(K5,3,...) hard-codes the ELECTRONICS lead time of 3 days, and M9 uses 5 for the same category, so the assumption is inconsistent."
+    },
+    "ec5304138d83|LITERAL_CONSTANT|Current!D7": {
+      "label": "TP",
+      "reason": "Category band thresholds 59/99/139/179 are business cut-offs hard-coded in a nested IF repeated per row."
+    },
+    "7149679332c0|LITERAL_CONSTANT|RESULTS1!S35": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 is a minimum sample size for reporting an average, a tunable assumption repeated across the results grid."
+    },
+    "c4229dd05b85|LITERAL_CONSTANT|example!D8": {
+      "label": "FP",
+      "reason": "RANDBETWEEN(5,10) bounds for generating sample data; not an assumption to move to an input cell."
+    },
+    "30faaaeef9ee|LITERAL_CONSTANT|RESULTS1!S3": {
+      "label": "FP",
+      "reason": "The 6 in MAX GAIN>=6 mirrors the column header '>= 6'; the literal is labelled in place."
+    },
+    "1ee00a60f590|LITERAL_CONSTANT|Sheet1!Y22": {
+      "label": "TP",
+      "reason": "Handicap basis 200 and 90% factor (and 3 games) are league rules hard-coded in the formula; they are assumptions a reviewer would want in input cells."
+    },
+    "f97f2feedd64|LITERAL_CONSTANT|RESULTS1!V30": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded in the win-rate formula."
+    },
+    "30faaaeef9ee|LITERAL_CONSTANT|RESULTS1!W22": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded before averaging ENTRY."
+    },
+    "7149679332c0|LITERAL_CONSTANT|RESULTS1!S29": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded before computing the win ratio."
+    },
+    "a3ba2c45816f|LITERAL_CONSTANT|Calendar!B27": {
+      "label": "FP",
+      "reason": "Days+36 is a calendar grid offset (rows step by 7: 29, 36), not a business assumption."
+    },
+    "125be9ba2e04|LITERAL_CONSTANT|RESULTS1!T29": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded before averaging POINTS."
+    },
+    "95fdf876027b|LITERAL_CONSTANT|RESULTS1!V28": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded before averaging POINTS."
+    },
+    "d2a515f35dce|LITERAL_CONSTANT|Schedule!B11": {
+      "label": "FP",
+      "reason": "MATCH(...)+3 converts a list position to a sheet row (header offset), a layout constant like the +3 in the neighbouring row helpers, not an assumption."
+    },
+    "ecefab75d6ce|LITERAL_CONSTANT|Calendar!B123": {
+      "label": "FP",
+      "reason": "Days+29 is a calendar grid offset in the 22/29/36 week sequence."
+    },
+    "36080f34a91e|LITERAL_CONSTANT|Calendar!B165": {
+      "label": "FP",
+      "reason": "Days+29 is a calendar grid offset in the 22/29/36 week sequence."
+    },
+    "a3ba2c45816f|LITERAL_CONSTANT|Calendar!B133": {
+      "label": "FP",
+      "reason": "Days+15 is a calendar grid offset in the 8/15/22 week sequence."
+    },
+    "95fdf876027b|LITERAL_CONSTANT|RESULTS1!W23": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded in the win-rate formula."
+    },
+    "f97f2feedd64|LITERAL_CONSTANT|RESULTS1!R22": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded before averaging ENTRY."
+    },
+    "da1e266217a2|LITERAL_CONSTANT|Sheet1!Y7": {
+      "label": "TP",
+      "reason": "V7*1.5 is the Bank Holiday pay multiplier (alongside 1.1 and 1.2), a rate hard-coded in 191 cells."
+    },
+    "b298ecd55a03|LITERAL_CONSTANT|Purchases!H5": {
+      "label": "TP",
+      "reason": "G5+14 is a payment/due-date term typed into the formula, and differs from the +30 used in the neighbouring rows."
+    },
+    "5cd8c4fe9805|LITERAL_CONSTANT|RESULTS1!X16": {
+      "label": "TP",
+      "reason": "COUNTIFS(...)>=10 minimum sample size hard-coded before averaging ENTRY."
+    },
+    "19dfd5dbcec5|LITERAL_CONSTANT|formamspnc(7)!EC6": {
+      "label": "FP",
+      "reason": "{1,2}*{10,1} packs two run lengths into a two-digit key and the inline LOOKUP table maps pattern keys to class codes; these are encoding constants, not tunable assumptions."
+    },
+    "a0dd20fe7f2c|DUPLICATE_KEY|Sheet1!F20,Sheet1!F21,Sheet1!F22,Sheet1!F23,Sheet1!F24": {
+      "label": "FP",
+      "reason": "The repeated 'key' is the #N/A error value in six cells; errors are not duplicate keys, and any problem there is a failed formula, not a first-match ambiguity."
+    },
+    "ff0beb280ebe|DUPLICATE_KEY|Sheet1!G6,Sheet1!G12,Sheet1!G15,Sheet1!G19,Sheet1!G23": {
+      "label": "FP",
+      "reason": "Names repeat in a descending sales log and H uses MATCH(G5,$G6:$G28,0) to find the next occurrence below on purpose (the previous sale); the first match is the intended one."
+    },
+    "f367b87c90dd|DUPLICATE_KEY|Sheet1!G4,Sheet1!G6": {
+      "label": "FP",
+      "reason": "'GNB' is a product label sitting above a quantity in a bay-map grid of labels and numbers; product labels repeat across bays by design, not a key table."
+    },
+    "bd12e76534e8|DUPLICATE_KEY|Sheet1!A2,Sheet1!A6": {
+      "label": "TP",
+      "reason": "Product list searched by name has 'Pencil' and 'Paper' twice with different Types, so a first-match lookup by product returns only one of them."
+    },
+    "852b58472b57|DUPLICATE_KEY|Sheet1!G4,Sheet1!G6": {
+      "label": "FP",
+      "reason": "'GNB' is a product label repeated as a section header above quantities in a bay-map grid; repeats are by design."
+    },
+    "c903fcb4672b|DUPLICATE_KEY|RS.Food!A14,RS.Food!A409": {
+      "label": "TP",
+      "reason": "63 menu item names (Omelette, Fries, Porridge...) appear twice with different counts in the column a lookup searches, so the lookup silently returns only the first row's figures."
+    },
+    "b7d670f8a092|DUPLICATE_KEY|Sheet1!A8,Sheet1!A20": {
+      "label": "TP",
+      "reason": "Letter keys G to L are listed twice in a searched rate-style table with different values, so the second block is unreachable by a first-match lookup."
+    },
+    "f367b87c90dd|DUPLICATE_KEY|Sheet1!B6,Sheet1!B8": {
+      "label": "FP",
+      "reason": "'CBV Splits' is a product label repeated above quantities in a bay-map grid; repeated section labels, not a broken key."
+    },
+    "fe65a777a463|DUPLICATE_KEY|DATABASECountries!B45,DATABASECountries!B46,DATABASECountries!B47": {
+      "label": "FP",
+      "reason": "Currency column of a country table where several countries (Hong Kong, Turkey, Russia) share USD at rate 1 by design; any first match gives the same rate."
+    },
+    "3211215352e9|DUPLICATE_KEY|Grouping!A3,Grouping!A5": {
+      "label": "FP",
+      "reason": "'Group B' appears once as a group default and once with 'Material X' in column B, a composite group-plus-material key by design."
+    },
+    "f0d026f067a4|DUPLICATE_KEY|Sheet1!G4,Sheet1!G6": {
+      "label": "FP",
+      "reason": "'GNB' is a product label above a quantity in a bay-map grid; labels repeat across bays by design."
+    },
+    "10ace2be6dbc|DUPLICATE_KEY|Sheet1!B5,Sheet1!B7,Sheet1!B10,Sheet1!B14,Sheet1!B20": {
+      "label": "TP",
+      "reason": "In the ascending block (labelled 'ASCENDING (NOT WORKING)') MATCH(B5,$B$4:$B4,0) returns the earliest earlier sale rather than the latest once a name repeats, so the duplicates make the days-since-sale wrong."
+    },
+    "10ace2be6dbc|DUPLICATE_KEY|Sheet1!G6,Sheet1!G12,Sheet1!G15,Sheet1!G19,Sheet1!G23": {
+      "label": "FP",
+      "reason": "Descending block uses MATCH(G5,$G6:$G28,0) to find the nearest earlier sale below on purpose; the first match is the intended previous occurrence."
+    },
+    "d49eeac3b8af|DUPLICATE_KEY|Sheet1!G6,Sheet1!G12,Sheet1!G15,Sheet1!G19,Sheet1!G23": {
+      "label": "FP",
+      "reason": "Descending sales log with MATCH(G5,$G6:$G28,0) that deliberately finds the next occurrence below (previous sale); repeats are the point."
+    },
+    "b9f3fd76f8c0|DUPLICATE_KEY|Grouping!A3,Grouping!A5": {
+      "label": "FP",
+      "reason": "'Group B' is listed as a group default row and again with 'Material X', a composite group-plus-material key by design."
+    },
+    "1c06477fced9|DUPLICATE_KEY|URNlookup!K3,URNlookup!K214": {
+      "label": "TP",
+      "reason": "Postcode column is the MATCH key of the URN lookup and 103 postcodes are shared by two schools, so the first match can return the wrong school."
+    },
+    "5e54afbc2d20|DUPLICATE_KEY|Sheet1!A2,Sheet1!A6": {
+      "label": "TP",
+      "reason": "Product list searched by name has 'Pencil' and 'Paper' twice with different Types, so a first-match lookup by product returns only one."
+    },
+    "9ffa652c7e85|DUPLICATE_KEY|ZORD!A2,ZORD!A3,ZORD!A4": {
+      "label": "FP",
+      "reason": "Material ABC1 has several rows with different Valid from/Valid to dates, a validity table keyed on material plus date by design."
+    },
+    "f0d026f067a4|DUPLICATE_KEY|Sheet1!A2,Sheet1!A6,Sheet1!A10,Sheet1!A14": {
+      "label": "FP",
+      "reason": "'WBNB Splits' is a product label repeated above quantities across a bay-map grid ('Top is South'); section labels, not a key table."
+    },
+    "3db55cfd98cc|DUPLICATE_KEY|Sheet2!A3,Sheet2!A4,Sheet2!A5,Sheet2!A6,Sheet2!A7": {
+      "label": "FP",
+      "reason": "'Regional' and 'Metro' repeat once per expense line (Advertising, Electricity, Insurance...) in column B; the key is region plus expense."
+    },
+    "9dd7a633cf36|DUPLICATE_KEY|ZORD!A2,ZORD!A3,ZORD!A4": {
+      "label": "FP",
+      "reason": "Material ABC1 has several rows with different validity date ranges, a material-plus-date keyed table by design."
+    },
+    "0ec5cb025cc8|DUPLICATE_KEY|Sheet1!I5,Sheet1!I8": {
+      "label": "FP",
+      "reason": "'Tuesday - Person 2' is a weekday-person label in a dated log (Start Date column) that recurs each week; rows are keyed by date, like month names across years."
+    },
+    "8eb4d820cd81|WHITESPACE_KEY|Dec14!A14": {
+      "label": "TP",
+      "reason": "'COURTNEY ' is the one padded name in a clean name column; a lookup or COUNTIF on the name misses it."
+    },
+    "da1e266217a2|WHITESPACE_KEY|Sheet1!A23": {
+      "label": "FP",
+      "reason": "Trailing spaces run through many role labels in this grid's row-label column (A21 and A22 are padded too, contrary to the evidence) and nothing on the card matches on them."
+    },
+    "2f8c049b867d|WHITESPACE_KEY|ProductList!A10": {
+      "label": "TP",
+      "reason": "'WHIPPET 5KG ' is the one padded name in a product list with codes and stock, so a lookup by product name misses it."
+    },
+    "948a88f1945e|WHITESPACE_KEY|Sheet1!A105": {
+      "label": "unsure",
+      "reason": "'GG ' sits in an irregular report block beside 'GG 4' values, and the card cannot show whether it is a key anything matches on or a prefix meant to be joined with a number."
+    },
+    "ac9c457a4aed|WHITESPACE_KEY|Compiledandlocatedschoolsda!L13": {
+      "label": "TP",
+      "reason": "Leading space on the postcode ' CA16 6UL' keeps it from matching the clean postcodes the URN lookup searches."
+    },
+    "c561c810150e|WHITESPACE_KEY|Sheet1!B12": {
+      "label": "TP",
+      "reason": "'Angela McConnell ' carries a trailing space while other assignee names are clean, so counting or matching her by name against a clean spelling misses her."
+    },
+    "3517fbb37fa4|WHITESPACE_KEY|Nov30!A14": {
+      "label": "TP",
+      "reason": "'COURTNEY ' is the one padded name in a clean name column; a lookup or COUNTIF on the name misses it."
+    },
+    "8dba08716695|WHITESPACE_KEY|Sheet2!A2": {
+      "label": "TP",
+      "reason": "'John ' is the one padded name in a small NAME/transport/weight table beside clean 'Mary' and 'Todd', so a lookup by name misses it."
+    },
+    "5a98e72c8ee6|WHITESPACE_KEY|BankBalance!I2": {
+      "label": "FP",
+      "reason": "I2 is a column header of the Bank Balance grid; the formulas below compare Journal Entries accounts against another sheet's cells, not this header, so the padding is cosmetic."
+    },
+    "6a1a439f407f|WHITESPACE_KEY|Sheet1!A5": {
+      "label": "TP",
+      "reason": "'ABC Melbourne ' is the one padded store name in a store-to-location list next to a True/False check column, so a comparison or lookup on it fails."
+    },
+    "ad2522abaac0|WHITESPACE_KEY|Sheet1!A21": {
+      "label": "TP",
+      "reason": "'Rejected ' is a status label in a summary with Status Cost and Total Debit Notes columns computed by status, and its row reads 0, so the padding can break the criterion match."
+    },
+    "53fb4bf35e11|WHITESPACE_KEY|Sheet1!A19": {
+      "label": "FP",
+      "reason": "Trailing spaces run through many role labels in this grid's row-label column (A20, A21 are padded too, contrary to the evidence), and nothing on the card matches on them."
+    },
+    "f065dc30ad2b|WHITESPACE_KEY|Sheet1!A86": {
+      "label": "FP",
+      "reason": "Trailing spaces run through many role labels in this grid's row-label column (A85, A87, A88 padded too, contrary to the evidence), and nothing on the card matches on them."
+    },
+    "c5ab9001d952|WHITESPACE_KEY|Sheet1!B34": {
+      "label": "TP",
+      "reason": "'Third Party Loans ' is the one padded account name in an account list with codes, so an entry typed without the space will not match it."
+    },
+    "fd3bd0e9c845|WHITESPACE_KEY|Sheet1!B20": {
+      "label": "FP",
+      "reason": "The flagged value is a comma-joined free-text list of assignees ('Building Services, Angela McConnell '), which is not a key anything matches exactly."
+    },
+    "cc14175a29f0|WHITESPACE_KEY|Sheet1!A44": {
+      "label": "FP",
+      "reason": "'COUNTER       Clock In/Clock Out ' is fixed-width text in a time-clock report dump with dashed separators and 'Employee#' lines, not a key."
+    },
+    "b2d0d6365d71|WHITESPACE_KEY|Sheet1!B48": {
+      "label": "TP",
+      "reason": "'Angela McConnell ' carries a trailing space while other assignee names are clean, so matching her against a clean spelling of the name misses these rows."
+    },
+    "b2d0d6365d71|WHITESPACE_KEY|Sheet1!B50": {
+      "label": "TP",
+      "reason": "'Angela McConnell ' carries a trailing space while other assignee names are clean, so matching her against a clean spelling of the name misses these rows."
+    },
+    "4f00c2be72fb|WHITESPACE_KEY|Sheet1!A34": {
+      "label": "FP",
+      "reason": "'COUNTER       Clock In/Clock Out ' is fixed-width text in a time-clock report dump with dashed separators and 'Employee#' lines, not a key."
+    },
+    "3c0a56086b5d|WHITESPACE_KEY|Compiledandlocatedschoolsda!L4": {
+      "label": "TP",
+      "reason": "Leading space on the postcode ' CA1 1JB' keeps it from matching the clean postcodes the URN lookup searches."
+    },
+    "d724d7c85d8e|WHITESPACE_KEY|Dec28!A14": {
+      "label": "TP",
+      "reason": "'COURTNEY ' is the one padded name in a clean name column; a lookup or COUNTIF on the name misses it."
+    },
+    "050df5c328bc|FORMULA_DRIFT|Sheet1!U4": {
+      "label": "TP",
+      "reason": "First row's SUMPRODUCT has a different structure from the 71 rows below (criteria multiplied into the array, relative ranges) and evaluates to #VALUE! while the fill returns numbers."
+    },
+    "74d967658eee|FORMULA_DRIFT|Sheet1!Y4": {
+      "label": "TP",
+      "reason": "Same IF as the column fill but the false branch returns \" \" where the other 16 rows return \"0\"; an unexplained inconsistent fill, though low impact since both are text."
+    },
+    "a4ee03c3468a|FORMULA_DRIFT|HR!EU24": {
+      "label": "TP",
+      "reason": "Total's SUMIF range starts at row 2 (the 'Holiday + Total' header) while ES24 and ET24 start at row 3; a genuine off-by-one range, numerically harmless because the header is text."
+    },
+    "24f6192d8cf3|FORMULA_DRIFT|data!G32": {
+      "label": "FP",
+      "reason": "G is a TEXT duration column beside H and I, which convert start and end times to hours; a row of unrelated formulas, same as the labeled data!G15."
+    },
+    "a94eb6a7585f|FORMULA_DRIFT|HR!FF24": {
+      "label": "TP",
+      "reason": "Total's SUMIF range starts at the header row FF2 while FD24 and FE24 start at row 3; a genuine off-by-one range, numerically harmless because the header is text."
+    },
+    "a94eb6a7585f|FORMULA_DRIFT|HR!BN3": {
+      "label": "TP",
+      "reason": "Manual override: 'Total to pay' links to BR3 instead of the IF(SEARCH(\"Yes\")) fill, with BM3 typed 'Yes' and a 'Sep-Nov' note beside it."
+    },
+    "30c6f4937476|FORMULA_DRIFT|HR!Y5": {
+      "label": "TP",
+      "reason": "Manual override: =SUM(F5+N5+V5) replaces the IF(SEARCH(\"Yes\")) fill, with X5 typed 'Yes' and a 'May-July' note beside it."
+    },
+    "1632b774f5f0|FORMULA_DRIFT|Summary!B2": {
+      "label": "FP",
+      "reason": "B2 uses $-anchored references ($D:$D, $B:$B, $A2, $C:$C) that point at exactly the same cells as the relative fill below; only the anchoring differs, and it returns the same 1126 as B3."
+    },
+    "d41f7f014578|FORMULA_DRIFT|Sheet1!F7": {
+      "label": "FP",
+      "reason": "Name-parsing example block where each cell does a different job (PROPER first name, LEFT middle initial, PROPER last name); not a fill."
+    },
+    "c212843d66a8|FORMULA_DRIFT|LeadTimes!B6": {
+      "label": "TP",
+      "reason": "The WORKDAY holiday range differs across the row (K14:K21 here, L15:L21 and M15:M21 beside it, K14:K20 in B5); the holiday list reference is inconsistent and should be fixed, whichever cell is right."
+    },
+    "4ea284d68c01|FORMULA_DRIFT|Sheet1!N294": {
+      "label": "TP",
+      "reason": "Threshold typed as 90120 where the 18 neighbouring rows use 90; a clear typo."
+    },
+    "1ee00a60f590|FORMULA_DRIFT|Sheet1!BS2": {
+      "label": "TP",
+      "reason": "BS2 searches $R$2:$R$600 (matching BR's LARGE range) while BS3 onward search only $R$2:$R$526, so the rows below can miss scores in rows 527-600."
+    },
+    "7c3edf13b7c6|FORMULA_DRIFT|Malaga!O11": {
+      "label": "FP",
+      "reason": "Header links O11=C8, P11=E8, Q11=F8 pull different source columns by design; same pattern as the labeled Malaga!O14 and O27."
+    },
+    "d01aaa205624|FORMULA_DRIFT|HouseBudget!F123": {
+      "label": "TP",
+      "reason": "Bottom total sums G65:G122 (returns 0) while E123 sums its own column E65:E122, so F's total points at the wrong column and misses the row totals."
+    },
+    "53fb4bf35e11|FORMULA_DRIFT|Sheet1!BI93": {
+      "label": "FP",
+      "reason": "=SUM(BF93*1.5) computes exactly what the =BF93*1.5 fill computes; the redundant SUM wrapper is cosmetic."
+    },
+    "fe65a777a463|FORMULA_DRIFT|DATABASECountries!F4": {
+      "label": "TP",
+      "reason": "F4 multiplies by $C$4:$C$36 instead of $B$4:$B$36 like the 240 rows below, returns #VALUE!, and the error spreads into the TOTAL in F2."
+    },
+    "bc56a9f2824a|FORMULA_DRIFT|Total(2)!O13": {
+      "label": "FP",
+      "reason": "The last bucket column uses P10 as its upper bound in O12, O13 and O15, each edited by hand, so the different edge for the final bucket is deliberate and not a broken fill."
+    },
+    "495cb6cdb000|HARDCODE_IN_FORMULA_BLOCK|Sheet1!J6": {
+      "label": "FP",
+      "reason": "J is an 'Actual' input column between the Diff formula columns I and L; every cell in it is an input, same as the labeled J8."
+    },
+    "fe25bc710753|HARDCODE_IN_FORMULA_BLOCK|Sheet1!M6": {
+      "label": "FP",
+      "reason": "M is an 'Actual' input column between the Diff formula columns L and O; every cell in it is an input."
+    },
+    "a4ee03c3468a|HARDCODE_IN_FORMULA_BLOCK|HR!GC8": {
+      "label": "TP",
+      "reason": "Typed 10.11 in a column of link formulas (GC7, GC9, GC10), in a row with other manual overrides (GE8 holds 'Month 1' in a formula column); worth a look even though the links themselves are #REF!."
+    },
+    "5fb44ac2af63|HARDCODE_IN_FORMULA_BLOCK|Sheet1!L5": {
+      "label": "TP",
+      "reason": "Typed -1 in a Diff column of =J-K formulas where J5-K5 would give -6; a wrong constant typed over a difference."
+    },
+    "fe25bc710753|HARDCODE_IN_FORMULA_BLOCK|Sheet1!P4": {
+      "label": "FP",
+      "reason": "P is headed 'Actual', an input column between the Diff formula columns O and R."
+    },
+    "e5094a660f5e|HARDCODE_IN_FORMULA_BLOCK|Sheet1!D72": {
+      "label": "TP",
+      "reason": "A literal 1 inside a column of identical IF formulas, and B72 and C72 hold different names, so the formula would return blank; a typed-over result."
+    },
+    "a4ee03c3468a|HARDCODE_IN_FORMULA_BLOCK|HR!BC5": {
+      "label": "TP",
+      "reason": "Typed amount 46.09674447 over the IF(SEARCH(\"Yes\"),AZ,\"\") fill, with BB5 typed 'Yes' and an 'Aug - Oct' note; a hardcoded manual override of the amount to pay."
+    },
+    "f5521bffa45f|HARDCODE_IN_FORMULA_BLOCK|Sheet1!D93": {
+      "label": "TP",
+      "reason": "A literal 1 inside a column of identical IF formulas, and B93 and C93 hold different names, so the formula would return blank; a typed-over result."
+    },
+    "a94eb6a7585f|HARDCODE_IN_FORMULA_BLOCK|HR!BC5": {
+      "label": "TP",
+      "reason": "Typed amount 46.09674447 over the IF(SEARCH(\"Yes\"),AZ,\"\") fill, with BB5 typed 'Yes' and an 'Aug - Oct' note; a hardcoded manual override of the amount to pay."
+    },
+    "30c6f4937476|HARDCODE_IN_FORMULA_BLOCK|HR!BC11": {
+      "label": "TP",
+      "reason": "Typed amount 141.97061221 over the IF(SEARCH(\"Yes\"),AZ,\"\") fill, with BB11 typed 'Yes' and an 'Aug - Oct' note; a hardcoded manual override."
+    },
+    "495cb6cdb000|HARDCODE_IN_FORMULA_BLOCK|Sheet1!M4": {
+      "label": "FP",
+      "reason": "M is headed 'Actual', an input column between the Diff formula columns L and O."
+    },
+    "bc56a9f2824a|HARDCODE_IN_FORMULA_BLOCK|Total(2)!E29": {
+      "label": "TP",
+      "reason": "E29 holds a typed 1840 (exactly 80% of C29) in a column where E27 and E31 compute the split by formula; a computed figure typed in that will not follow C29."
+    },
+    "3bdd8dbbaf67|HARDCODE_IN_FORMULA_BLOCK|Dati!AB27": {
+      "label": "TP",
+      "reason": "Typed 1 (as in AB25 and AB26) over the IF(OR(R=\"-\",R=\"\\\"),S+T,\" \") fill that AB24 and AB28 carry, and column AC tests AB>0."
+    },
+    "876eccba2276|NUMBERS_STORED_AS_TEXT|Sheet2!F26": {
+      "label": "TP",
+      "reason": "Cell-ID column mixing 9 text entries with 47 numbers (G26 is text too); matches and lookups on it miss the text forms, same family as the labeled TP E30."
+    },
+    "489956137c75|NUMBERS_STORED_AS_TEXT|Sheet1!H52": {
+      "label": "TP",
+      "reason": "Text '34113' in a code column that otherwise holds 31 numbers; same family and pattern as the labeled TP E30."
+    },
+    "03acf31e2499|NUMBERS_STORED_AS_TEXT|Sheet1!B2": {
+      "label": "TP",
+      "reason": "Project ID 8600000040 appears as text in B2 and B4 but as a number in B3; the same ID in both forms breaks lookups and grouping."
+    },
+    "7fc97bb4d304|NUMBERS_STORED_AS_TEXT|Sheet1!B163": {
+      "label": "TP",
+      "reason": "Project ID column with 456 text entries among 2331 numbers (B163-B165 text beside numeric B161-B162); mixed forms of the same IDs."
+    },
+    "876eccba2276|NUMBERS_STORED_AS_TEXT|Sheet1!G5": {
+      "label": "TP",
+      "reason": "G5 holds '42533' as text while H5 holds 42533 as a number; mixed forms of the same code."
+    },
+    "03acf31e2499|NUMBERS_STORED_AS_TEXT|Sheet1!A2": {
+      "label": "TP",
+      "reason": "Serial ID column with 1240 text entries among 1547 numbers; mixed forms, same as the labeled TPs A1057 and A1075."
+    },
+    "63df53e988c8|NUMBERS_STORED_AS_TEXT|Sheet1!G5": {
+      "label": "TP",
+      "reason": "G5 holds '42533' as text while H5 holds 42533 as a number; mixed forms of the same code."
+    },
+    "355d8bd13c80|NUMBERS_STORED_AS_TEXT|Sheet1!I8": {
+      "label": "FP",
+      "reason": "Free-text notes column ('1791 REFUND ', '2391  Sammy', '1611  Sammy jonker'); '1771 ' is a note that happens to hold only a number, the known false-positive pattern."
+    },
+    "c5f93923f23e|NUMBERS_STORED_AS_TEXT|GLDetails!A11": {
+      "label": "TP",
+      "reason": "Account-code column with numeric 102985 in A9 and A10 but text '322115' in A11; lookups or SUMIFs by code would miss it."
+    },
+    "7fc97bb4d304|NUMBERS_STORED_AS_TEXT|Sheet1!A2": {
+      "label": "TP",
+      "reason": "Serial ID column with 1240 text entries among 1547 numbers; mixed forms, same as the labeled TPs."
+    },
+    "7e6034cae12d|NUMBERS_STORED_AS_TEXT|Sheet1!A1": {
+      "label": "TP",
+      "reason": "15-digit ID column holding 19 text entries among 250 numbers; mixed forms of the same kind of ID break matching."
+    },
+    "ab03f9015e49|NUMBERS_STORED_AS_TEXT|GLDetails!A11": {
+      "label": "TP",
+      "reason": "Account-code column with numeric 102985 in A9 and A10 but text '322115' in A11; lookups or SUMIFs by code would miss it."
+    },
+    "74d1b4bee11f|NUMBERS_STORED_AS_TEXT|Sheet1!A3": {
+      "label": "TP",
+      "reason": "Customer 1065414 is a number in A2 but text in A3-A6; totals by customer would split the same customer."
+    },
+    "1a12611d45b2|NUMBERS_STORED_AS_TEXT|Sheet1!A1": {
+      "label": "TP",
+      "reason": "15-digit ID column holding 19 text entries among 250 numbers; mixed forms of the same kind of ID break matching."
+    },
+    "35eccaaedf70|NUMBERS_STORED_AS_TEXT|Sheet1!A3": {
+      "label": "TP",
+      "reason": "Customer 1065414 is a number in A2 but text in A3-A6; totals by customer would split the same customer."
+    },
+    "f8daf4406797|NUMBERS_STORED_AS_TEXT|Sheet2!E2": {
+      "label": "TP",
+      "reason": "Batch column with '7460118' as text above numeric batches 7460987 and 1234567; batch numbers in both forms."
+    },
+    "4dea3614ed1b|NUMBERS_STORED_AS_TEXT|Sheet1!A2": {
+      "label": "TP",
+      "reason": "Serial ID column with 1240 text entries among 1547 numbers; mixed forms, same as the labeled TPs."
+    },
+    "4dea3614ed1b|NUMBERS_STORED_AS_TEXT|Sheet1!B4": {
+      "label": "TP",
+      "reason": "Project ID 8600000040 is text in B4 but a number in B3 and B5; the same ID in both forms."
+    },
+    "9ea22c621bf1|NUMBERS_STORED_AS_TEXT|Sheet1!A1": {
+      "label": "TP",
+      "reason": "15-digit ID column holding 19 text entries among 250 numbers; mixed forms of the same kind of ID break matching."
+    },
+    "b6d10437377d|CIRCULAR_REFERENCE|Sheettwo!E10": {
+      "label": "TP",
+      "reason": "Column E is the added Column1 of the Suppliers2 table (B1:E279) and its VLOOKUP looks up Suppliers2[], so all 278 formula cells reference their own table; a real cycle, and every one shows #N/A."
+    },
+    "63a66071d918|CIRCULAR_REFERENCE|Sheettwo!E10": {
+      "label": "TP",
+      "reason": "Column E is the added Column1 of the Suppliers2 table (B1:E279) and its VLOOKUP looks up Suppliers2[], so all 278 formula cells reference their own table; a real cycle, and every one shows #N/A."
+    },
+    "40397a4736e1|CIRCULAR_REFERENCE|Test!F3": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F3),...) self-reference that freezes a TODAY()-based date once set; it needs iterative calculation, which a reviewer must know."
+    },
+    "192a19040f63|CIRCULAR_REFERENCE|Sheettwo!E10": {
+      "label": "TP",
+      "reason": "Column E is the added Column1 of the Suppliers2 table (B1:E279) and its VLOOKUP looks up Suppliers2[], so all 278 formula cells reference their own table; a real cycle, and every one shows #N/A."
+    },
+    "92f8bf691072|CIRCULAR_REFERENCE|Test!F3": {
+      "label": "TP",
+      "reason": "Deliberate IFERROR(1/(1/F3),...) self-reference that freezes a TODAY()-based date once set; it needs iterative calculation, which a reviewer must know."
+    },
+    "fd82a768c064|HIDDEN_STRUCTURE_IN_TOTAL|Employee1!U3": {
+      "label": "TP",
+      "reason": "Hidden rows 23 to 24 hold test names that still become headers (U3, V3) and feed the AB formulas; a hidden input a reviewer wants disclosed."
+    },
+    "fa8217b2c986|HIDDEN_STRUCTURE_IN_TOTAL|Here!A2": {
+      "label": "TP",
+      "reason": "Every visible cell on Here mirrors the hidden sheet Sheet1 (834 formulas); a hidden source sheet a reviewer wants disclosed."
+    },
+    "a556b2a52595|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!D4": {
+      "label": "TP",
+      "reason": "Hidden columns AW and AY drive the goal formulas (gate on $AW6, multiply by $AY6, two rows off the formula row); a hidden input a reviewer wants disclosed."
+    },
+    "158be0e0e878|HIDDEN_STRUCTURE_IN_TOTAL|Employee1!U3": {
+      "label": "TP",
+      "reason": "Hidden rows 23 to 24 hold test names that still become headers (U3, V3) and feed the AB formulas; a hidden input a reviewer wants disclosed."
+    },
+    "3ee4d6f069b6|HIDDEN_STRUCTURE_IN_TOTAL|DailyNumbers!M3": {
+      "label": "TP",
+      "reason": "Hidden rows 22 to 498 of the receipts sheet are still counted by the whole-column SUMIFS."
+    },
+    "470be426ac84|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!B25": {
+      "label": "TP",
+      "reason": "Hidden rows 12 and 17 sit inside the driver table that the INDEX/MATCH synthesis reads, so hidden drivers can still be matched and counted."
+    },
+    "d207fd1fc90f|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!A2": {
+      "label": "TP",
+      "reason": "Column A mirrors the hidden sheet Sheet2 (149 formulas); a hidden source sheet a reviewer wants disclosed."
+    },
+    "60062672a233|HIDDEN_STRUCTURE_IN_TOTAL|Admin&Settings!U5": {
+      "label": "TP",
+      "reason": "Every holiday date is built from Schedule!$B$6, the year held in hidden helper column B; a hidden input a reviewer wants disclosed."
+    },
+    "447f9eaa5b6c|HIDDEN_STRUCTURE_IN_TOTAL|Employee1!U3": {
+      "label": "TP",
+      "reason": "Hidden rows 23 to 24 hold test names that still become headers (U3, V3) and feed the AB formulas; a hidden input a reviewer wants disclosed."
+    },
+    "3876d02857ce|HIDDEN_STRUCTURE_IN_TOTAL|DATACARS!B24": {
+      "label": "TP",
+      "reason": "The DISCOUNT row takes its depreciation factors from the hidden sheet Afschrijving; a hidden source a reviewer wants disclosed."
+    },
+    "d3e7f4128e71|HIDDEN_STRUCTURE_IN_TOTAL|DailyNumbers!N3": {
+      "label": "TP",
+      "reason": "Hidden rows 2 to 11 and 16 to 506 of the Errors sheet are still counted by the whole-column SUMIFS."
+    },
+    "447f9eaa5b6c|HIDDEN_STRUCTURE_IN_TOTAL|Employee3!U3": {
+      "label": "TP",
+      "reason": "Hidden rows 23 to 24 hold test names that still become headers (U3, V3) and feed the AB formulas; a hidden input a reviewer wants disclosed."
+    },
+    "ca735d6e64af|HIDDEN_STRUCTURE_IN_TOTAL|Sheet1!H4": {
+      "label": "TP",
+      "reason": "Hidden columns F (splash points) and G (AVG) are summed into the visible Final Score."
+    },
+    "19dfd5dbcec5|HIDDEN_STRUCTURE_IN_TOTAL|formamspnc(7)!BG3": {
+      "label": "TP",
+      "reason": "The MAXIFS criteria range AD5:AD11 lies in hidden columns R to BE; a hidden row or column really feeds visible formulas."
+    },
+    "92f8bf691072|VOLATILE_FUNCTION|Test!F3": {
+      "label": "TP",
+      "reason": "One Info note per sheet that 56 date formulas rest on TODAY(); the right weight for TODAY/NOW, and here the date only stays fixed while the self-reference works."
+    },
+    "c5ab9001d952|VOLATILE_FUNCTION|YTDBudget&Summary!G2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that the YTD summary year comes from YEAR(TODAY()) and rolls over with the clock; the right weight for TODAY/NOW."
+    },
+    "b7e17665b0cc|VOLATILE_FUNCTION|Sheet1!D2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that the DATEDIF ages move with the clock; the right weight for TODAY/NOW."
+    },
+    "61961992fd15|VOLATILE_FUNCTION|DATABANK!B4": {
+      "label": "TP",
+      "reason": "One Info note per sheet for a single =TODAY() cell next to Fiscal Month; the right weight for TODAY/NOW."
+    },
+    "9e84580cc354|VOLATILE_FUNCTION|Sheet1!C2": {
+      "label": "TP",
+      "reason": "TEXT(TODAY(),\"yy\") supplies the year for parsed dates, so dates from another year get the wrong one, and WEEKNUM already shows #NUM!."
+    },
+    "901359d33672|VOLATILE_FUNCTION|Sheet1!D2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that the days-left column moves with the clock; the right weight for TODAY/NOW."
+    },
+    "b7e4ec773e1c|VOLATILE_FUNCTION|Sheet1!L3": {
+      "label": "TP",
+      "reason": "A 357-cell RAND() grid of year-by-state data; the numbers change on every recalculation, so anything built on them is not reproducible."
+    },
+    "9d7ac18c8fd7|VOLATILE_FUNCTION|ImportData!H2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that the NOW()-based Ageing column moves with the clock; the right weight for TODAY/NOW."
+    },
+    "9950acdeddc6|VOLATILE_FUNCTION|ImportData!H2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that the NOW()-based Ageing column moves with the clock; the right weight for TODAY/NOW."
+    },
+    "e3e5ae270e30|VOLATILE_FUNCTION|Sheet1!L5": {
+      "label": "TP",
+      "reason": "One Info note per sheet that the 400 Days Onsite to Date formulas move with the clock; the right weight for TODAY/NOW."
+    },
+    "6b591cf8ff22|VOLATILE_FUNCTION|Open!O4": {
+      "label": "TP",
+      "reason": "One Info note per sheet for the TODAY()-based Age column (4997 formulas), not a per-cell note; the right weight for TODAY/NOW."
+    },
+    "1699999ded57|VOLATILE_FUNCTION|ImportData!H2": {
+      "label": "TP",
+      "reason": "One Info note per sheet that the NOW()-based Ageing column moves with the clock; the right weight for TODAY/NOW."
+    },
+    "7cc6b0fe1206|WHOLE_COLUMN_REFERENCE|All!AE2": {
+      "label": "TP",
+      "reason": "Array formula MAX(IF(D:D=K2,$I:$I)), repeated with siblings across many columns, evaluates two million-row arrays per cell."
+    },
+    "7cc6b0fe1206|WHOLE_COLUMN_REFERENCE|All!AH2": {
+      "label": "TP",
+      "reason": "Array formula MIN(IF(D:D=K2,B:B)), repeated with siblings across many columns, evaluates two million-row arrays per cell."
+    },
+    "be2f958d4b41|WHOLE_COLUMN_REFERENCE|All!AD2": {
+      "label": "TP",
+      "reason": "Array formula MAX(IF(D:D=K2,$H:$H)), repeated with siblings across many columns, evaluates two million-row arrays per cell."
+    },
+    "be2f958d4b41|WHOLE_COLUMN_REFERENCE|All!AJ2": {
+      "label": "TP",
+      "reason": "Array formula MIN(IF($D:$D=K2,$G:$G)), repeated with siblings across many columns, evaluates two million-row arrays per cell."
+    },
+    "40c60acd7755|WHOLE_COLUMN_REFERENCE|All!AE2": {
+      "label": "TP",
+      "reason": "Array formula MAX(IF(D:D=K2,$I:$I)), repeated with siblings across many columns, evaluates two million-row arrays per cell."
+    },
+    "40c60acd7755|WHOLE_COLUMN_REFERENCE|All!AH2": {
+      "label": "TP",
+      "reason": "Array formula MIN(IF(D:D=K2,B:B)), repeated with siblings across many columns, evaluates two million-row arrays per cell."
+    },
+    "eba9bd965a28|WHOLE_COLUMN_REFERENCE|VolymP5_P6_2023!I5": {
+      "label": "TP",
+      "reason": "UNIQUE(IF(A5=ZORD!A:A,ZORD!C:C,\"\")) is an array evaluation over whole columns (the IF(A2=ZORD!A:A) case in the rule notes), not a bounded lookup."
+    },
+    "f367b87c90dd|DUPLICATE_KEY|Sheet1!L4,Sheet1!L6": {
+      "label": "FP",
+      "reason": "Mill inventory grid of label-over-quantity pairs (WBNB, BT, BT Splits) where the same product heads several bins by design; the repeats are layout, not a broken key."
+    },
+    "f0d026f067a4|DUPLICATE_KEY|Sheet1!C6,Sheet1!C10,Sheet1!C14": {
+      "label": "FP",
+      "reason": "'Pb Splits' is a product label repeated across bins of an inventory grid (label rows alternating with quantity rows); repeats are by design."
+    },
+    "ac9c457a4aed|DUPLICATE_KEY|URNlookup!K3,URNlookup!K214": {
+      "label": "TP",
+      "reason": "POSTCODE column of the school URN lookup sheet has 103 repeated postcodes (e.g. 'CA9 3QU' twice), so a first-match lookup by postcode can return the wrong school, as in the accepted example."
+    },
+    "f0d026f067a4|DUPLICATE_KEY|Sheet1!D2,Sheet1!D6": {
+      "label": "FP",
+      "reason": "'CBV/WBNB mix' and 'QC hold' are product labels repeated over separate quantities in a 'Mill Inventory' grid; multiple bins of one product are intended."
+    },
+    "852b58472b57|DUPLICATE_KEY|Sheet1!J2,Sheet1!J6,Sheet1!J10": {
+      "label": "FP",
+      "reason": "'WBNB' repeats in rows and adjacent columns (J2, K2) of an inventory grid with quantities beneath each label; section labels in a grid, not a key column."
+    },
+    "6bc9e1c652db|DUPLICATE_KEY|Sheet2!B3,Sheet2!B12": {
+      "label": "FP",
+      "reason": "Each expense category repeats once per region block (column A 'Regional' then a second region), so the table is keyed on region plus category, like the month-plus-year example."
+    },
+    "e96393e9b002|DUPLICATE_KEY|Sheet1!A2,Sheet1!A3,Sheet1!A4,Sheet1!A5": {
+      "label": "FP",
+      "reason": "Each ID has several measurement rows (Data 26.4, 26.98, 26.71) with an empty 'Min' column to aggregate; multi-row data per ID, not a broken key."
+    },
+    "0cec652d8072|DUPLICATE_KEY|Attendance!D3,Attendance!D4,Attendance!D5": {
+      "label": "FP",
+      "reason": "'a' and 'p' are attendance marks in a date grid counted by COUNTIF; categories, not keys, like the leave-code example."
+    },
+    "b0189d43ef5f|DUPLICATE_KEY|DATABASECountries!B45,DATABASECountries!B46,DATABASECountries!B47": {
+      "label": "FP",
+      "reason": "Currency is a result column of the country table; Hong Kong, Turkey and Russia sharing USD is by design, same as the earlier labeled example."
+    },
+    "2c8b7984b569|DUPLICATE_KEY|Sheet1!B5,Sheet1!B6,Sheet1!B7,Sheet1!B8": {
+      "label": "FP",
+      "reason": "'Flute' is an attribute column (B, C) beside the unique Grade key in column A; shared flute types are expected and any match on it is composite with grade."
+    },
+    "c5d0696a293e|DUPLICATE_KEY|Sheet1!I5,Sheet1!I8": {
+      "label": "FP",
+      "reason": "'Tuesday - Person 2' is a session label in a dated log that recurs week to week; the rows are keyed by start date plus day label, so repeats are normal."
+    },
+    "843712f5ec1b|DUPLICATE_KEY|Sheet1!A2,Sheet1!A6": {
+      "label": "TP",
+      "reason": "'Pencil' appears twice in a short 'Products' list with a Type column searched by name, so a first-match lookup returns only one of its types."
+    },
+    "eba9bd965a28|DUPLICATE_KEY|ZORD!A2,ZORD!A3,ZORD!A4": {
+      "label": "FP",
+      "reason": "Material 'ABC1' has several rows with different Valid from/Valid to dates; the table is keyed on material plus validity period by design."
+    },
+    "e32dc7118a33|DUPLICATE_KEY|Sheet1!B5,Sheet1!B6,Sheet1!B7,Sheet1!B8": {
+      "label": "FP",
+      "reason": "'Flute' attribute column beside a unique Grade key; flute types B and C are shared by several grades by design."
+    },
+    "5a98e72c8ee6|WHITESPACE_KEY|JournalEntries!E20": {
+      "label": "TP",
+      "reason": "'Third Party Loans ' is the one padded account title in the column that drives VLOOKUP($E20, ...); it works only because the master list is padded too, and a typed title would silently return blank through IFERROR."
+    },
+    "55d45b916f0d|WHITESPACE_KEY|Sheet1!A5": {
+      "label": "TP",
+      "reason": "Three letter keys ('D ', 'F ', 'P ') are padded among clean letters (B, C, E) in a letter-to-value table, so a lookup on 'D' misses its row."
+    },
+    "3a2b74c70f66|WHITESPACE_KEY|Total(2)!E106": {
+      "label": "FP",
+      "reason": "' xcb.' is an isolated scribble with no neighbours or referencing formulas on the card; stray text, not a key."
+    },
+    "e32dc7118a33|WHITESPACE_KEY|Sheet1!A4": {
+      "label": "FP",
+      "reason": "'Grade ' is the header of the table (beside 'Flute ' with data rows below), not a key value."
+    },
+    "d3575a4dff7b|WHITESPACE_KEY|HouseBudget!T61": {
+      "label": "FP",
+      "reason": "'Total  ' is a row label on the totals row next to SUM formulas; a caption, not a lookup key."
+    },
+    "5a98e72c8ee6|WHITESPACE_KEY|MonthlyExpensesSummary!D43": {
+      "label": "TP",
+      "reason": "'Third Party Loans ' is the only padded account title in the summary column that feeds the VLOOKUP for account code and class, a fragile key that only matches because the master is padded identically."
+    },
+    "ef479c030de6|WHITESPACE_KEY|Sheet1!A3": {
+      "label": "FP",
+      "reason": "'Week ' is the header of a date column (row 3 beside 'Team Total' and 'Goal #'), not a key value."
+    },
+    "1c06477fced9|WHITESPACE_KEY|Compiledandlocatedschoolsda!L2": {
+      "label": "TP",
+      "reason": "Postcodes with leading spaces (' LA13 9RP' and 11 more) in the Postcode column will not match the clean postcodes in the URN lookup, the known true-positive pattern."
+    },
+    "a86f94be97b9|WHITESPACE_KEY|Sheet1!A4": {
+      "label": "FP",
+      "reason": "'Grade ' is a table header cell beside 'Flute ', not a key value."
+    },
+    "d7704e65e140|WHITESPACE_KEY|Sheet1!A2": {
+      "label": "TP",
+      "reason": "One Info note for a column where 11 of 12 descriptions end in runs of newlines; the adjacent 'preferred display' column shows the cleaned version is wanted, so the note is worth reading even though the export-padding wording is loose."
+    },
+    "cae03100ef09|WHITESPACE_KEY|Sheet1!I4": {
+      "label": "TP",
+      "reason": "Scheme names in the 'Scheme Name' column carry padding ('JUNE 2022GENERAL BORROWER ', and visibly I5 and I6 too) next to a SUMPRODUCT that matches them against a table, so they will fail to match."
+    },
+    "50e95eddd565|WHITESPACE_KEY|Sheet1!A10": {
+      "label": "FP",
+      "reason": "A one-column list (A1:A17) of repeated account names, each consistently padded, with no lookup shown; the rule notes name uniformly padded account names in a short list as a known false positive."
+    },
+    "2f8c049b867d|WHITESPACE_KEY|ProductList!A4": {
+      "label": "TP",
+      "reason": "Three of 13 product names in the 'Product' column carry a trailing space ('PLASTIC ICING 1KG ' beside clean 'PLASTIC ICING 500G'), so lookups by product name miss them."
+    },
+    "e4dd1fc8c138|WHITESPACE_KEY|Sheet1!A2": {
+      "label": "unsure",
+      "reason": "Only 'pick 1' / 'david' and 'pick 2 ' are visible with no formula, so the card cannot show whether the padded label is looked up or just a note."
+    },
+    "d7e27f29097e|WHITESPACE_KEY|Malaga!A7": {
+      "label": "FP",
+      "reason": "'Golf at La Cala America, La Cala Asia, ' is descriptive prose in the trip notes above the room table, not a key."
+    },
+    "f7c5dc14603a|WHITESPACE_KEY|Inflexion!A9": {
+      "label": "TP",
+      "reason": "'Asperity ' and 'SMD ' are the only padded names in a clean company-name column, so a lookup or COUNTIF on the name misses them, like the COURTNEY example."
+    },
+    "b577453716f5|WHITESPACE_KEY|Sheet1!A2": {
+      "label": "TP",
+      "reason": "'John ' is the one padded name in the NAME column that feeds MATCH(Sheet1!$A2, 'Sheet 2'!$A:$A, 0); the key only matches if the other sheet carries the same stray space."
+    },
+    "decb1aae7638|WHITESPACE_KEY|Sheet1!A2": {
+      "label": "TP",
+      "reason": "Both 'Mike ' entries are padded while the other names are clean, so a lookup or count for 'Mike' misses them."
+    },
+    "6354e61254b2|WHITESPACE_KEY|Sheet1!A82": {
+      "label": "TP",
+      "reason": "'GG ' carries a trailing space in all five occurrences while the other 90 values in the NAME column are clean, so a match on 'GG' misses them."
+    },
+    "1d7b84636c8e|WHITESPACE_KEY|Sheet1!A12": {
+      "label": "TP",
+      "reason": "'Trousers Black ' is padded in both rows while the other product names are clean, so lookups or counts by product name miss it."
+    },
+    "72574e72007c|WHITESPACE_KEY|Sheet1!A10": {
+      "label": "FP",
+      "reason": "A single-column short list of repeated, consistently padded account names with no lookup shown, the known uniformly padded account-list false positive."
+    },
+    "3517fbb37fa4|WHITESPACE_KEY|Dec14!A14": {
+      "label": "TP",
+      "reason": "'COURTNEY ' is the one padded name in a clean name column of the staff roster, the same pattern as the accepted example."
     }
   }
 }
