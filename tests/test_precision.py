@@ -446,5 +446,9 @@ def test_every_static_finding_on_seeded_workbooks_is_catalogued(entry):
     uncatalogued = sorted(pair for pair in produced if pair[0] not in VALUE_DEPENDENT and pair not in expected)
     assert not uncatalogued, f"Findings without a seed entry (false positives?): {uncatalogued}"
 
-    missed = sorted(pair for pair in static_expected if pair not in produced)
+    # A seeded defect is found when it leads a finding or is one of its members.
+    found = produced | {
+        (f["rule_id"], _normalize(member)) for f in payload["findings"] for member in f.get("members") or []
+    }
+    missed = sorted(pair for pair in static_expected if pair not in found)
     assert not missed, f"Seeded static defects not detected: {missed}"

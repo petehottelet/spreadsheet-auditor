@@ -10,7 +10,7 @@ from .finding import Finding
 from .formula_parser import is_formula
 from .reference_resolver import cell_value
 from .referenced import ReferenceIndex
-from .workbook_inventory import iter_existing_cells, location
+from .workbook_inventory import ERROR_VALUES, iter_existing_cells, location
 
 
 NUMERIC_TEXT_RE = re.compile(r"^\s*[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?\s*$|^\s*[-+]?\d+(?:\.\d+)?\s*$")
@@ -235,20 +235,31 @@ def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIn
                     )
                 )
                 continue
-            for cell in candidates:
-                value = cell.value
-                findings.append(
-                    Finding(
-                        rule_id="WHITESPACE_KEY",
-                        severity="Medium",
-                        error_confidence="Review",
-                        detection_mode="DET",
-                        location=location(ws.title, cell.row, cell.column),
-                        title="Text has leading or trailing whitespace",
-                        evidence=[f"Raw value is {value!r}; the other text values in this column are not padded."],
-                        suggested_fix="Trim the value if it is used as a lookup key or label.",
-                    )
+            # A few padded values among clean ones: one finding per column, so
+            # its evidence can say truthfully which others are padded.
+            lead = candidates[0]
+            evidence = [f"Raw value is {lead.value!r}; the other text values in this column are not padded."]
+            if len(candidates) > 1:
+                evidence = [
+                    f"Raw value is {lead.value!r}.",
+                    _others(
+                        candidates,
+                        f"of {len(cells)} text values in column {get_column_letter(col)} carry leading or trailing whitespace",
+                    ),
+                ]
+            findings.append(
+                Finding(
+                    rule_id="WHITESPACE_KEY",
+                    severity="Medium",
+                    error_confidence="Review",
+                    detection_mode="DET",
+                    location=location(ws.title, lead.row, lead.column),
+                    members=[location(ws.title, cell.row, cell.column) for cell in candidates],
+                    title="Text has leading or trailing whitespace",
+                    evidence=evidence,
+                    suggested_fix="Trim the values if they are used as lookup keys or labels.",
                 )
+            )
     return findings
 
 
@@ -266,7 +277,8 @@ def _duplicate_keys(workbook, allowed_sheet_names, budget, index: ReferenceIndex
                 continue
             tick(budget)
             value = cell.value
-            if not (isinstance(value, str) and value.strip()):
+            # An error value (#N/A in every unmatched row) is not a key.
+            if not (isinstance(value, str) and value.strip()) or value.strip() in ERROR_VALUES:
                 continue
             if not any(start <= cell.row <= end for start, end in intervals[cell.column]):
                 continue

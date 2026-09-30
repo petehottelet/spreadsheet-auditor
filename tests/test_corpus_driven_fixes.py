@@ -217,6 +217,42 @@ def test_whitespace_reports_the_stray_padded_key_not_the_export(tmp_path):
     assert found == {"S!A3": "Medium", "S!B2": "Low"}
 
 
+def test_a_few_padded_keys_in_one_column_are_one_finding_that_names_them(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    names = ["Andrew", "Courtney ", "Donita", "Evan", "Frida ", "Gus", "Hana", "Ivo", "Jo", "Kim"]
+    for row, name in enumerate(names, start=1):
+        ws.cell(row, 1, name)
+        ws.cell(row, 2, row * 10)
+    ws["D1"] = '=COUNTIF(A1:A10,"Courtney")'
+    path = tmp_path / "padding.xlsx"
+    wb.save(path)
+    [finding] = _audit(path)["WHITESPACE_KEY"]
+    assert finding["location"] == "S!A2" and finding["members"] == ["S!A2", "S!A5"]
+    # It used to say the other values were not padded, although A5 is.
+    assert "not padded" not in " ".join(finding["evidence"])
+    assert "2 of 10 text values in column A carry leading or trailing whitespace; the others are A5 'Frida '" in finding["evidence"][1]
+
+
+def test_error_values_in_a_lookup_column_are_not_duplicate_keys(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    for row, key in enumerate(["north", "#N/A", "south", "#N/A", "east", "#N/A"], start=1):
+        ws.cell(row, 1, key)
+        ws.cell(row, 2, row)
+    ws["D1"] = '=VLOOKUP("east",A1:B6,2,FALSE)'
+    path = tmp_path / "errors.xlsx"
+    wb.save(path)
+    assert not _audit(path).get("DUPLICATE_KEY")
+    ws["A7"], ws["B7"] = "south", 7  # a real repeat is still reported
+    ws["D1"] = '=VLOOKUP("east",A1:B7,2,FALSE)'
+    wb.save(path)
+    [finding] = _audit(path)["DUPLICATE_KEY"]
+    assert finding["members"] == ["S!A3", "S!A7"]
+
+
 def test_whole_column_reference_only_in_array_contexts(tmp_path):
     wb = Workbook()
     ws = wb.active

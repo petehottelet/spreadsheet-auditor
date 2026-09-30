@@ -64,7 +64,10 @@ def diff_workbook(seeded: list[dict], payload: dict, recalc_available: bool) -> 
     for finding in payload.get("findings", []):
         if finding.get("suppressed"):
             continue
-        detected[finding["rule_id"]].add(_normalize(finding["location"]))
+        # A defect repeated in several cells is one finding; each of its
+        # cells (its members) counts as detected.
+        for loc in [finding["location"], *(finding.get("members") or [])]:
+            detected[finding["rule_id"]].add(_normalize(loc))
 
     rows: list[dict] = []
     seeded_lookup: set[tuple[str, str]] = set()
