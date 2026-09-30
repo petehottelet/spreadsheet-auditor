@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "I put together our household budget in House_Budget.xlsx. Before I send it to my partner, can you check it for mistakes? Just tell me what's actually wrong and what I should fix.",
-      "expected_output": "Runs the audit, checks the four FORMULA_DRIFT findings in context, reports House Budget!F123 as the one real formula mistake with the right fix, and lists the other three as fine by design. The workbook is unchanged.",
+      "expected_output": "Runs the audit, checks the three FORMULA_DRIFT findings in context, reports House Budget!F123 as the one real formula mistake with the right fix, and lists the other two as fine by design. The workbook is unchanged.",
       "files": ["evals/files/House_Budget.xlsx"],
       "expectations": [
         "The answer says House Budget!F123 is wrong because it sums column G (G65:G122) instead of the Total Spent column F",
@@ -33,7 +33,7 @@
     {
       "id": 3,
       "prompt": "I inherited Ops_Tracker.xlsx from a colleague who left. Can I trust the numbers in it? Give me the top issues in plain English, most important first.",
-      "expected_output": "Leads with the live errors (#VALUE! in Q9:Q11, #REF! in I10:I11) and their causes, folds the 31 hidden-structure findings into one point about hidden helper columns, does not call C5 an error, and states the coverage limits in plain language.",
+      "expected_output": "Leads with the live errors (#VALUE! in Q9:Q11, #REF! in I10:I11) and their causes, presents the hidden-structure finding as one point about hidden helper columns, does not call C5 an error, and states the coverage limits in plain language.",
       "files": ["evals/files/Ops_Tracker.xlsx"],
       "expectations": [
         "The top issues include the #VALUE! errors in formamspnc (7)!Q9:Q11",
