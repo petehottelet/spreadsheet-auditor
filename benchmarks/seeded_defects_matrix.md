@@ -29,7 +29,7 @@ _Recalculation: available._
 | RANGE_LENGTH_MISMATCH | Model!F63 | DET | no | detected | F63 sums two columns while peers sum three. |
 | HARDCODE_IN_FORMULA_BLOCK | Model!C22 | DET | no | detected | Literal 999 between two formulas that share one pattern. |
 | LITERAL_CONSTANT | Model!B25 | HEUR | no | detected | Embedded growth-rate literal 1.05 inside a formula. |
-| IFERROR_MASK | Model!B27 | HEUR | no | detected | IFERROR wrapper that may hide a real error. |
+| IFERROR_MASK | Model!B27 | HEUR | no | detected | IFERROR turns the #DIV/0! of a division by a blank cell into 0. |
 | HIDDEN_STRUCTURE_IN_TOTAL | Model!B32 | DET | no | detected | Hidden row 31 feeds the visible total in B32. |
 | NUMBERS_STORED_AS_TEXT | Model!B35 | DET | no | detected | '1,234' typed as a string in a numeric column (Review severity: nothing sums it). |
 | WHITESPACE_KEY | Model!A36 | DET | no | detected | Leading/trailing whitespace on a first-column label. |

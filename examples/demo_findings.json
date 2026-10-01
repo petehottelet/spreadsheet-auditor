@@ -1,7 +1,7 @@
 {
-  "audit_version": "0.3.0",
-  "tool_version": "0.3.0",
-  "timestamp": "2026-09-26T03:30:02+00:00",
+  "audit_version": "0.4.0",
+  "tool_version": "0.4.0",
+  "timestamp": "2026-10-01T04:14:12+00:00",
   "runtime": {
     "python": "3.11.16",
     "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
@@ -11,7 +11,7 @@
   },
   "workbook": {
     "path": "examples/demo_bad_budget.xlsx",
-    "sha256": "0e525bf3ede5b20e6c3f008c6b832c6b7e79718d45816787cb6bae93abadf0c5",
+    "sha256": "465648d14e4be9f83fb9f1559cd3a1c02942d4a07de1049635c0967ab411835c",
     "sheets_analyzed": 2,
     "formulas_scanned": 30,
     "recalc_status": "completed"
@@ -22,13 +22,93 @@
     "external_links_present": false,
     "unsupported_features": [],
     "limitations": [],
+    "complete": true,
+    "incomplete": [],
+    "finding_counts": {
+      "total": 13,
+      "shown": 13,
+      "suppressed": 0,
+      "by_severity": {
+        "Critical": 3,
+        "High": 7,
+        "Medium": 3
+      },
+      "by_rule": [
+        {
+          "rule_id": "CROSS_FOOT_FAILURE",
+          "severity": "Critical",
+          "error_confidence": "Defect",
+          "count": 1
+        },
+        {
+          "rule_id": "LIVE_ERROR",
+          "severity": "Critical",
+          "error_confidence": "Defect",
+          "count": 1
+        },
+        {
+          "rule_id": "RANGE_EXCLUSION",
+          "severity": "Critical",
+          "error_confidence": "Likely defect",
+          "count": 1
+        },
+        {
+          "rule_id": "FORMULA_DRIFT",
+          "severity": "High",
+          "error_confidence": "Likely defect",
+          "count": 3
+        },
+        {
+          "rule_id": "BROKEN_REFERENCE",
+          "severity": "High",
+          "error_confidence": "Defect",
+          "count": 1
+        },
+        {
+          "rule_id": "HARDCODE_IN_FORMULA_BLOCK",
+          "severity": "High",
+          "error_confidence": "Likely defect",
+          "count": 1
+        },
+        {
+          "rule_id": "NUMBERS_STORED_AS_TEXT",
+          "severity": "High",
+          "error_confidence": "Likely defect",
+          "count": 1
+        },
+        {
+          "rule_id": "TOTAL_MISMATCH",
+          "severity": "High",
+          "error_confidence": "Likely defect",
+          "count": 1
+        },
+        {
+          "rule_id": "DUPLICATE_KEY",
+          "severity": "Medium",
+          "error_confidence": "Review",
+          "count": 1
+        },
+        {
+          "rule_id": "HIDDEN_STRUCTURE_IN_TOTAL",
+          "severity": "Medium",
+          "error_confidence": "Review",
+          "count": 1
+        },
+        {
+          "rule_id": "WHITESPACE_KEY",
+          "severity": "Medium",
+          "error_confidence": "Review",
+          "count": 1
+        }
+      ]
+    },
     "truncated": {
       "formulas": false,
       "findings": false,
       "cells": false,
       "timeout": false
     },
-    "elapsed_seconds": 1.424,
+    "elapsed_seconds": 0.936,
     "recalculation": {
       "status": "completed",
       "limitations": []
@@ -45,7 +125,7 @@
   "findings": [
     {
       "id": "CROSS_FOOT_FAILURE-001",
-      "fingerprint": "c527c01a793890df",
+      "fingerprint": "1d6057391ddd5534",
       "rule_id": "CROSS_FOOT_FAILURE",
       "severity": "Critical",
       "error_confidence": "Defect",
@@ -53,6 +133,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!E6",
+      "members": [
+        "Budget!E6"
+      ],
       "sheet": "Budget",
       "cell": "E6",
       "range": null,
@@ -70,7 +153,7 @@
     },
     {
       "id": "LIVE_ERROR-001",
-      "fingerprint": "fbb6e5d7357bd57a",
+      "fingerprint": "25a6f1a375234871",
       "rule_id": "LIVE_ERROR",
       "severity": "Critical",
       "error_confidence": "Defect",
@@ -78,6 +161,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B14",
+      "members": [
+        "Budget!B14"
+      ],
       "sheet": "Budget",
       "cell": "B14",
       "range": null,
@@ -93,7 +179,7 @@
     },
     {
       "id": "RANGE_EXCLUSION-001",
-      "fingerprint": "eb7800e13217274e",
+      "fingerprint": "bc4764157bc642c4",
       "rule_id": "RANGE_EXCLUSION",
       "severity": "Critical",
       "error_confidence": "Likely defect",
@@ -101,6 +187,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B10",
+      "members": [
+        "Budget!B10"
+      ],
       "sheet": "Budget",
       "cell": "B10",
       "range": null,
@@ -116,7 +205,7 @@
     },
     {
       "id": "BROKEN_REFERENCE-001",
-      "fingerprint": "e878c158e60890e5",
+      "fingerprint": "20794961a090cc88",
       "rule_id": "BROKEN_REFERENCE",
       "severity": "High",
       "error_confidence": "Defect",
@@ -124,6 +213,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B14",
+      "members": [
+        "Budget!B14"
+      ],
       "sheet": "Budget",
       "cell": "B14",
       "range": null,
@@ -139,7 +231,7 @@
     },
     {
       "id": "FORMULA_DRIFT-001",
-      "fingerprint": "7b547f4cfbe06c11",
+      "fingerprint": "84425aadc6e1a0c9",
       "rule_id": "FORMULA_DRIFT",
       "severity": "High",
       "error_confidence": "Likely defect",
@@ -147,6 +239,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B10",
+      "members": [
+        "Budget!B10"
+      ],
       "sheet": "Budget",
       "cell": "B10",
       "range": null,
@@ -165,7 +260,7 @@
     },
     {
       "id": "FORMULA_DRIFT-002",
-      "fingerprint": "41d2fdc1afab5197",
+      "fingerprint": "d2c8451808c1ab24",
       "rule_id": "FORMULA_DRIFT",
       "severity": "High",
       "error_confidence": "Likely defect",
@@ -173,6 +268,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B6",
+      "members": [
+        "Budget!B6"
+      ],
       "sheet": "Budget",
       "cell": "B6",
       "range": null,
@@ -191,7 +289,7 @@
     },
     {
       "id": "FORMULA_DRIFT-003",
-      "fingerprint": "56ca60ea4ac17130",
+      "fingerprint": "a5bbd2d71e743d9d",
       "rule_id": "FORMULA_DRIFT",
       "severity": "High",
       "error_confidence": "Likely defect",
@@ -199,6 +297,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!E6",
+      "members": [
+        "Budget!E6"
+      ],
       "sheet": "Budget",
       "cell": "E6",
       "range": null,
@@ -217,7 +318,7 @@
     },
     {
       "id": "HARDCODE_IN_FORMULA_BLOCK-001",
-      "fingerprint": "e693afb70163499c",
+      "fingerprint": "24064dc98bd42f48",
       "rule_id": "HARDCODE_IN_FORMULA_BLOCK",
       "severity": "High",
       "error_confidence": "Likely defect",
@@ -225,6 +326,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!E9",
+      "members": [
+        "Budget!E9"
+      ],
       "sheet": "Budget",
       "cell": "E9",
       "range": null,
@@ -240,7 +344,7 @@
     },
     {
       "id": "NUMBERS_STORED_AS_TEXT-001",
-      "fingerprint": "d7f05ab733261a10",
+      "fingerprint": "66b0472a92d25f95",
       "rule_id": "NUMBERS_STORED_AS_TEXT",
       "severity": "High",
       "error_confidence": "Likely defect",
@@ -248,6 +352,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B20",
+      "members": [
+        "Budget!B20"
+      ],
       "sheet": "Budget",
       "cell": "B20",
       "range": null,
@@ -258,12 +365,12 @@
       ],
       "impact": {},
       "limitations": [],
-      "suggested_fix": "Convert the value to a number or confirm it is intentionally text.",
+      "suggested_fix": "Convert the values to numbers or confirm they are intentionally text.",
       "suppressed": false
     },
     {
       "id": "TOTAL_MISMATCH-001",
-      "fingerprint": "c90b735842dd2987",
+      "fingerprint": "d8afb5cd595c8b70",
       "rule_id": "TOTAL_MISMATCH",
       "severity": "High",
       "error_confidence": "Likely defect",
@@ -271,6 +378,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B6",
+      "members": [
+        "Budget!B6"
+      ],
       "sheet": "Budget",
       "cell": "B6",
       "range": null,
@@ -286,7 +396,7 @@
     },
     {
       "id": "DUPLICATE_KEY-001",
-      "fingerprint": "b839ff0c852f9bc1",
+      "fingerprint": "84717e216a3276ea",
       "rule_id": "DUPLICATE_KEY",
       "severity": "Medium",
       "error_confidence": "Review",
@@ -294,6 +404,10 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!A17, Budget!A18",
+      "members": [
+        "Budget!A17",
+        "Budget!A18"
+      ],
       "sheet": "Budget",
       "cell": "A17",
       "range": null,
@@ -309,7 +423,7 @@
     },
     {
       "id": "HIDDEN_STRUCTURE_IN_TOTAL-001",
-      "fingerprint": "6d884c3b5154e9d4",
+      "fingerprint": "b2710237f13d9290",
       "rule_id": "HIDDEN_STRUCTURE_IN_TOTAL",
       "severity": "Medium",
       "error_confidence": "Review",
@@ -317,6 +431,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!B13",
+      "members": [
+        "Budget!B13"
+      ],
       "sheet": "Budget",
       "cell": "B13",
       "range": null,
@@ -332,7 +449,7 @@
     },
     {
       "id": "WHITESPACE_KEY-001",
-      "fingerprint": "bdb742338533c36f",
+      "fingerprint": "c4ab97484aa84198",
       "rule_id": "WHITESPACE_KEY",
       "severity": "Medium",
       "error_confidence": "Review",
@@ -340,6 +457,9 @@
       "detection_mode": "DET",
       "mode": "DET",
       "location": "Budget!A18",
+      "members": [
+        "Budget!A18"
+      ],
       "sheet": "Budget",
       "cell": "A18",
       "range": null,
@@ -350,7 +470,7 @@
       ],
       "impact": {},
       "limitations": [],
-      "suggested_fix": "Trim the value if it is used as a lookup key or label.",
+      "suggested_fix": "Trim the values if they are used as lookup keys or labels.",
       "suppressed": false
     }
   ]
