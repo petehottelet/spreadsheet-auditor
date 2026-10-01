@@ -447,7 +447,12 @@ def test_annotated_needs_a_workbook_and_a_path_of_its_type(tmp_path, capsys, sou
 def _stdout_audit(tmp_path: Path, capsys, *args: str) -> tuple[int, str, str]:
     ignore = tmp_path / "no-suppressions"
     ignore.touch()
-    code = audit.main([str(_workbook(tmp_path)), "--fail-on", "None", "--ignore", str(ignore), *args])
+    # Recalculation off: a coverage limitation on every machine, so --fail-on
+    # None exits 2 whether LibreOffice is installed or not.
+    config = _config(tmp_path, '{"recalc": {"enabled": false}}', "stdout-config.json")
+    code = audit.main(
+        [str(_workbook(tmp_path)), "--fail-on", "None", "--ignore", str(ignore), "--config", str(config), *args]
+    )
     captured = capsys.readouterr()
     return code, captured.out, captured.err
 
