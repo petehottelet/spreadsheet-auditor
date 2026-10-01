@@ -60,12 +60,15 @@ def run_audit(workbook: Path) -> tuple[dict, bool]:
 
 
 def diff_workbook(seeded: list[dict], payload: dict, recalc_available: bool) -> dict:
+    # Where findings sit, and every cell they stand for: a defect repeated in
+    # several cells is one finding, and each of its cells (its members) counts
+    # as detected, but only the finding's own location can be unexpected.
+    reported = defaultdict(set)
     detected = defaultdict(set)
     for finding in payload.get("findings", []):
         if finding.get("suppressed"):
             continue
-        # A defect repeated in several cells is one finding; each of its
-        # cells (its members) counts as detected.
+        reported[finding["rule_id"]].add(_normalize(finding["location"]))
         for loc in [finding["location"], *(finding.get("members") or [])]:
             detected[finding["rule_id"]].add(_normalize(loc))
 
@@ -95,7 +98,7 @@ def diff_workbook(seeded: list[dict], payload: dict, recalc_available: bool) -> 
 
     # Surface unexpected findings (potential false positives) by rule.
     unexpected: list[tuple[str, str]] = []
-    for rule, locations in detected.items():
+    for rule, locations in reported.items():
         for loc in locations:
             if (rule, loc) not in seeded_lookup:
                 unexpected.append((rule, loc))

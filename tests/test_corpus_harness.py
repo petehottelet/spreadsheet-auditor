@@ -138,3 +138,21 @@ def test_recorded_paths_are_never_absolute(tmp_path):
     other_checkout = tmp_path / "elsewhere" / "benchmarks" / "corpus" / "data"
     assert corpuslib.display_path(other_checkout) == "benchmarks/corpus/data"
     assert corpuslib.display_path(tmp_path / "loose") == "loose"
+
+
+def test_seeded_benchmark_counts_members_as_detected_but_never_as_unexpected():
+    sys.path.insert(0, str(ROOT / "benchmarks"))
+    from run_benchmark import diff_workbook
+
+    seeded = [
+        {"rule_id": "DUPLICATE_KEY", "location": "S!A1, S!A2", "mode": "DET", "requires_recalc": False},
+        {"rule_id": "WHITESPACE_KEY", "location": "S!A9", "mode": "DET", "requires_recalc": False},
+    ]
+    findings = [
+        {"rule_id": "DUPLICATE_KEY", "location": "S!A1, S!A2", "members": ["S!A1", "S!A2"]},
+        {"rule_id": "WHITESPACE_KEY", "location": "S!A5", "members": ["S!A5", "S!A9"]},
+    ]
+    result = diff_workbook(seeded, {"findings": findings}, recalc_available=False)
+    assert [row["status"] for row in result["rows"]] == ["detected", "detected"]
+    # The duplicate key's own cells are not extra findings; the padded group's lead is.
+    assert result["unexpected"] == [("WHITESPACE_KEY", "S!A5")]
