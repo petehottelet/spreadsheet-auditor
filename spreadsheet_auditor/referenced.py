@@ -94,6 +94,7 @@ class ReferenceIndex:
         self._all: dict[str, _ColumnIndex] = {}
         self._lookup: dict[str, _ColumnIndex] = {}
         self._numeric: dict[str, _ColumnIndex] = {}
+        self._unconverted: dict[str, _ColumnIndex] = {}
         self._boxes: dict[str, list[tuple[Box, bool]]] = defaultdict(list)
 
     @classmethod
@@ -122,6 +123,8 @@ class ReferenceIndex:
                 index._all.setdefault(key, _ColumnIndex()).add(box)
                 if ref.numeric:
                     index._numeric.setdefault(key, _ColumnIndex()).add(box)
+                    if not ref.converted:
+                        index._unconverted.setdefault(key, _ColumnIndex()).add(box)
                 if ref.bare and (ref.func, ref.arg) in KEY_SLOTS:
                     # Only the searched column or row of a lookup table is a key
                     # column; VLOOKUP's other columns are what it returns.
@@ -132,7 +135,10 @@ class ReferenceIndex:
                         key_box = (box[0], box[1], box[2], box[1])
                     index._lookup.setdefault(key, _ColumnIndex()).add(key_box)
         for column_index in (
-            list(index._all.values()) + list(index._lookup.values()) + list(index._numeric.values())
+            list(index._all.values())
+            + list(index._lookup.values())
+            + list(index._numeric.values())
+            + list(index._unconverted.values())
         ):
             column_index.build()
         return index
@@ -145,6 +151,15 @@ class ReferenceIndex:
     def numeric_contains(self, sheet: str, row: int, col: int) -> bool:
         """True when a formula consumes the cell at (row, col) as a number (arithmetic, SUM, ...)."""
         column_index = self._numeric.get(sheet.casefold())
+        return bool(column_index and column_index.covers(row, col))
+
+    def unconverted_contains(self, sheet: str, row: int, col: int) -> bool:
+        """True when a formula consumes the cell as a number without converting it first.
+
+        ``--A1``, ``A1*1`` and ``A1+0`` read a number stored as text
+        correctly; ``SUM(A1:A5)`` skips it and ``A1+B1`` relies on coercion.
+        """
+        column_index = self._unconverted.get(sheet.casefold())
         return bool(column_index and column_index.covers(row, col))
 
     def lookup_columns(self, sheet: str) -> list[int]:

@@ -7,157 +7,174 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+An audit that stops short now fails instead of passing, a mistake repeated
+down a column is reported once, an accepted finding stays accepted when rows
+move, and input the auditor cannot use says what to fix. Exit codes,
+fingerprints and one default change; read **Upgrading from 0.3.0** first.
+
+### Upgrading from 0.3.0
+
+- **Exit codes.** A new exit 6 means the audit did not finish: a check
+  failed or ran out of time, or `limits.max_formulas` or `limits.max_cells`
+  skipped part of the workbook. It takes precedence over 1 and applies
+  whatever `--fail-on` says; a workbook with 1,830 live errors audited under
+  a 15-second budget used to report nothing and exit 0. Usage errors exit 4
+  instead of 2, and so does input the auditor cannot use, which mostly exited
+  5: a config mistake, a workbook, CSV, config or suppression file that
+  cannot be read, a missing `--ignore` file, an output path that cannot be
+  written. Exit 5 now means a bug in the auditor and prints the traceback. A
+  CI step that fails only on 1 should fail on 4, 5 and 6 too.
+- **Config is checked.** An unknown section, setting or rule name, a value
+  of the wrong type, or an unknown check level used to be ignored, so the
+  audit ran on defaults; it now exits 4 and names the nearest known name
+  (`did you mean 'LIVE_ERROR'?`). Rule names and levels match in any case,
+  an empty section is the same as leaving it out, and 50000.0 counts as
+  50000. `scope.include_sheets` naming no sheet of the workbook exits 4, and
+  sheet names the workbook lacks are coverage limitations.
+- **Fingerprints changed.** A fingerprint hashes the flagged cell's content
+  and its row and column labels instead of its address, so it stays the same
+  when rows or columns are inserted. Fingerprint suppressions written for
+  0.3.0 match nothing once: the report names each stale line and prints the
+  line to use. SARIF carries the new value as
+  `partialFingerprints["spreadsheetAuditor/v2"]`, so code-scanning alerts are
+  opened afresh once.
+- **`BLANK_PRECEDENT` is off by default.** None of its 25 sampled findings on
+  SpreadsheetBench was a mistake: what remained were blanks that mean zero by
+  design, such as one side of a debit/credit pair. Turn it on with
+  `"checks": {"BLANK_PRECEDENT": "error"}` for data that must never have
+  gaps.
+- **A suppression must cover every cell of a finding.** A finding that
+  stands for several cells (see **Changed**) is hidden only by a target that
+  covers all of them, and the report says when a line covers some.
+- **Output.** With `--json -`, stdout holds only the JSON and the summary
+  goes to stderr. `--format` without `--out` prints that format rather than
+  Markdown. `--annotated` needs an `.xlsx` or `.xlsm` workbook and a copy
+  path with its extension.
+
+### Added
+
+- **Pinned suppressions.** `LIVE_ERROR Model!C5 fingerprint:<fp> <reason>`
+  (in a config: `rule_id`, `range` and `fingerprint` together) accepts one
+  finding. It keeps suppressing that finding after rows or columns move,
+  never hides a different finding that lands on the address, and the report
+  says when the finding has moved. When findings of a rule are alike in
+  content and labels, the line also needs its address, and adding or fixing
+  one of them makes the line stale rather than letting it pass to another.
+  The Markdown report prints the pinned line under every finding, and each
+  run names the pinned replacement for an unpinned one-cell line.
+- **`--pin-suppressions`** rewrites the `--ignore` file after the audit: each
+  unpinned one-cell line that matched becomes its pinned form, each pinned
+  line whose finding moved gets its new address, and the rest of the file
+  (comments, area lines, stale lines, newline style) is kept byte for byte.
+  Every change is printed on stderr with the formula it was pinned to.
+- `coverage.complete`, `coverage.incomplete` (reason, message and the rules
+  not checked) and `coverage.finding_counts` (counts before the report cap)
+  in the JSON; `members` on each finding, every cell it stands for; for an
+  incomplete audit, a banner in the Markdown and HTML reports and
+  `audit : INCOMPLETE` in `--summary`; in SARIF, `executionSuccessful`, tool
+  execution notifications, and `relatedLocations` for the other cells of a
+  finding. The annotated copy comments every cell of a finding.
+- Coverage notes for a suppression that matches nothing, covers only some
+  cells of a finding, follows an address a different finding could take, or
+  whose finding has moved.
+- CSVs saved by Excel as "CSV (Comma delimited)" (Windows-1252, noted in the
+  limitations), UTF-16 and UTF-32 CSVs with a byte-order mark, and CSV fields
+  over 128 KiB.
+- stderr says why the exit code is not 0, even with `--quiet`.
+
 ### Changed
 
-- **An incomplete audit exits 6.** A check that raised an exception or ran
-  out of time, or a `limits.max_formulas`/`limits.max_cells` cap that skipped
-  part of the workbook, used to add a line to the limitations and exit as if
-  the audit were whole. A workbook with 1,830 live errors audited under a
-  15-second budget reported no findings and exited 0; it now exits 6.
-  Exit 6 takes precedence over 1 and applies whatever `--fail-on` says.
-  `coverage.complete` and `coverage.incomplete` (reason, message, and the
-  rules not checked) say what happened; the Markdown and HTML reports open
-  with a banner, `--summary` prints `audit : INCOMPLETE`, stderr names the
-  cause even with `--quiet`, and SARIF sets `executionSuccessful: false`
-  with tool execution notifications.
-- **Command-line usage errors exit 4 instead of 2**, since 2 means a
-  completed audit with coverage limitations; a script that accepted 2 read a
-  mistyped flag as a finished audit.
-- Checks run formula integrity (live errors and broken references first)
-  and the reconciliations before the grid scans, so a time budget that runs
-  out drops the slower checks first.
-- **Fingerprints follow the flagged cell, not its address.** A fingerprint
-  now hashes the rule, the sheet, the cell's row label, and its content (a
-  formula rewritten relative to its own cell, or a constant), numbered in
-  sheet order when several findings share all of that. Inserting a row no
-  longer changes every fingerprint, and a fingerprint suppression no longer
-  passes to whatever lands on the old address. Existing fingerprint
-  suppressions need the new fingerprint once; the report now names each stale
-  one. SARIF carries it as `partialFingerprints["spreadsheetAuditor/v2"]`.
-- **A one-cell suppression can be pinned to its finding.** A location line
-  such as `LIVE_ERROR Model!C5 accepted` also hid any later finding of that
-  rule on C5: after a row went in above the model, the accepted `#REF!` came
-  back at C6 and a new `#REF!` typed at C5 was hidden. A line may now carry
-  the fingerprint it accepts, `LIVE_ERROR Model!C5 fingerprint:<fp> <reason>`
-  (config: `rule_id`, `range` and `fingerprint` together); the fingerprint
-  decides the match, so the line keeps suppressing the accepted finding at C6,
-  leaves the new one reported, and the report says the finding has moved away
-  from C5. The Markdown report prints this pinned line under every finding,
-  and each run names the pinned replacement for every unpinned one-cell line
-  that matched. A pinned line whose finding is gone says what now sits at its
-  address.
-- **`--pin-suppressions`** rewrites the `--ignore` file after the audit: each
-  unpinned one-cell line that matched becomes its pinned form, reason kept,
-  and each pinned line whose finding has moved gets the finding's current
-  address. Comments, blank lines, area lines, stale lines and the file's
-  newline style are kept, the file is replaced atomically, and every change is
-  printed on stderr with the formula it was pinned to. A line is pinned to
-  whatever it matches in that run, so run it before rows move.
+- **A mistake repeated down a column is one finding.** A formula filled down
+  a column that errors in every row was one Critical finding per row: a
+  SpreadsheetBench workbook whose lookup reads its own column reported 278
+  for one column, and the report cap then hid the workbook's other findings.
+  `LIVE_ERROR` now groups errors by sheet, error value and relative formula
+  (and the same error typed as a value), and lists the cells an error spreads
+  to, including those fed by an error cycle; `BROKEN_REFERENCE` groups `#REF!`
+  and unresolved formulas by relative formula; `CIRCULAR_REFERENCE` groups
+  cells that each reference only themselves; `NUMBERS_STORED_AS_TEXT` is one
+  finding per column and kind; `DUPLICATE_KEY` is one finding per searched
+  column; `HIDDEN_STRUCTURE_IN_TOTAL` is one finding per sheet for its hidden
+  rows and one for its hidden columns, named as runs. Each finding sits at
+  its top-left cell and lists the others.
+- **The report cap keeps every rule.** `limits.max_reported_findings` kept
+  the first findings in severity order, so one rule could take every place.
+  Each rule now keeps its most severe finding, the remaining places go by
+  severity, and the limitation note says how many findings of each rule were
+  left out. `--summary` and the reports count before the cap ("5 Critical ...
+  (3 of 6 shown)").
+- **`IFERROR_MASK` reports only a failure passed off as data.** It flagged
+  every `IFERROR` and `IFNA`, and on SpreadsheetBench about seven in ten were
+  deliberate. It now reports a wrapper whose expression can really fail (a
+  division, a lookup, an average, a text or date conversion, arithmetic on a
+  cell) when the error comes back as something that reads as a real value: a
+  number, a number written as text, a cell, or a calculation. `IFNA` counts
+  only what returns `#N/A`; an error already absorbed by `ISNUMBER` or an
+  inner `IFERROR`, a conversion that falls back to the text it read
+  (`IFERROR(VALUE(A1),A1)`), a second lookup, a message, and `NA()` are not
+  reported. Google Sheets placeholder formulas still are, with a fix of
+  their own.
 - `FORMULA_DRIFT` leaves summary cells alone when they are not part of the
   run beside them: a cell where the run's formula would add up only text
   labels (a link under "Total Tax" heading a column of names), and one of a
   row of summaries over the same block with their own criteria (counts of 1,
   2 and 3 over one range). A total aimed at the wrong column, and a broken
-  member of a run that reads a shared table, are still reported. On
-  SpreadsheetBench this removes 6 of 130 drift findings, and the four of them
-  already labeled were false or unsure; the re-drawn sample puts drift at 62%
-  precision (41% to 79%), up from 52%. EUSES recall is unchanged at 528 of
-  695 injected faults.
-- **A mistake repeated down a column is one finding.** A formula filled
-  down a column that errors in every row was one Critical finding per row: a
-  SpreadsheetBench workbook whose lookup reads its own column reported 278
-  for one column, and the 200-finding report cap then hid the workbook's
-  other findings. Now `LIVE_ERROR` groups errors by sheet, error value and
-  relative formula (and the same error typed as a value), including errors
-  inside a cycle, which have no root; `BROKEN_REFERENCE` groups `#REF!` and
-  unresolved formulas by relative formula; `CIRCULAR_REFERENCE` groups cells
-  that each reference only themselves; `NUMBERS_STORED_AS_TEXT` is one
-  finding per column and kind; `DUPLICATE_KEY` is one finding per searched
-  column; and `HIDDEN_STRUCTURE_IN_TOTAL` is one finding per sheet for its
-  hidden rows and one for its hidden columns, named as runs (one workbook
-  had 31 findings on a single cell, one per hidden column). Each finding
-  sits at the top-left cell and lists the others with a count. On
-  SpreadsheetBench the auditor reports 4,620 findings instead of 11,123:
-  `LIVE_ERROR` 385 instead of 5,057 (at most 19 in a workbook, from 200),
-  `NUMBERS_STORED_AS_TEXT` 58 from 847, `DUPLICATE_KEY` 72 from 647,
-  `BROKEN_REFERENCE` 134 from 479, `CIRCULAR_REFERENCE` 9 from 171 and
-  `HIDDEN_STRUCTURE_IN_TOTAL` 52 from 154. No workbook reports more findings
-  than before.
-- **The report cap keeps every rule.** `limits.max_reported_findings` used
-  to keep the first findings in severity order, so one rule could take every
-  place. Each rule now keeps its most severe finding and the remaining places
-  go by severity; the limitation note says how many findings of each rule
-  were left out, and `coverage.finding_counts` holds the counts before the
-  cap, which `--summary` and the reports now show ("5 Critical ... (3 of 6
-  shown)"). On SpreadsheetBench 6 workbooks reach the cap instead of 22, and
-  142 findings the old cap hid are shown.
+  member of a run that reads a shared table, are still reported.
+- Numbers stored as text that every formula reading them converts first
+  (`--A1`, `VALUE(A1)`, `A1*1`) are a Low, Info finding; a `SUM` or another
+  unconverted reader keeps it High.
+- `LITERAL_CONSTANT` reports a literal inside the value a rounding or
+  formatting function works on: `=ROUND(A1*1.0725,2)` reports 1.0725, not the
+  2. A 3 or 6 dividing `MONTH()` (quarters, halves) is not reported.
 - CSV whitespace is one finding per column, a column padded throughout is a
-  Low/Info export note (as for workbooks), whitespace-only cells are skipped,
-  and the report cap applies to CSV audits too; a padded notes column used to
-  produce one finding per row.
-- **`IFERROR_MASK` reports only a failure passed off as data.** It used to
-  flag every `IFERROR` and `IFNA`, and on SpreadsheetBench about seven in ten
-  were deliberate: a lookup miss shown as `""`, an end-of-list extraction, a
-  chain of lookups, a wrapper around an `IF` that already handles its cases,
-  or around `COUNTIFS`, which cannot fail. It now reports a wrapper whose
-  expression can fail (a division, a lookup, an average, a text or date
-  conversion, arithmetic on a cell) when the error comes back as something
-  that reads as a real value: a number, a number written as text, a cell, or
-  a calculation. Google Sheets placeholder formulas are still reported, and
-  the evidence names what can fail and what replaces it. On SpreadsheetBench
-  the rule reports 644 findings instead of 1,763; of the 75 findings labeled
-  in earlier precision samples, the new rule keeps 19 of the 25 real ones
-  and 7 of the 50 false alarms.
-- **`BLANK_PRECEDENT` is off by default.** None of its 25 sampled findings
-  on SpreadsheetBench was a mistake: what remained was blanks that mean zero
-  by design, such as one side of a debit/credit pair. Turn it on with
-  `"checks": {"BLANK_PRECEDENT": "error"}` for data that must never have
-  gaps. With both changes, no SpreadsheetBench workbook reaches the report
-  cap (6 did) and the audit reports 3,760 findings instead of 4,620.
-- The seeded `IFERROR_MASK` case is now `=IFERROR(B2/B99,0)`: a division by
-  a blank cell whose `#DIV/0!` becomes 0.
-- **A config mistake stops the audit with exit 4.** A mistyped section,
-  setting or rule name (`"limit"`, `"LIVE_EROR"`) was ignored, so the audit
-  ran on defaults: the rule the config meant to turn off still failed the
-  build, and the raised limit never applied. An unknown name, a value of the
-  wrong type, or a check level other than error, warn, review or off now
-  exits 4 and names the nearest known name (`did you mean 'LIVE_ERROR'?`), as
-  do a missing config file, JSON or YAML that does not parse (with its line
-  and column), and a file that is not UTF-8. Rule names in `checks` match in
-  any case. `schemas/config.schema.json` rejects the same unknown names and
-  now lists the `finance` section and every accepted level.
-- **Input the auditor cannot read exits 4 and says what to do**, not 5: a
-  workbook whose contents do not parse, a folder or unreadable file in its
-  place, a CSV in neither UTF-8 nor Windows-1252, a suppression file that is
-  not UTF-8, and an output path in a missing folder or held open by another
-  program.
-- A suppression file named with `--ignore` must exist; a mistyped path used
-  to drop every suppression without a word. The default `.audit-ignore` is
-  still read only when it exists.
-- **Exit 5 is a bug in the auditor, and stderr says so**: the stage that
-  failed, the exception, and the traceback to attach to a bug report. It used
-  to print one line, with no traceback, for bugs and bad input alike.
+  Low, Info export note (as for workbooks), whitespace-only cells are
+  skipped, and the report cap applies to CSV audits too.
+- `LIVE_ERROR` traces each group of sources once. For 8,000 failing lookups
+  feeding a running total, its memory grew with the square of the rows (1.4 GB
+  measured) and the audit time budget could not stop it; it now uses tens of
+  megabytes, takes seconds, and polls the budget.
+- Checks run formula integrity (live errors and broken references first) and
+  the reconciliations before the grid scans, so a time budget that runs out
+  drops the slower checks first.
+- On SpreadsheetBench the auditor reports 3,434 findings instead of 11,123,
+  no workbook reports more than before, and none reaches the report cap (22
+  did). `LIVE_ERROR` reports 382 findings instead of 5,057, `IFERROR_MASK` 644
+  instead of 1,763, `NUMBERS_STORED_AS_TEXT` 58 instead of 847,
+  `WHITESPACE_KEY` 176 instead of 490 and `DUPLICATE_KEY` 69 instead of 647; rules the old cap crowded out now show
+  (`LITERAL_CONSTANT` 1,342 from 1,015, `FORMULA_DRIFT` 172 from 124).
+  Sampled precision is 80% (95% interval 75% to 84%), up from
+  76%: `IFERROR_MASK` rose from 28% to 60%, while `DUPLICATE_KEY` came out
+  at 24% on a sample dominated by composite keys and one family of inventory
+  grids (see `benchmarks/real_world_precision.md`). On the modified EUSES
+  corpus 537 of 695 injected faults are found at the faulty cell instead of
+  528 (recall 77%), with none lost: the nine gained were in workbooks the old
+  report cap had filled.
 
 ### Fixed
 
-- A CSV saved from Excel as "CSV (Comma delimited)" is Windows-1252, and one
-  accented character in it made the audit exit 5. Such a CSV is now read as
-  Windows-1252, with a note in the limitations.
-
+- A suppression covering part of a finding that stands for several cells
+  hid all of them, and a headline output other than a finding's first cell
+  did not raise its severity.
 - A suppression that matches no finding is reported in the coverage
   limitations, unless its rule is turned off, its rule went unchecked in an
   incomplete audit, or its sheet is out of scope.
 - `'Revenue Detail'!B1` in `.audit-ignore` was split at the space and
   suppressed findings on the sheet `Revenue`; quoted sheet names (with `''`
-  for an apostrophe) now parse, and an unquoted sheet name with a space is
-  rejected with the quoted form to use.
+  for an apostrophe, and `!` inside the quotes) now parse, and an unquoted
+  sheet name with a space is rejected with the quoted form to use. Rule IDs
+  match in any case.
 - A bare target that reads like a cell (`Q1`, `FY2025`) suppressed that
-  address on every sheet; a target without `!` is now always a sheet name, as
-  documented.
+  address on every sheet; a target without `!` is now always a sheet name,
+  as documented.
 - Sheet names containing a comma (`P&L, 2025`) could not be suppressed or
   annotated, and their findings had no `cell` in the JSON.
+- A defined name over a sheet whose name holds an apostrophe
+  (`'Bob''s Data'!A1:A5`) was reported as a broken reference.
+- A What-If data table cell got a new fingerprint on every run.
 - `--annotated` no longer fails on a finding located at a whole column or row
   (no built-in rule reports one; a custom check could).
+- `--out report.sarif.json` wrote findings JSON instead of SARIF, and
+  `--recalc-timeout 0` was accepted.
 
 ## [0.3.0] - 2026-09-25
 
@@ -435,6 +452,7 @@ benchmark- and demo-backed evidence story.
 - Findings are defect candidates and likely errors, not a legal, accounting,
   tax, or valuation certification.
 
-[Unreleased]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/petehottelet/spreadsheet-auditor/releases/tag/v0.1.0

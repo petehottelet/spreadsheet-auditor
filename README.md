@@ -68,7 +68,7 @@ the resulting report/JSON/HTML/annotated outputs ready to inspect.
 
 | Category | Checks |
 |---|---|
-| Formula integrity | live errors (`#REF!`, `#DIV/0!`, `#VALUE!`, `#N/A`, ...), broken/deleted references, references to blank precedents, circular references, formula drift across a row/column, `IFERROR`/`IFNA` error masking |
+| Formula integrity | live errors (`#REF!`, `#DIV/0!`, `#VALUE!`, `#N/A`, ...), broken/deleted references, references to blank precedents (off by default), circular references, formula drift across a row/column, `IFERROR`/`IFNA` error masking |
 | Hardcodes & inputs | numeric literals embedded in formulas, hardcoded plug values inside a formula block |
 | Ranges | aggregate ranges that exclude adjacent data (off-by-one), ranges that include subtotal/total rows, inconsistent aggregate range lengths across peers, hidden rows/columns/sheets inside totals |
 | Reconciliation | totals that double-count a component (`=SUM(B2:B5)+B5`), bare `SUM` totals whose cached value differs from their components, row totals vs column totals that don't cross-foot |
@@ -89,11 +89,12 @@ methodology at
 Precision on real workbooks is measured on 2,729 public forum workbooks
 (SpreadsheetBench) and published, per rule with confidence intervals, at
 [`benchmarks/real_world_precision.md`](benchmarks/real_world_precision.md):
-76% of sampled findings point at something a reviewer would want to look
-at (up from 36% for 0.2.0, with a quarter of the finding volume). Recall is
+80% of sampled findings point at something a reviewer would want to look
+at (76% for 0.3.0 and 36% for 0.2.0), with 3,434 findings where 0.3.0 had
+11,123 and 0.2.0 had 48,281. Recall is
 measured on the modified EUSES corpus, real spreadsheets with one injected
 formula fault each, at
-[`benchmarks/real_world_recall.md`](benchmarks/real_world_recall.md): 76% of
+[`benchmarks/real_world_recall.md`](benchmarks/real_world_recall.md): 77% of
 the injected faults are found at the faulty cell. The harness, the labeled
 samples, and the labeling protocol live in
 [`benchmarks/corpus/`](benchmarks/corpus/README.md).
@@ -152,9 +153,11 @@ See `spreadsheet-auditor --help` for the full flag reference, including
   (self-contained, no network).
 - **JSON findings** for reruns, CI, and downstream tooling. Validates against
   [`schemas/findings.schema.json`](schemas/findings.schema.json). Each finding
-  carries a `fingerprint` built from the flagged cell's content, which stays
-  the same across runs and inserted rows or columns, for diffing and for
-  fingerprint-based suppression.
+  carries a `fingerprint` built from the flagged cell's content and labels
+  (workbook findings; CSV findings hash their location), which stays the same
+  across runs and inserted rows or columns, for diffing and for
+  fingerprint-based suppression, and `members`, every cell a repeated mistake
+  covers.
 - **SARIF 2.1.0** for GitHub code scanning. See
   [`examples/github-actions/code-scanning.yml`](examples/github-actions/code-scanning.yml).
 - **Annotated workbook copy** with comments at finding cells (`--annotated`).
@@ -295,10 +298,13 @@ LITERAL_CONSTANT 'Revenue Detail'!B2:B40 contract uplift rates
 
 To accept one finding, copy the line the Markdown report prints under it (the
 first line above). It pins the suppression to the finding's fingerprint, which
-is built from the flagged cell's content, row label and sheet: the line keeps
-suppressing that finding when rows or columns are inserted, never hides a
-different finding that lands on the address, and the report says when the
-finding has moved away from the address written in the line. Without a
+is built from the flagged cell's content, its row and column labels, and its
+sheet: the line keeps suppressing that finding when rows or columns are
+inserted, never hides a different finding that lands on the address, and the
+report says when the finding has moved away from the address written in the
+line. When two findings of a rule look alike in all of that, the line also
+needs its address to match, and adding or fixing one of them turns the line
+stale rather than letting it pass to the other. Without a
 fingerprint, a target follows its address, which is right for an area such as
 a raw-data sheet or an import range; an unpinned one-cell line would also hide
 whatever later lands on that cell, so the report prints the pinned line to
@@ -309,7 +315,10 @@ so run it before rows move and review the changes it prints. A target may be a c
 bare sheet name (a target without `!` is always a sheet, even `Q1`); quote
 sheet names that contain spaces. A finding is suppressed when its cell lies
 inside the target on the same sheet, never by text prefix (`Imports!A1` does
-not hide `Imports!A10`). Suppressions that are malformed, or that match no
+not hide `Imports!A10`). A finding that stands for several cells (a mistake
+repeated down a column, listed in its `members`) is suppressed only when the
+target covers all of them; a target covering some is reported with the range
+that would cover them all. Suppressions that are malformed, or that match no
 finding (fixed, or the cells changed), are called out in the report's coverage
 limitations. Suppressed findings stay in the JSON payload (auditable) but are
 hidden from the report unless `--show-suppressed` is passed.

@@ -85,10 +85,11 @@ def _finding(location: str) -> Finding:
     return Finding("FORMULA_DRIFT", "High", "Likely defect", "DET", location, "t", ["e"], "fix")
 
 
-def test_identity_is_content_plus_label_numbered_in_sheet_order():
+def test_identity_is_content_plus_labels_numbered_in_sheet_order():
     wb = Workbook()
     ws = wb.active
     ws.title = "S"
+    ws.cell(1, 3, "Amount")
     for row in (2, 3, 4):
         ws.cell(row, 1, "Same label")
         ws.cell(row, 3, f"=A{row}*B{row}")
@@ -96,10 +97,12 @@ def test_identity_is_content_plus_label_numbered_in_sheet_order():
     ws.cell(5, 3, "=A5*B5")
     findings = [_finding("S!C4"), _finding("S!C2"), _finding("S!C5"), _finding("S!C3")]
     assign_identities(findings, wb)
-    by_location = {f.location: f.identity for f in findings}
-    assert by_location["S!C2"].endswith("|=RC[-2]*RC[-1]|1")
-    assert by_location["S!C3"].endswith("|2") and by_location["S!C4"].endswith("|3")
-    assert by_location["S!C5"] == "s|Other label|=RC[-2]*RC[-1]|1"
+    by_location = {f.location: f for f in findings}
+    assert by_location["S!C2"].identity == "s|Same label|Amount|=RC[-2]*RC[-1]|1/3"
+    assert by_location["S!C3"].identity.endswith("|2/3") and by_location["S!C4"].identity.endswith("|3/3")
+    assert by_location["S!C5"].identity == "s|Other label|Amount|=RC[-2]*RC[-1]|1"
+    # Only the three alike in everything but their order are marked as sharing.
+    assert [by_location[f"S!C{row}"].identity_shared for row in (2, 3, 4, 5)] == [True, True, True, False]
     # A location outside the workbook keeps the location-based fingerprint.
     elsewhere = _finding("Gone!A1")
     assign_identities([elsewhere], wb)
@@ -193,3 +196,137 @@ def test_report_hands_out_the_pinned_line_with_the_sheet_quoted():
     assert format_target("Budget!B14") == "Budget!B14"
     assert format_target("O'Brien!A1") == "'O''Brien'!A1"
     assert format_target("Q1!B2") == "'Q1'!B2"
+
+
+# --- findings alike in all but their order -----------------------------------
+
+
+def _plugs(path: Path, plugs: list[int], headers: bool = True) -> Path:
+    """A Revenue row growing 10% a month, with hard-coded plugs in the given columns."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Model"
+    if headers:
+        for col in range(2, 15):
+            ws.cell(4, col, f"Month {col - 1}")
+    ws.cell(5, 1, "Revenue")
+    ws.cell(5, 2, 1000)
+    for col in range(3, 15):
+        ws.cell(5, col, f"={ws.cell(5, col - 1).column_letter}5*1.1")
+    for col in plugs:
+        ws.cell(5, col, 500)
+    wb.save(path)
+    return path
+
+
+def _plug_findings(payload: dict) -> dict[str, dict]:
+    return {f["location"]: f for f in _by_rule(payload, "HARDCODE_IN_FORMULA_BLOCK")}
+
+
+def test_column_headers_tell_plugs_in_one_row_apart(tmp_path):
+    ignore = tmp_path / ".audit-ignore"
+    ignore.write_text("", encoding="utf-8")
+    before = _plug_findings(_audit(_plugs(tmp_path / "v1.xlsx", [6, 10]), ignore))
+    accepted = before["Model!F5"]
+    assert accepted["fingerprint"] != before["Model!J5"]["fingerprint"]
+    ignore.write_text(f"HARDCODE_IN_FORMULA_BLOCK Model!F5 fingerprint:{accepted['fingerprint']} agreed plug\n", encoding="utf-8")
+
+    # A new plug typed at D5 is reported; the accepted one stays hidden.
+    after = _plug_findings(_audit(_plugs(tmp_path / "v2.xlsx", [4, 6, 10]), ignore))
+    assert {loc: f["suppressed"] for loc, f in after.items()} == {"Model!D5": False, "Model!F5": True, "Model!J5": False}
+
+    # The accepted plug is replaced by its formula: J5 is not hidden in its place.
+    fixed = _audit(_plugs(tmp_path / "v3.xlsx", [10]), ignore)
+    assert {loc: f["suppressed"] for loc, f in _plug_findings(fixed).items()} == {"Model!J5": False}
+    assert _notes(fixed, "matched no finding")
+
+
+def test_a_pinned_line_never_passes_to_a_finding_alike_but_for_its_order(tmp_path):
+    # No headers: the plugs share row label and value, so only their order tells them apart.
+    ignore = tmp_path / ".audit-ignore"
+    ignore.write_text("", encoding="utf-8")
+    before = _plug_findings(_audit(_plugs(tmp_path / "v1.xlsx", [6, 10], headers=False), ignore))
+    accepted = before["Model!F5"]
+    ignore.write_text(f"HARDCODE_IN_FORMULA_BLOCK Model!F5 fingerprint:{accepted['fingerprint']} agreed plug\n", encoding="utf-8")
+    assert _plug_findings(_audit(tmp_path / "v1.xlsx", ignore))["Model!F5"]["suppressed"] is True
+
+    # A new plug at D5 would take F5's number, as would J5 once F5 is fixed, or
+    # D5 when it replaces F5: the line hides none of them, and says it matched
+    # nothing, so the reader re-pins what they still accept.
+    for name, plugs in (("v2.xlsx", [4, 6, 10]), ("v3.xlsx", [10]), ("v4.xlsx", [4, 10])):
+        payload = _audit(_plugs(tmp_path / name, plugs, headers=False), ignore)
+        assert not [loc for loc, f in _plug_findings(payload).items() if f["suppressed"]], name
+        assert _notes(payload, "matched no finding"), name
+
+
+def test_identity_ignores_what_an_insert_elsewhere_moves():
+    from spreadsheet_auditor.identity import assign_identities
+
+    def identity(offset: int) -> str:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Model"
+        inputs = wb.create_sheet("Inputs")
+        inputs.cell(5 + offset, 2, 0.2)
+        ws.cell(1 + offset, 2, 1.07)
+        ws.cell(5 + offset, 1, "Revenue")
+        ws.cell(5 + offset, 3, f"=A{5 + offset}*$B${1 + offset}*Inputs!B{5 + offset}")
+        finding = _finding(f"Model!C{5 + offset}")
+        assign_identities([finding], wb)
+        return finding.identity
+
+    assert identity(0) == identity(3)
+
+
+def test_a_data_table_cell_has_the_same_identity_every_run():
+    from openpyxl.worksheet.formula import DataTableFormula
+
+    from spreadsheet_auditor.identity import assign_identities
+
+    identities = set()
+    for _run in range(2):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "S"
+        ws["B5"] = DataTableFormula(ref="B5:B9", r1="A1")
+        finding = _finding("S!B5")
+        assign_identities([finding], wb)
+        identities.add(finding.identity)
+    [identity] = identities
+    assert " at 0x" not in identity
+
+
+def test_a_repeated_key_list_is_a_new_finding_when_another_key_repeats(tmp_path):
+    def keys(path: Path, values: list[str]) -> Path:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "S"
+        for row, value in enumerate(values, start=1):
+            ws.cell(row, 1, value)
+            ws.cell(row, 2, row)
+        ws["D1"] = "=VLOOKUP(\"apple\",A1:B20,2,FALSE)"
+        wb.save(path)
+        return path
+
+    ignore = tmp_path / ".audit-ignore"
+    ignore.write_text("", encoding="utf-8")
+    [before] = _by_rule(_audit(keys(tmp_path / "v1.xlsx", ["apple", "pear", "apple", "pear"]), ignore), "DUPLICATE_KEY")
+    assert before["members"] == ["S!A1", "S!A3", "S!A2", "S!A4"]
+    ignore.write_text(f"DUPLICATE_KEY S!A1 fingerprint:{before['fingerprint']} first match is intended\n", encoding="utf-8")
+    assert _by_rule(_audit(tmp_path / "v1.xlsx", ignore), "DUPLICATE_KEY")[0]["suppressed"] is True
+
+    # A plum duplicate added later is not hidden by the line accepting apple and pear.
+    grown = keys(tmp_path / "v2.xlsx", ["apple", "pear", "apple", "pear", "plum", "plum"])
+    [after] = _by_rule(_audit(grown, ignore), "DUPLICATE_KEY")
+    assert after["suppressed"] is False
+
+
+def test_a_quoted_sheet_name_may_hold_an_exclamation_mark():
+    from spreadsheet_auditor.suppressions import apply_suppressions
+
+    finding = _finding("Wow!!C2")
+    apply_suppressions([finding], [{"rule_id": "formula_drift", "range": "'Wow!'", "reason": "r"}])
+    assert finding.suppressed
+    finding.suppressed = False
+    apply_suppressions([finding], [{"rule_id": "FORMULA_DRIFT", "range": "'Wow!'!C2", "reason": "r"}])
+    assert finding.suppressed

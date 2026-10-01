@@ -70,7 +70,8 @@ jobs:
         run: |
           set -euo pipefail
           # Exit codes 1 (findings) and 2 (coverage limitations) are valid demo
-          # outcomes; only > 2 indicates a real error.
+          # outcomes; only > 2 (invalid input 4, internal error 5, incomplete
+          # audit 6) indicates a real error.
           run_ok() { set +e; "$@"; local c=$?; set -e; if [ "$c" -gt 2 ]; then echo "::error::Command exited $c: $*"; exit 1; fi; }
           wheel="$(ls dist/spreadsheet_auditor-*.whl | head -n1)"
           python -m venv /tmp/wheel-env

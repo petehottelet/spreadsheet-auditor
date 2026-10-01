@@ -19,18 +19,24 @@ Suppressions can be supplied two ways:
 A suppression's `range` may be a single cell (`Budget!B14`), a range
 (`Imports!A1:A100`), a whole column or row (`Imports!A:A`), or a bare sheet
 name (`Imports`). A finding is suppressed when its cell or range lies inside
-that target on the same sheet; a multi-cell finding matches when any of its
-cells does. Sheet names are case-insensitive and `$` markers are ignored.
+that target on the same sheet. A finding that stands for several cells (a
+mistake repeated down a column, a list of repeated keys: its ``members``) is
+suppressed only when the target covers all of them; a target that covers
+some is reported, so a line written for two cells never hides twenty. Rule
+IDs and sheet names are case-insensitive and `$` markers are ignored.
 Nothing is matched by substring, so `Imports!A1` never hides `Imports!A10`.
 A target without `!` is always a sheet, even `Q1` or `FY2025`. In the file,
 quote a sheet name that contains spaces: `'Revenue Detail'!B1`.
 
 To accept one finding, pin the line to its fingerprint (the second grammar,
 which the Markdown report prints for every finding). The fingerprint is built
-from the flagged cell's content, so a pinned line follows its finding through
-inserted rows and columns, and never hides a different finding that lands on
-the address; the location stays for the reader, and the report says when the
-finding has moved away from it. An unpinned location follows the address,
+from the flagged cell's content and its row and column labels, so a pinned
+line follows its finding through inserted rows and columns, and never hides a
+different finding that lands on the address; the location stays for the
+reader, and the report says when the finding has moved away from it. When
+several findings of a rule are alike in all of that (and so are numbered in
+sheet order), a pinned line also requires its address, because a new finding
+could take the accepted one's number. An unpinned location follows the address,
 which suits an area (a raw-data sheet, an import range); an unpinned one-cell
 target would also hide whatever later lands on that cell, so each run names
 the pinned line to replace it with, and `--pin-suppressions` rewrites the file
@@ -50,6 +56,7 @@ require `--show-suppressed` to surface them.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -75,21 +82,33 @@ def load_suppressions(
             if not entry.get("reason"):
                 warn(f"Suppression ignored (missing required 'reason'): {entry!r}")
                 continue
+            if not entry.get("fingerprint") and not (entry.get("rule_id") and entry.get("range")):
+                # Nothing to match a finding on; left in, it could only fail later.
+                warn(f"Suppression ignored (needs 'rule_id' and 'range', or 'fingerprint'): {entry!r}")
+                continue
             # A copy: apply_suppressions counts matches on the entry.
             suppressions.append(dict(entry, source=f"config suppressions[{index}]"))
     if ignore_path and Path(ignore_path).exists():
+        if Path(ignore_path).is_dir():
+            raise ConfigError(f"Suppression file {ignore_path} is a folder, not a file")
         try:
             text = Path(ignore_path).read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             raise ConfigError(f"Suppression file {ignore_path} is not UTF-8 text; save it as UTF-8") from exc
+        except OSError as exc:
+            raise ConfigError(
+                f"Could not read suppression file {ignore_path} ({exc.strerror or exc}); check that you can open it"
+            ) from exc
         for line_no, raw in enumerate(text.splitlines(), start=1):
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
             entry, problem = _parse_ignore_line(line)
             if entry is not None:
+                # The path as pin_suppression_file spells it, whether the user
+                # typed ./dir/.audit-ignore or used forward slashes on Windows.
                 suppressions.append(
-                    dict(entry, source=f"{ignore_path}:{line_no}", path=str(ignore_path), line=line_no)
+                    dict(entry, source=f"{ignore_path}:{line_no}", path=str(Path(ignore_path)), line=line_no)
                 )
             else:
                 warn(f"Suppression ignored ({ignore_path}:{line_no}); {problem}: {line!r}")
@@ -224,6 +243,10 @@ def pin_suppression_file(path: str | Path, suppressions: list[dict]) -> list[dic
         suppression["rewritten"] = True
     if not replacements:
         return []
+    # A read-only file says "do not edit"; replacing it by rename would
+    # succeed on Linux and quietly drop that.
+    if not os.access(path, os.W_OK):
+        raise _unwritable(path, "it is read-only")
     raw = path.read_bytes().decode("utf-8")
     newline = "\r\n" if "\r\n" in raw else "\n"
     lines = raw.splitlines()
@@ -233,9 +256,20 @@ def pin_suppression_file(path: str | Path, suppressions: list[dict]) -> list[dic
         lines[line_no - 1] = newline.join(new)
     text = newline.join(lines) + (newline if raw.endswith(("\n", "\r")) else "")
     scratch = path.with_name(path.name + ".pinning")
-    scratch.write_bytes(text.encode("utf-8"))
-    os.replace(scratch, path)
+    try:
+        scratch.write_bytes(text.encode("utf-8"))
+        os.replace(scratch, path)
+    except OSError as exc:
+        with contextlib.suppress(OSError):
+            scratch.unlink(missing_ok=True)
+        raise _unwritable(path, exc.strerror or str(exc)) from exc
     return changes
+
+
+def _unwritable(path: Path, why: str) -> ConfigError:
+    return ConfigError(
+        f"Could not rewrite suppression file {path} ({why}); make it writable, or run without --pin-suppressions"
+    )
 
 
 def is_one_cell(target: str) -> bool:
@@ -251,18 +285,37 @@ def pinned_line(rule_id: str, location: str, fingerprint: str, reason: str = "<r
     return f"{rule_id} {target} fingerprint:{fingerprint} {reason}"
 
 
+def _same_rule(suppression: dict, finding) -> bool:
+    return str(suppression.get("rule_id") or "").upper() == finding.rule_id.upper()
+
+
 def _matches(finding, suppression: dict) -> bool:
     fp = suppression.get("fingerprint")
     if fp:
         # A pinned line names its rule too; the fingerprint alone decides
         # where the finding is, so a different finding on the line's address
         # is never covered.
-        if suppression.get("rule_id") and suppression["rule_id"] != finding.rule_id:
+        if suppression.get("rule_id") and not _same_rule(suppression, finding):
             return False
-        return str(fp).lower() == finding.fingerprint.lower()
-    if suppression.get("rule_id") != finding.rule_id:
+        if str(fp).lower() != finding.fingerprint.lower():
+            return False
+        # Findings alike in everything but their order on the sheet are told
+        # apart by that order, which a new one can change; for them the
+        # pinned address must agree too, or the line would pass to another.
+        target = str(suppression.get("range") or "").strip()
+        if finding.identity_shared and target:
+            return location_matches(split_location(finding.location)[0], target)
+        return True
+    if not _same_rule(suppression, finding):
         return False
     target = str(suppression.get("range", "") or "").strip()
     if not target:
         return False
-    return location_matches(finding.location, target)
+    # A finding that stands for several cells is hidden only when the target
+    # covers every one of them: a target naming two cells of a column of
+    # errors must not hide the other eighteen.
+    cells = finding.covered()
+    inside = sum(1 for cell in cells if location_matches(cell, target))
+    if inside and inside < len(cells):
+        suppression.setdefault("partial_findings", []).append((finding, inside, len(cells)))
+    return inside == len(cells)

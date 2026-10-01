@@ -12,9 +12,11 @@ from pathlib import Path
 
 import pytest
 from openpyxl import Workbook
+from openpyxl.workbook.defined_name import DefinedName
 
 from spreadsheet_auditor.checks import CheckContext
 from spreadsheet_auditor.checks.formula_integrity import LiveErrorCheck
+from spreadsheet_auditor.names import NameTable
 from spreadsheet_auditor.reconcile import double_counted_cells
 from spreadsheet_auditor.workbook_inventory import formula_cells
 
@@ -163,6 +165,29 @@ def test_balance_sheet_style_totals_are_quiet(tmp_path):
     assert payload["findings"] == []
 
 
+def test_defined_names_over_quoted_sheet_names_resolve(tmp_path):
+    """``'Bob''s Data'!$A$1:$A$5`` points at the sheet Bob's Data; the doubled
+    apostrophe is how Excel escapes it, not part of the sheet's name."""
+    wb = Workbook()
+    summary = wb.active
+    summary.title = "Summary"
+    sheets = (("Bob's Data", "Amounts"), ("My Data", "Spaced"), ("P&L, 2025", "Comma"))
+    for row, (title, name) in enumerate(sheets, start=1):
+        ws = wb.create_sheet(title)
+        for value_row in range(1, 6):
+            ws.cell(row=value_row, column=1, value=value_row * 10)
+        quoted = "'" + title.replace("'", "''") + "'"
+        wb.defined_names[name] = DefinedName(name, attr_text=f"{quoted}!$A$1:$A$5")
+        summary.cell(row=row, column=1, value=f"=SUM({name})")
+    wb.defined_names["Gone"] = DefinedName("Gone", attr_text="'Bob''s Old Data'!$A$1:$A$5")
+    summary["A4"] = "=SUM(Gone)"  # the control: no such sheet
+    assert NameTable.from_workbook(wb).resolve("Amounts") == [("Bob's Data", "A1:A5")]
+    payload = _audit(_save(wb, tmp_path, "quoted_names.xlsx"))
+    broken = [f for f in payload["findings"] if f["rule_id"] == "BROKEN_REFERENCE"]
+    assert [f["location"] for f in broken] == ["Summary!A4"]
+    assert "Missing sheet 'Bob's Old Data'" in broken[0]["evidence"][0]
+
+
 # --- seeded defects still fire ----------------------------------------------
 
 
@@ -290,6 +315,36 @@ def test_numbers_stored_as_text_are_gated_on_use(tmp_path):
     assert by_location == {"S!D1": "High", "S!C4": "Medium"}
 
 
+def test_numbers_stored_as_text_converted_where_used_are_low(tmp_path):
+    """Text numbers that every numeric reader converts (``--A1``, ``A1*1``,
+    ``A1+0``) give correct results; they stay a Low note for whoever sums them
+    next. One unconverted reader keeps the column High."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Data"
+    idioms = ("=C1*1", "=C2+0", "=C3/1", "=1*C4", "=0+C5")
+    for row in range(1, 6):
+        for col in (1, 3, 5, 8):
+            ws.cell(row=row, column=col, value=str(row * 10))
+        ws.cell(row=row, column=2, value=f"=--A{row}")
+        ws.cell(row=row, column=4, value=idioms[row - 1])
+        ws.cell(row=row, column=6, value=f"=--E{row}")
+        ws.cell(row=row, column=9, value=f"=--H{row}" if row < 5 else "=H5+1")
+    ws["G1"] = "=SUM(E1:E5)"  # skips all five
+    payload = _audit(_save(wb, tmp_path, "converted.xlsx"))
+    found = {
+        f["location"]: f for f in payload["findings"] if f["rule_id"] == "NUMBERS_STORED_AS_TEXT"
+    }
+    assert {location: (f["severity"], f["error_confidence"]) for location, f in found.items()} == {
+        "Data!A1": ("Low", "Info"),
+        "Data!C1": ("Low", "Info"),
+        "Data!E1": ("High", "Likely defect"),
+        "Data!H1": ("High", "Likely defect"),
+    }
+    assert "converts it where it is used" in found["Data!A1"]["evidence"][0]
+    assert "5 numeric-looking text values in column A are converted" in found["Data!A1"]["evidence"][1]
+
+
 def test_duplicate_keys_only_matter_inside_lookup_ranges(tmp_path):
     wb = Workbook()
     ws = wb.active
@@ -340,6 +395,33 @@ def test_blank_precedent_in_empty_row_is_quiet_but_anomalous_blank_is_flagged(tm
     assert _rules(_audit(path, "--config", str(config)))["BLANK_PRECEDENT"] == ["S!C3"]
 
 
+def test_blank_precedent_analysis_is_skipped_while_the_rule_is_off(tmp_path, monkeypatch):
+    from spreadsheet_auditor import audit
+
+    calls = []
+    original = audit._row_inputs_all_blank
+
+    def counting(formula_wb, cell, parsed):
+        calls.append(cell["location"])
+        return original(formula_wb, cell, parsed)
+
+    monkeypatch.setattr(audit, "_row_inputs_all_blank", counting)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    ws.append(["Qty", "Price", "Amount"])
+    ws.append([2, 5, "=A2*B2"])
+    ws.append([3, None, "=A3*B3"])
+    path = _save(wb, tmp_path, "blanks.xlsx")
+    out = tmp_path / "findings.json"
+    audit.main([str(path), "--json", str(out), "--quiet", "--fail-on", "None"])
+    assert calls == []
+    config = tmp_path / "blank_on.json"
+    config.write_text(json.dumps({"checks": {"BLANK_PRECEDENT": "error"}}), encoding="utf-8")
+    audit.main([str(path), "--json", str(out), "--quiet", "--fail-on", "None", "--config", str(config)])
+    assert calls == ["S!C2", "S!C3"]
+
+
 # --- the seeded corpora are fully catalogued ---------------------------------
 
 
@@ -364,5 +446,9 @@ def test_every_static_finding_on_seeded_workbooks_is_catalogued(entry):
     uncatalogued = sorted(pair for pair in produced if pair[0] not in VALUE_DEPENDENT and pair not in expected)
     assert not uncatalogued, f"Findings without a seed entry (false positives?): {uncatalogued}"
 
-    missed = sorted(pair for pair in static_expected if pair not in produced)
+    # A seeded defect is found when it leads a finding or is one of its members.
+    found = produced | {
+        (f["rule_id"], _normalize(member)) for f in payload["findings"] for member in f.get("members") or []
+    }
+    missed = sorted(pair for pair in static_expected if pair not in found)
     assert not missed, f"Seeded static defects not detected: {missed}"

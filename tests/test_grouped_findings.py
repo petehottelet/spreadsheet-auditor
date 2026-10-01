@@ -191,3 +191,145 @@ def test_hidden_columns_of_one_sheet_are_one_finding(tmp_path):
         "Hidden columns C to E on S feed 3 visible formula(s): S!H2, S!H3, S!H4.",
         "Hidden row 5 on S feeds 1 visible formula(s): S!H4.",
     }
+
+
+# --- a grouped finding stands for all of its cells ----------------------------
+
+
+def _broken_column(path: Path) -> Path:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    for row in range(2, 22):
+        ws.cell(row, 1, row)
+        ws.cell(row, 2, f"=A{row}+SUM(#REF!)")
+    wb.save(path)
+    return path
+
+
+def _run_with(path: Path, tmp_path: Path, ignore_text: str, config: dict | None = None) -> dict:
+    ignore = tmp_path / "suppressions"
+    ignore.write_text(ignore_text, encoding="utf-8")
+    out = tmp_path / "findings.json"
+    args = [str(path), "--json", str(out), "--quiet", "--fail-on", "None", "--ignore", str(ignore)]
+    if config is not None:
+        (tmp_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
+        args += ["--config", str(tmp_path / "config.json")]
+    audit.main(args)
+    return json.loads(out.read_text(encoding="utf-8"))
+
+
+def test_a_suppression_hides_a_grouped_finding_only_when_it_covers_every_cell(tmp_path):
+    path = _broken_column(tmp_path / "broken.xlsx")
+    [finding] = _by_rule(_run(path, tmp_path))["BROKEN_REFERENCE"]
+    assert finding["members"] == [f"S!B{row}" for row in range(2, 22)]
+
+    for target in ("S!B2:B3", "S!B10:B21"):
+        payload = _run_with(path, tmp_path, f"BROKEN_REFERENCE {target} only these rows\n")
+        [finding] = _by_rule(payload)["BROKEN_REFERENCE"]
+        assert finding["suppressed"] is False, target
+        notes = payload["coverage"]["limitations"]
+        [partial] = [note for note in notes if "so the finding stays reported" in note]
+        assert "cover all of them (S!B2:B21)" in partial and "fingerprint:" in partial
+        assert not [note for note in notes if "matched no finding" in note], target
+
+    for target in ("S!B2:B21", "S!B:B", "S"):
+        payload = _run_with(path, tmp_path, f"BROKEN_REFERENCE {target} known broken block\n")
+        assert _by_rule(payload)["BROKEN_REFERENCE"][0]["suppressed"] is True, target
+
+
+def test_any_cell_of_a_grouped_finding_can_be_the_headline_output(tmp_path):
+    path = _broken_column(tmp_path / "broken.xlsx")
+    for headline in ("S!B2", "S!B10"):
+        payload = _run(path, tmp_path, {"scope": {"headline_outputs": [headline]}})
+        [finding] = _by_rule(payload)["BROKEN_REFERENCE"]
+        assert finding["severity"] == "Critical", headline
+        assert finding["impact"]["feeds_headline_output"] is True
+
+
+def test_annotated_copy_and_sarif_mark_every_cell_of_a_grouped_finding(tmp_path):
+    from openpyxl import load_workbook
+
+    from spreadsheet_auditor.sarif import render_sarif
+
+    path = _broken_column(tmp_path / "broken.xlsx")
+    annotated = tmp_path / "annotated.xlsx"
+    audit.main([str(path), "--quiet", "--fail-on", "None", "--ignore", str(_no_suppressions(tmp_path)),
+                "--annotated", str(annotated)])
+    ws = load_workbook(annotated)["S"]
+    assert "same issue is in 19 other cell(s)" in ws["B2"].comment.text
+    assert "Same issue as S!B2" in ws["B21"].comment.text
+
+    payload = _run(path, tmp_path)
+    [result] = [r for r in render_sarif(payload)["runs"][0]["results"] if r["ruleId"] == "BROKEN_REFERENCE"]
+    related = [loc["logicalLocations"][0]["name"] for loc in result["relatedLocations"]]
+    assert related == [f"S!B{row}" for row in range(3, 22)]
+    assert result["properties"]["members"][0] == "S!B2"
+
+
+# --- tracing live errors ------------------------------------------------------
+
+
+def _live_context(cells: dict[str, tuple[object, object]]):
+    """A one-sheet check context from ``{address: (formula or value, cached value)}``."""
+    from spreadsheet_auditor.checks.base import CheckContext
+    from spreadsheet_auditor.workbook_inventory import formula_cells
+
+    formula_wb, value_wb = Workbook(), Workbook()
+    ws, values = formula_wb.active, value_wb.active
+    ws.title = values.title = "S"
+    for address, (content, cached) in cells.items():
+        ws[address] = content
+        values[address] = cached
+    return CheckContext(None, formula_wb, value_wb, {"S"}, formula_cells(formula_wb), {}, {})
+
+
+def test_errors_downstream_of_an_error_cycle_belong_to_its_finding():
+    from spreadsheet_auditor.checks.formula_integrity import LiveErrorCheck
+
+    cells = {f"D{row}": (f"code {row}", f"code {row}") for row in range(2, 7)}
+    cells.update({f"E{row}": (f"=VLOOKUP(G{row},$D$2:$E$6,2,FALSE)", "#N/A") for row in range(2, 7)})
+    cells.update({"F8": ("=SUM(E2:E6)", "#N/A"), "F9": ("=F8*2", "#N/A")})
+    [finding] = LiveErrorCheck().run(_live_context(cells))
+    assert finding.location == "S!E2" and len(finding.members) == 5
+    assert finding.evidence[-1].startswith("The error propagates to 2 dependent cell(s): S!F8, S!F9.")
+
+
+def test_tracing_a_column_of_errors_into_a_running_total_is_linear_and_timed(monkeypatch):
+    import tracemalloc
+
+    from spreadsheet_auditor import dependency_graph
+    from spreadsheet_auditor.checks.formula_integrity import LiveErrorCheck
+
+    # Count only the trace's polls of the budget, not the graph build's.
+    build = dependency_graph.build_dependency_graph
+    monkeypatch.setattr(
+        dependency_graph, "build_dependency_graph", lambda *args, **kwargs: build(*args, **{**kwargs, "budget": None})
+    )
+
+    rows = 3000
+    cells = {}
+    for row in range(2, rows + 2):
+        cells[f"A{row}"] = (f"key {row}", f"key {row}")
+        cells[f"B{row}"] = (f"=VLOOKUP(A{row},$E$1:$F$3,2,FALSE)", "#N/A")
+        cells[f"C{row}"] = (f"=C{row - 1}+B{row}" if row > 2 else "=B2", "#N/A")
+    ctx = _live_context(cells)
+
+    class CountingBudget:
+        ticks = 0
+
+        def tick(self):
+            CountingBudget.ticks += 1
+
+    ctx.budget = CountingBudget()
+    tracemalloc.start()
+    [finding] = LiveErrorCheck().run(ctx)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert len(finding.members) == rows
+    assert f"The error propagates to {rows} dependent cell(s)" in finding.evidence[-1]
+    # One pass for the whole column: tracing every row separately kept a set
+    # of the running total's cells per row, about 200 MB here.
+    assert peak < 60_000_000
+    # The trace polls the time budget, so limits.timeout_seconds can stop it.
+    assert CountingBudget.ticks >= 2 * rows

@@ -16,7 +16,7 @@ from .formula_parser import (
     split_sheet,
     tokens,
 )
-from .grouping import group_by_pattern, pattern_note
+from .grouping import group_by_pattern, locations, pattern_note
 from .reference_resolver import (
     EXCEL_MAX_COL,
     EXCEL_MAX_ROW,
@@ -675,7 +675,7 @@ def detect_literal_constants(formula_cells: list[dict], budget=None) -> list[Fin
 
     Literals in structural argument slots (a VLOOKUP column index, a MID
     length, a date part, a rounding digit) are not reported; see
-    ``LITERAL_SLOT_FUNCS`` in the parser.
+    ``LITERAL_SLOT_FUNCS`` and ``SHAPING_FUNCS`` in the parser.
     """
     hits: list[dict] = []
     literals_of: dict[int, list[str]] = {}
@@ -699,6 +699,7 @@ def detect_literal_constants(formula_cells: list[dict], budget=None) -> list[Fin
                 error_confidence="Review",
                 detection_mode="DET",
                 location=lead["location"],
+                members=locations(members),
                 title="Formula contains embedded numeric literal",
                 formula=lead["formula"],
                 evidence=evidence,
@@ -753,6 +754,7 @@ def detect_fragile_functions(formula_cells: list[dict], names=None, budget=None)
                 error_confidence="Review",
                 detection_mode="DET",
                 location=lead["location"],
+                members=locations(members),
                 title="Formula uses volatile or fragile function",
                 formula=lead["formula"],
                 evidence=evidence,
@@ -771,6 +773,7 @@ def detect_fragile_functions(formula_cells: list[dict], names=None, budget=None)
                 error_confidence="Info",
                 detection_mode="DET",
                 location=cells[0]["location"],
+                members=locations(cells),
                 title="Formulas depend on the current date or time",
                 formula=cells[0]["formula"],
                 evidence=[f"{len(cells)} formula(s) on {sheet} use TODAY or NOW, so their results change with the clock: {shown}."],
@@ -792,6 +795,7 @@ def detect_fragile_functions(formula_cells: list[dict], names=None, budget=None)
                 error_confidence="Review",
                 detection_mode="DET",
                 location=lead["location"],
+                members=locations(members),
                 title="Formula evaluates an entire column as an array",
                 formula=lead["formula"],
                 evidence=evidence,

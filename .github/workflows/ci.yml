@@ -110,8 +110,8 @@ jobs:
           set -euo pipefail
           # The demo audit returns 1 (findings present) or 2 (coverage
           # limitations, e.g. no defusedxml in a clean venv). Those are valid
-          # audit outcomes, not failures; only treat exit codes > 2 (preflight
-          # error 4, internal error 5) as a real failure.
+          # audit outcomes, not failures; only treat exit codes > 2 (invalid
+          # input 4, internal error 5, incomplete audit 6) as a real failure.
           run_ok() { set +e; "$@"; local c=$?; set -e; if [ "$c" -gt 2 ]; then echo "::error::Command exited $c: $*"; exit 1; fi; }
           wheel="$(ls dist/spreadsheet_auditor-*.whl | head -n1)"
           python -m venv /tmp/wheel-env

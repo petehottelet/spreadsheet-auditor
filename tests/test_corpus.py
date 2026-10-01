@@ -30,7 +30,9 @@ def audit_payload(tmp_path_factory) -> dict:
 def _produced(payload: dict) -> dict:
     produced = defaultdict(set)
     for finding in payload["findings"]:
-        produced[finding["rule_id"]].add(finding["location"])
+        # Every cell of a finding that stands for several counts as found.
+        for location in [finding["location"], *(finding.get("members") or [])]:
+            produced[finding["rule_id"]].add(location)
     return produced
 
 
