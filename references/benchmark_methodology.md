@@ -121,10 +121,10 @@ constant, or a function replaced. `benchmarks/corpus/recall.py` converts the
 original, and counts a fault as found only when a finding covers the faulty
 cell in the seeded copy and no finding of the same rule sat at that cell in
 the original. The result is published at
-[`benchmarks/real_world_recall.md`](../benchmarks/real_world_recall.md): 528
-of 695 injected faults are found at the faulty cell (recall 0.76), with
+[`benchmarks/real_world_recall.md`](../benchmarks/real_world_recall.md): 537
+of 695 injected faults are found at the faulty cell (recall 0.773), with
 `FORMULA_DRIFT` and `LITERAL_CONSTANT` doing almost all of the work. Recall
-is highest for constants replaced by references (94%) and lowest for
+is highest for constants replaced by references (95%) and lowest for
 relational-operator swaps (59%) and for the arithmetic-operator swaps that
 land in formulas with no neighbours to drift from. Ten seeded workbooks could
 not be audited because LibreOffice's conversion produced XML that openpyxl

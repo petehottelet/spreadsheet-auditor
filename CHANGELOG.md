@@ -145,7 +145,10 @@ fingerprints and one default change; read **Upgrading from 0.3.0** first.
   Sampled precision is 80% (95% interval 75% to 84%), up from
   76%: `IFERROR_MASK` rose from 28% to 60%, while `DUPLICATE_KEY` came out
   at 24% on a sample dominated by composite keys and one family of inventory
-  grids (see `benchmarks/real_world_precision.md`).
+  grids (see `benchmarks/real_world_precision.md`). On the modified EUSES
+  corpus 537 of 695 injected faults are found at the faulty cell instead of
+  528 (recall 77%), with none lost: the nine gained were in workbooks the old
+  report cap had filled.
 
 ### Fixed
 

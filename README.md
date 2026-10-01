@@ -94,7 +94,7 @@ at (76% for 0.3.0 and 36% for 0.2.0), with 3,434 findings where 0.3.0 had
 11,123 and 0.2.0 had 48,281. Recall is
 measured on the modified EUSES corpus, real spreadsheets with one injected
 formula fault each, at
-[`benchmarks/real_world_recall.md`](benchmarks/real_world_recall.md): 76% of
+[`benchmarks/real_world_recall.md`](benchmarks/real_world_recall.md): 77% of
 the injected faults are found at the faulty cell. The harness, the labeled
 samples, and the labeling protocol live in
 [`benchmarks/corpus/`](benchmarks/corpus/README.md).
