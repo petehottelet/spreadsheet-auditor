@@ -84,3 +84,21 @@ def test_validator_rejects_invalid_yaml_instead_of_recovering(tmp_path):
     assert quick_validate._parse_frontmatter(text) is None
     (tmp_path / "SKILL.md").write_text(text, encoding="utf-8")
     assert quick_validate.validate_folder(tmp_path) == 1
+
+
+def test_source_archive_holds_only_tracked_files(tmp_path):
+    import zipfile
+
+    import build_dist
+
+    repo = tmp_path / "repo"
+    (repo / "benchmarks" / "corpus" / "results").mkdir(parents=True)
+    (repo / "README.md").write_text("readme", encoding="utf-8")
+    (repo / "benchmarks" / "run.py").write_text("print()", encoding="utf-8")
+    # Ignored local output, such as a corpus run that records this machine's paths.
+    (repo / "benchmarks" / "corpus" / "results" / "run.json").write_text("{}", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "README.md", "benchmarks/run.py"], cwd=repo, check=True)
+    archive = tmp_path / "source.zip"
+    build_dist.build_source_archive(archive, root=repo)
+    assert sorted(zipfile.ZipFile(archive).namelist()) == ["README.md", "benchmarks/run.py"]
