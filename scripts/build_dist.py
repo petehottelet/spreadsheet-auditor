@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import shutil
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -107,24 +108,39 @@ def zip_directory(source: Path, zip_path: Path) -> None:
             archive.write(file_path, file_path.relative_to(source).as_posix())
 
 
-def build_source_archive(zip_path: Path) -> None:
+def tracked_files(root: Path = ROOT) -> set[str] | None:
+    """Paths git tracks under ``root``, or None outside a git checkout.
+
+    The source archive keeps to these, so ignored local output (corpus data
+    and results, an .env file, private notes) never ends up in it.
+    """
+    try:
+        result = subprocess.run(["git", "ls-files", "-z"], cwd=root, capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return {name for name in result.stdout.decode("utf-8").split("\0") if name}
+
+
+def build_source_archive(zip_path: Path, root: Path = ROOT) -> None:
     if zip_path.exists():
         zip_path.unlink()
     zip_path.parent.mkdir(parents=True, exist_ok=True)
+    tracked = tracked_files(root)
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for entry in SOURCE_INCLUDE_TOP_LEVEL:
-            source = ROOT / entry
+            source = root / entry
             if not source.exists():
                 continue
-            if source.is_file():
-                archive.write(source, source.name)
-                continue
-            for file_path in sorted(p for p in source.rglob("*") if p.is_file()):
+            files = [source] if source.is_file() else sorted(p for p in source.rglob("*") if p.is_file())
+            for file_path in files:
+                relative = file_path.relative_to(root).as_posix()
+                if tracked is not None and relative not in tracked:
+                    continue
                 if "__pycache__" in file_path.parts or ".pytest_cache" in file_path.parts:
                     continue
                 if file_path.suffix == ".pyc":
                     continue
-                archive.write(file_path, file_path.relative_to(ROOT).as_posix())
+                archive.write(file_path, relative)
 
 
 def sha256(path: Path) -> str:

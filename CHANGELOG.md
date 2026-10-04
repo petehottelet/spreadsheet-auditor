@@ -7,10 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-03
+
 An audit that stops short now fails instead of passing, a mistake repeated
 down a column is reported once, an accepted finding stays accepted when rows
 move, and input the auditor cannot use says what to fix. Exit codes,
 fingerprints and one default change; read **Upgrading from 0.3.0** first.
+
+Download the Claude or Codex skill ZIP from the release assets, or upgrade
+the CLI with `python -m pip install --upgrade spreadsheet-auditor`.
 
 ### Upgrading from 0.3.0
 
@@ -175,6 +180,10 @@ fingerprints and one default change; read **Upgrading from 0.3.0** first.
   (no built-in rule reports one; a custom check could).
 - `--out report.sarif.json` wrote findings JSON instead of SARIF, and
   `--recalc-timeout 0` was accepted.
+- The source archive built by `scripts/build_dist.py --release` took every
+  file under its folders, ignored local output included; it now holds only
+  the files git tracks. Release archives are built from a clean checkout, so
+  published ones were not affected.
 
 ## [0.3.0] - 2026-09-25
 
@@ -452,7 +461,8 @@ benchmark- and demo-backed evidence story.
 - Findings are defect candidates and likely errors, not a legal, accounting,
   tax, or valuation certification.
 
-[Unreleased]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/petehottelet/spreadsheet-auditor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/petehottelet/spreadsheet-auditor/releases/tag/v0.1.0
