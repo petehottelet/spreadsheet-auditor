@@ -8,8 +8,10 @@ ranges that lookup functions search.
 
 from __future__ import annotations
 
+import re
 from bisect import bisect_right
 from collections import defaultdict
+from dataclasses import dataclass
 
 from .budget import tick
 from .formula_parser import parse_formula
@@ -34,6 +36,30 @@ KEY_SLOTS = {
 Box = tuple[int, int, int, int]
 Interval = tuple[int, int]
 
+# (function, argument index) of the range a lookup returns from, read
+# together with the searched range of the same formula: XLOOKUP's and
+# LOOKUP's result array, and the array INDEX picks from in INDEX/MATCH.
+RETURN_SLOTS = {("XLOOKUP", 2), ("LOOKUP", 2), ("INDEX", 0)}
+_START_ROW_RE = re.compile(r"^\$?[A-Za-z]{1,3}(\$?)(\d+)")
+
+
+@dataclass(frozen=True)
+class SearchedRange:
+    """One range a first-match lookup searches, in the direction it searches.
+
+    ``box`` is the key column (VLOOKUP's first column, a MATCH range) or the
+    key row (HLOOKUP's first row, a one-row MATCH range). ``moving_start``
+    marks a range that starts on the row below its formula and moves with it
+    (``MATCH(G5,$G6:$G28,0)`` in row 5): it looks for the next occurrence, so
+    repeats are what it is for. ``returns`` are the cells the lookup returns
+    from, or None when the formula does not say.
+    """
+
+    box: Box
+    horizontal: bool
+    moving_start: bool = False
+    returns: tuple[Box, ...] | None = None
+
 
 def _merge(intervals: list[Interval]) -> list[Interval]:
     merged: list[Interval] = []
@@ -43,6 +69,20 @@ def _merge(intervals: list[Interval]) -> list[Interval]:
         else:
             merged.append((start, end))
     return merged
+
+
+def _bounded(ref: str) -> Box | None:
+    """The box of ``ref`` with open sides (``A:A``, ``5:5``) filled to the sheet's limits."""
+    raw = raw_boundaries(ref)
+    if raw is None:
+        return None
+    min_col, min_row, max_col, max_row = raw
+    return (
+        min_col or 1,
+        min_row or 1,
+        EXCEL_MAX_COL if max_col is None else max_col,
+        EXCEL_MAX_ROW if max_row is None else max_row,
+    )
 
 
 def _covers(starts: list[int], intervals: list[Interval], row: int) -> bool:
@@ -80,22 +120,16 @@ class _ColumnIndex:
             return True
         return _covers(self.starts.get(col, []), self.columns.get(col, []), row)
 
-    def intervals(self, col: int) -> list[Interval]:
-        return _merge(self.columns.get(col, []) + self.wide)
-
-    def column_numbers(self) -> list[int]:
-        return sorted(self.columns)
-
 
 class ReferenceIndex:
-    """Which cells formulas read, per sheet, with a lookup-only view."""
+    """Which cells formulas read, per sheet, and the ranges first-match lookups search."""
 
     def __init__(self) -> None:
         self._all: dict[str, _ColumnIndex] = {}
-        self._lookup: dict[str, _ColumnIndex] = {}
         self._numeric: dict[str, _ColumnIndex] = {}
         self._unconverted: dict[str, _ColumnIndex] = {}
         self._boxes: dict[str, list[tuple[Box, bool]]] = defaultdict(list)
+        self._searched: dict[str, set[SearchedRange]] = defaultdict(set)
 
     @classmethod
     def from_formulas(cls, formulas: list[dict], names=None, budget=None) -> "ReferenceIndex":
@@ -105,43 +139,92 @@ class ReferenceIndex:
             parsed = parse_formula(
                 item["formula"], names=names, origin=(item["sheet"], item["row"], item["col"])
             )
+            index._add_lookups(item, parsed.references)
             for ref in parsed.references:
                 if ref.positional:
                     continue
                 key = (ref.sheet or item["sheet"]).casefold()
-                raw = raw_boundaries(ref.ref)
-                if raw is None:
+                box = _bounded(ref.ref)
+                if box is None:
                     continue
-                min_col, min_row, max_col, max_row = raw
-                box = (
-                    min_col or 1,
-                    min_row or 1,
-                    EXCEL_MAX_COL if max_col is None else max_col,
-                    EXCEL_MAX_ROW if max_row is None else max_row,
-                )
                 index._boxes[key].append((box, ref.is_range))
                 index._all.setdefault(key, _ColumnIndex()).add(box)
                 if ref.numeric:
                     index._numeric.setdefault(key, _ColumnIndex()).add(box)
                     if not ref.converted:
                         index._unconverted.setdefault(key, _ColumnIndex()).add(box)
-                if ref.bare and (ref.func, ref.arg) in KEY_SLOTS:
-                    # Only the searched column or row of a lookup table is a key
-                    # column; VLOOKUP's other columns are what it returns.
-                    key_box = box
-                    if ref.func == "VLOOKUP":
-                        key_box = (box[0], box[1], box[0], box[3])
-                    elif ref.func == "HLOOKUP":
-                        key_box = (box[0], box[1], box[2], box[1])
-                    index._lookup.setdefault(key, _ColumnIndex()).add(key_box)
         for column_index in (
-            list(index._all.values())
-            + list(index._lookup.values())
-            + list(index._numeric.values())
-            + list(index._unconverted.values())
+            list(index._all.values()) + list(index._numeric.values()) + list(index._unconverted.values())
         ):
             column_index.build()
         return index
+
+    def _add_lookups(self, item: dict, references) -> None:
+        """Record each range a first-match lookup in this formula searches."""
+        returns: dict[str, list[Box]] = defaultdict(list)
+        for ref in references:
+            box = _bounded(ref.ref)
+            if box is not None and (ref.func, ref.arg) in RETURN_SLOTS:
+                returns[(ref.sheet or item["sheet"]).casefold()].append(box)
+        for ref in references:
+            if not (ref.bare and (ref.func, ref.arg) in KEY_SLOTS):
+                continue
+            box = _bounded(ref.ref)
+            if box is None:
+                continue
+            key = (ref.sheet or item["sheet"]).casefold()
+            # Only the searched column or row of a lookup table is a key;
+            # VLOOKUP's other columns are what it returns.
+            found: tuple[Box, ...] | None = tuple(returns[key]) or None
+            if ref.func == "VLOOKUP":
+                found = ((box[0] + 1, box[1], box[2], box[3]),) if box[2] > box[0] else None
+                box = (box[0], box[1], box[0], box[3])
+            elif ref.func == "HLOOKUP":
+                found = ((box[0], box[1] + 1, box[2], box[3]),) if box[3] > box[1] else None
+                box = (box[0], box[1], box[2], box[1])
+            horizontal = ref.func == "HLOOKUP" or (box[1] == box[3] and box[2] > box[0])
+            start = _START_ROW_RE.match(ref.ref)
+            moving_start = (
+                not horizontal
+                and box[3] > box[1]
+                and key == item["sheet"].casefold()
+                and start is not None
+                and not start.group(1)
+                and int(start.group(2)) == item["row"] + 1
+            )
+            self._searched[key].add(SearchedRange(box, horizontal, moving_start, found))
+
+    def searched_ranges(self, sheet: str) -> list[SearchedRange]:
+        """The ranges first-match lookups search on ``sheet``; a range nested in a wider one is dropped.
+
+        A repeat inside the narrower range is inside the wider one too, so a
+        growing range (``$B$4:$B4`` filled down) costs one pass, not one per row.
+        """
+        # Ranges along one column (or row) are intervals; sorted by start, and
+        # longest first, an interval ends inside the widest one before it
+        # exactly when it is nested in it.
+        lines: dict[tuple, list[SearchedRange]] = defaultdict(list)
+        for searched in self._searched.get(sheet.casefold(), ()):
+            box = searched.box
+            across = (box[1], box[3]) if searched.horizontal else (box[0], box[2])
+            lines[(searched.horizontal, searched.moving_start, across)].append(searched)
+        kept: list[SearchedRange] = []
+        for (horizontal, _moving, _across), ranges in sorted(lines.items()):
+            span = (lambda r: (r.box[0], r.box[2])) if horizontal else (lambda r: (r.box[1], r.box[3]))
+            widest: SearchedRange | None = None
+            for searched in sorted(ranges, key=lambda r: (span(r)[0], -span(r)[1])):
+                if widest is not None and span(searched)[1] <= span(widest)[1]:
+                    if widest.returns != searched.returns:
+                        # Read the returns of both: an unknown return wins.
+                        merged = None if widest.returns is None or searched.returns is None else tuple(
+                            dict.fromkeys(widest.returns + searched.returns)
+                        )
+                        widest = SearchedRange(widest.box, widest.horizontal, widest.moving_start, merged)
+                        kept[-1] = widest
+                    continue
+                widest = searched
+                kept.append(searched)
+        return kept
 
     def contains(self, sheet: str, row: int, col: int) -> bool:
         """True when some formula reads the cell at (row, col) on ``sheet``."""
@@ -161,16 +244,6 @@ class ReferenceIndex:
         """
         column_index = self._unconverted.get(sheet.casefold())
         return bool(column_index and column_index.covers(row, col))
-
-    def lookup_columns(self, sheet: str) -> list[int]:
-        """Columns on ``sheet`` that lookup-style functions search."""
-        column_index = self._lookup.get(sheet.casefold())
-        return column_index.column_numbers() if column_index else []
-
-    def lookup_intervals(self, sheet: str, col: int) -> list[Interval]:
-        """Row intervals of ``col`` on ``sheet`` searched by lookup-style functions."""
-        column_index = self._lookup.get(sheet.casefold())
-        return column_index.intervals(col) if column_index else []
 
     def intersects_box(self, sheet: str, box: Box, ranges_only: bool = False) -> bool:
         """True when any referenced range overlaps ``box`` on ``sheet``.

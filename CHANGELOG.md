@@ -7,6 +7,23 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- **`DUPLICATE_KEY` reports a repeat only where a first-match lookup can
+  return the wrong row.** It pooled every searched cell of a column, so a
+  product label heading bins in several HLOOKUP blocks of a bay map was a
+  "duplicate" although each HLOOKUP searches its own row. Each searched range
+  is now read on its own, along its search direction. Within a range, repeats
+  are left out when the lookup looks for the next occurrence
+  (`MATCH(G5,$G6:$G28,0)` filled down), when three or more identical keys sit
+  together as detail rows under one ID, when the occurrences return the same
+  values (several countries sharing USD at rate 1), when every key repeats,
+  three times or more on average (attendance marks, region names), or when a
+  date beside each occurrence tells them apart (a material's validity
+  periods, a dated log). A lookup anchored at the top that grows down
+  (`MATCH(B5,$B$4:$B4,0)`) still reports repeats, since it returns the
+  earliest occurrence.
+
 ## [0.4.0] - 2026-10-03
 
 An audit that stops short now fails instead of passing, a mistake repeated

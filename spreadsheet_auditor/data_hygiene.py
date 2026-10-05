@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import datetime as dt
 import re
 from collections import defaultdict
+from itertools import pairwise
 
 from openpyxl.utils.cell import get_column_letter
 
@@ -9,7 +11,7 @@ from .budget import tick
 from .finding import Finding
 from .formula_parser import is_formula
 from .reference_resolver import cell_value
-from .referenced import ReferenceIndex
+from .referenced import ReferenceIndex, SearchedRange
 from .workbook_inventory import ERROR_VALUES, iter_existing_cells, location
 
 
@@ -22,6 +24,14 @@ MIN_NUMERIC_COLUMN = 3
 MIN_PADDED_COLUMN = 3
 # Column-level findings name this many of their other cells.
 MAX_SHOWN = 8
+# A repeated key's returned values are compared over this many cells past the first.
+MAX_RETURN_SPAN = 20
+# How far beside a repeated key a date telling its occurrences apart may sit.
+DATE_REACH = 4
+# Identical keys in a run at least this long are detail rows under one ID.
+MIN_DETAIL_BLOCK = 3
+# A range where every key repeats, on average at least this often, is a category.
+CATEGORY_REPEATS = 3
 
 
 def _sheets(workbook, allowed_sheet_names: set[str] | None):
@@ -272,32 +282,121 @@ def _whitespace_labels(workbook, allowed_sheet_names, budget, index: ReferenceIn
     return findings
 
 
+def _key_text(value) -> str | None:
+    # An error value (#N/A in every unmatched row) is not a key.
+    if isinstance(value, str) and value.strip() and not is_formula(value) and value.strip() not in ERROR_VALUES:
+        return value.strip().lower()
+    return None
+
+
+def _searched_cells(ws, searched: SearchedRange) -> list[tuple[int, int]]:
+    min_col, min_row, max_col, max_row = searched.box
+    if searched.horizontal:
+        return [(min_row, col) for col in range(min_col, min(max_col, ws.max_column) + 1)]
+    return [(row, min_col) for row in range(min_row, min(max_row, ws.max_row) + 1)]
+
+
+def _detail_block(ws, spots: list[tuple[int, int]], horizontal: bool) -> bool:
+    """True for one block of identical keys side by side: detail rows grouped under one ID.
+
+    Two adjacent occurrences may be a row pasted twice, and a key typed two
+    ways (``North`` and `` North ``) is a mistake wherever it sits, so only a
+    run of three or more identical values counts.
+    """
+    if len(spots) < MIN_DETAIL_BLOCK or len({cell_value(ws, row, col) for row, col in spots}) > 1:
+        return False
+    steps = [spot[1] if horizontal else spot[0] for spot in sorted(spots)]
+    return all(later == earlier + 1 for earlier, later in pairwise(steps))
+
+
+def _category(seen: dict[str, list], repeated: dict[str, list]) -> bool:
+    """True for a few values each repeated many times (attendance marks, region names): a category, not keys."""
+    occurrences = sum(len(spots) for spots in seen.values())
+    return len(seen) >= 2 and len(repeated) == len(seen) and occurrences >= CATEGORY_REPEATS * len(seen)
+
+
+def _same_returns(ws, spots: list[tuple[int, int]], searched: SearchedRange) -> bool:
+    """True when every occurrence returns the same values, so the first match is as good as any."""
+    if not searched.returns:
+        return False
+    min_col, min_row = searched.box[0], searched.box[1]
+    returned = []
+    for row, col in spots:
+        values = []
+        for ret in searched.returns:
+            if searched.horizontal:
+                at = ret[0] + (col - min_col)
+                values.extend(cell_value(ws, r, at) for r in range(ret[1], min(ret[3], ret[1] + MAX_RETURN_SPAN) + 1))
+            else:
+                at = ret[1] + (row - min_row)
+                values.extend(cell_value(ws, at, c) for c in range(ret[0], min(ret[2], ret[0] + MAX_RETURN_SPAN) + 1))
+        returned.append(tuple(values))
+    return len(set(returned)) == 1
+
+
+def _dated(ws, repeated: dict[str, list[tuple[int, int]]], horizontal: bool) -> bool:
+    """True when beside every repeated key a date tells its occurrences apart: entries of a dated log."""
+    for offset in (o for o in range(-DATE_REACH, DATE_REACH + 1) if o):
+        apart = True
+        for spots in repeated.values():
+            dates = [cell_value(ws, row + offset, col) if horizontal else cell_value(ws, row, col + offset) for row, col in spots]
+            if not all(isinstance(date, (dt.date, dt.datetime)) for date in dates) or len(set(dates)) < len(dates):
+                apart = False
+                break
+        if apart:
+            return True
+    return False
+
+
 def _duplicate_keys(workbook, allowed_sheet_names, budget, index: ReferenceIndex) -> list[Finding]:
-    """Duplicate keys inside ranges that lookup-style functions search."""
+    """Duplicate keys inside the ranges that first-match lookups search.
+
+    Each searched range is read on its own, along the direction it is
+    searched (down a VLOOKUP column, across an HLOOKUP row): a key that
+    repeats only across ranges no lookup searches together cannot be
+    returned in place of another. Within a range, repeats that cannot mislead
+    a first-match lookup are left out: a range that looks for the next
+    occurrence (see :class:`SearchedRange`), occurrences that sit next to
+    each other (detail rows grouped under one ID), occurrences that return
+    the same values, a range where every key repeats (a category such as
+    attendance marks or region names), and repeated keys told apart by a date
+    beside them (validity periods, a dated log).
+    """
     findings: list[Finding] = []
     for ws in _sheets(workbook, allowed_sheet_names):
-        columns = index.lookup_columns(ws.title)
-        if not columns:
-            continue
-        by_col: dict[int, dict[str, list[str]]] = {col: defaultdict(list) for col in columns}
-        intervals = {col: index.lookup_intervals(ws.title, col) for col in columns}
-        for cell in iter_existing_cells(ws):
-            if cell.column not in by_col:
+        # Repeated keys per searched column (or row), in reading order.
+        by_line: dict[tuple[bool, int], dict[str, list[tuple[int, int]]]] = defaultdict(dict)
+        for searched in index.searched_ranges(ws.title):
+            if searched.moving_start:
                 continue
-            tick(budget)
-            value = cell.value
-            # An error value (#N/A in every unmatched row) is not a key.
-            if not (isinstance(value, str) and value.strip()) or value.strip() in ERROR_VALUES:
+            seen: dict[str, list[tuple[int, int]]] = defaultdict(list)
+            for row, col in _searched_cells(ws, searched):
+                tick(budget)
+                key = _key_text(cell_value(ws, row, col))
+                if key is not None:
+                    seen[key].append((row, col))
+            repeated = {key: spots for key, spots in seen.items() if len(spots) > 1}
+            if not repeated or _category(seen, repeated):
                 continue
-            if not any(start <= cell.row <= end for start, end in intervals[cell.column]):
+            repeated = {
+                key: spots
+                for key, spots in repeated.items()
+                if not _detail_block(ws, spots, searched.horizontal) and not _same_returns(ws, spots, searched)
+            }
+            if not repeated or _dated(ws, repeated, searched.horizontal):
                 continue
-            by_col[cell.column][value.strip().lower()].append(location(ws.title, cell.row, cell.column))
-        # One finding per searched column: a list with many repeated keys is
-        # one list to clean up, led by its first repeated key.
-        for col in columns:
-            repeated = [(key, locs) for key, locs in by_col[col].items() if len(locs) > 1]
-            if not repeated:
-                continue
+            line = (searched.horizontal, searched.box[1] if searched.horizontal else searched.box[0])
+            for key, spots in repeated.items():
+                known = by_line[line].setdefault(key, [])
+                known.extend(spot for spot in spots if spot not in known)
+        # One finding per searched column or row: a list with many repeated
+        # keys is one list to clean up, led by its first repeated key.
+        for (horizontal, line), keys in sorted(by_line.items()):
+            repeated = [
+                (key, [location(ws.title, row, col) for row, col in sorted(spots)])
+                for key, spots in sorted(keys.items(), key=lambda item: min(item[1]))
+            ]
+            where = f"row {line}" if horizontal else f"column {get_column_letter(line)}"
             key, locs = repeated[0]
             evidence = [
                 f"Normalized key {key!r} appears {len(locs)} times in a range searched by lookup formulas; only the first match is returned."
@@ -311,9 +410,7 @@ def _duplicate_keys(workbook, allowed_sheet_names, budget, index: ReferenceIndex
                 )
                 if len(repeated) - 1 > MAX_SHOWN:
                     shown += f"; and {len(repeated) - 1 - MAX_SHOWN} more"
-                evidence.append(
-                    f"{len(repeated)} keys repeat in column {get_column_letter(col)}; the others are {shown}."
-                )
+                evidence.append(f"{len(repeated)} keys repeat in {where}; the others are {shown}.")
             findings.append(
                 Finding(
                     rule_id="DUPLICATE_KEY",
