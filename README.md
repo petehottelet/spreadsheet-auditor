@@ -89,9 +89,9 @@ methodology at
 Precision on real workbooks is measured on 2,729 public forum workbooks
 (SpreadsheetBench) and published, per rule with confidence intervals, at
 [`benchmarks/real_world_precision.md`](benchmarks/real_world_precision.md):
-80% of sampled findings point at something a reviewer would want to look
-at (76% for 0.3.0 and 36% for 0.2.0), with 3,434 findings where 0.3.0 had
-11,123 and 0.2.0 had 48,281. Recall is
+84% of sampled findings point at something a reviewer would want to look
+at (80% for 0.4.0, 76% for 0.3.0 and 36% for 0.2.0), with 3,404 findings
+where 0.3.0 had 11,123 and 0.2.0 had 48,281. Recall is
 measured on the modified EUSES corpus, real spreadsheets with one injected
 formula fault each, at
 [`benchmarks/real_world_recall.md`](benchmarks/real_world_recall.md): 77% of

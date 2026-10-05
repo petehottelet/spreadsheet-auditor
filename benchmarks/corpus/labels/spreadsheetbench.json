@@ -1,11 +1,11 @@
 {
-  "labeler": "Claude (Fable 5.1) working from the context cards in samples/spreadsheetbench.md, 2026-09-14; Claude (Opus 5.5) for the seven FORMULA_DRIFT cards first drawn in samples/spreadsheetbench-summary.md, 2026-09-25, and for the cards first drawn in samples/spreadsheetbench-040.md, 2026-09-30. Every label carries a reason so a maintainer can overrule it.",
+  "labeler": "Claude (Fable 5.1) working from the context cards in samples/spreadsheetbench.md, 2026-09-14; Claude (Opus 5.5) for the seven FORMULA_DRIFT cards first drawn in samples/spreadsheetbench-summary.md, 2026-09-25, for the cards first drawn in samples/spreadsheetbench-040.md, 2026-09-30, and for the DUPLICATE_KEY cards first drawn in samples/spreadsheetbench-dk.md, 2026-10-04. Every label carries a reason so a maintainer can overrule it.",
   "protocol": "TP: the finding points at something a careful reviewer would want to look at, for the reason the rule gives. FP: the rule misread the workbook. unsure: the card was not enough to decide; excluded from precision.",
   "rule_notes": {
     "BLANK_PRECEDENT": "Was 15,300 findings at 4% precision on 0.2.0 (guarded formulas, template rows, mirror links, blank-ignoring aggregates); positional and guarded uses, blank-tolerant functions, rows with no inputs and sparse columns were then excluded and 29 findings remained, none of them a defect: a ledger with paired amount columns (debit or credit, buying or selling) where the blank is a zero by design, plus empty rows inside a block. Since 0.4.0 the rule is off by default and does not run on this corpus; turn it on for data that must never have gaps.",
     "BROKEN_REFERENCE": "Right every time: #REF! formulas, and external links now reported as one Info note per source workbook per sheet (was one High finding per cell).",
     "CIRCULAR_REFERENCE": "Positional idioms (ROWS(A$6:A8), COLUMNS($D7:AA7), ROW(A19)) and the CELL(\"filename\",Q2) sheet-name idiom were 23 of 25 findings on 0.2.0 and are gone. What remains is the deliberate IFERROR(1/(1/F8)) date-freeze self-reference (which needs iterative calculation) and a MAX(B$7:B377)+1 counter that includes its own cell; both are worth a reviewer's attention.",
-    "DUPLICATE_KEY": "Only the searched column of a first-match lookup counts (VLOOKUP first column, MATCH/XLOOKUP lookup array), one finding per searched column since 0.4.0, and error values such as #N/A are not keys. True positives are duplicate postcodes in a MATCH column, product names listed twice in a list searched by name, letters listed twice in a rate table, and a lookup that finds the oldest sale where the sheet wants the latest. The false positives dominate the 0.4.0 sample: composite keys whose match is decided by another column (group and material, material and validity dates, category by region, day label by date), product labels repeated as section headers over quantities in one family of bay-map grids (several copies of it in the sample), rows of data repeated per ID, and lookups that deliberately find the previous occurrence. The next refinement is to recognise a composite key: a lookup whose other criteria or neighbouring key column tell the rows apart.",
+    "DUPLICATE_KEY": "Only a range a first-match lookup searches counts (VLOOKUP first column, HLOOKUP first row, MATCH/XLOOKUP lookup array), and since the duplicate-key rework each searched range is read on its own along its search direction: a label repeated down a column across separate HLOOKUP blocks is no longer a duplicate. Repeats a first-match lookup cannot get wrong are skipped: a range that looks for the next occurrence, three or more identical keys together (detail rows under one ID), occurrences returning the same values (countries sharing USD at 1), categories where every key repeats three times or more, and repeats told apart by a date beside them (validity periods, a dated log); error values are not keys. That took the rule from 69 findings to 39. True positives: postcodes shared by two schools in a MATCH column, menu items and products listed twice, letters listed twice in a rate table, a product heading two bins in one HLOOKUP row so a SUM of HLOOKUPs misses one, a weekday row repeated per week where MATCH finds only week one, and a growing lookup that returns the oldest sale. False positives left: header labels repeated in a searched row but never looked up (checking the actual lookup values would remove them), a label written over a column pair, and composite keys whose formula ignores the second key (group plus material, region plus expense).",
     "FORMULA_DRIFT": "0 of 25 on 0.2.0. Rows of unrelated columns, chain seeds, label-link columns that step through another sheet, and short or header-labelled totals rows mixing SUM and AVERAGE are exempt; a SUM that became an AVERAGE inside a longer run of totals is still reported, because that is the 'function replaced' fault the EUSES corpus injects. What remains is mostly real: a first row whose SUMPRODUCT differs from the rows below and evaluates to #VALUE!, a DB() call missing an argument, a typed threshold of 90120 where the rows around use 90, a total that starts one row late, a typed input inside a fill (=525*1.5 beside =BF24*1.5), and a manual override link. Summary cells that are not part of the run beside them are exempt too: a link heading a column of labels (L2 = M14 over a column of names, where the run's SUM would add up text) and one of a row of counts over one block (COUNTIF(F5:F11,1), 2 and 3). Of the six findings this removed, the four already labeled were FP or unsure, and EUSES recall did not move. Remaining false positives are summary or totals rows whose different formula is the design (a ratio of totals, a 'planned' row that averages under rows that sum, a wins row that counts under an 'average' header) and example sheets where every cell is a different formula. In the 0.4.0 sample two false positives compute exactly what their neighbours do in another spelling ($-anchored references to the same cells, SUM(x) around a product); comparing the cells a formula resolves to would remove them.",
     "HARDCODE_IN_FORMULA_BLOCK": "8% on 0.2.0: input columns between two formula columns sharing a pattern (running sums, unit x quantity). Those are now recognised from the other axis, and the true positives dominate: a constant typed over an IF, a difference, a rolling sum or a scaled copy in a column of identical formulas. Remaining false positives are input columns on sparse sheets or one-row tables, where the cells above and below the constant are empty and the check has nothing to compare, and input columns whose neighbouring formula lines hold plugs of their own. In the 0.4.0 sample the four false positives are the Actual input columns of one budget workbook family.",
     "HIDDEN_STRUCTURE_IN_TOTAL": "Hidden helper columns feeding scores, hidden rows still counted by SUMIFS, hidden lookup tables and hidden source sheets: every sampled finding was a disclosure a reviewer wants. AGGREGATE and SUBTOTAL variants that skip hidden rows no longer count, and hidden rows feeding the same formulas are reported together.",
@@ -5325,6 +5325,78 @@
     "3517fbb37fa4|WHITESPACE_KEY|Dec14!A14": {
       "label": "TP",
       "reason": "'COURTNEY ' is the one padded name in a clean name column of the staff roster, the same pattern as the accepted example."
+    },
+    "f367b87c90dd|DUPLICATE_KEY|Sheet1!A10,Sheet1!B10": {
+      "label": "TP",
+      "reason": "Row 10 of the bay map has 'WBNB Splits' heading two bins (A11=2206, B11=1820) and the SUM of HLOOKUPs over A10:L11 in column O returns only the first, so the second bin is left out of the inventory total."
+    },
+    "37d41403fe20|DUPLICATE_KEY|WK1!F1,WK1!P1": {
+      "label": "FP",
+      "reason": "The only lookup over the WK1 header row is MATCH on Statistics headers (Quantity, Weeks in Storage, Storage Cost, Value); 'Expiry Date' is never looked up, so the repeated header cannot mislead it."
+    },
+    "65228fa5c9a0|DUPLICATE_KEY|RS.Food!A14,RS.Food!A409": {
+      "label": "FP",
+      "reason": "The VLOOKUP keys come from a class-and-rank top-20 picker; the repeated items' second rows are zero-revenue entries in a separate condiments section that are unclassified (Omelette) or ranked below the top-20 cut, so the name lookups only fetch rows the picker selected."
+    },
+    "3c0a56086b5d|DUPLICATE_KEY|URNlookup!K3,URNlookup!K214": {
+      "label": "TP",
+      "reason": "Postcode column K is the MATCH key of an INDEX/MATCH returning ESTAB; Alston Primary School and Samuel King's School share CA9 3QU, so the second school gets the first school's number."
+    },
+    "b55280430702|DUPLICATE_KEY|Sheet1!B1,Sheet1!I1,Sheet1!P1": {
+      "label": "TP",
+      "reason": "The summary's MATCH of a weekday across row 1 of a three-week roster finds only the first week's column, so COUNTA misses 'hk' entries in weeks two and three (Driver 19 Sunday shows 1 instead of 3)."
+    },
+    "d7bb3bd8958a|DUPLICATE_KEY|Sheet1!B1,Sheet1!I1,Sheet1!P1": {
+      "label": "TP",
+      "reason": "The summary's MATCH of a weekday across row 1 of a three-week roster finds only the first week's column, so COUNTA misses later weeks (Driver 1 Sunday shows 1 though D3 and K3 both hold 'hk')."
+    },
+    "484f4df3fe7b|DUPLICATE_KEY|WK1!F1,WK1!P1": {
+      "label": "FP",
+      "reason": "The only lookup over the WK1 header row is MATCH on Statistics headers (Quantity, Weeks in Storage, Storage Cost, Value); 'Expiry Date' is never looked up, so the repeated header cannot mislead it."
+    },
+    "852b58472b57|DUPLICATE_KEY|Sheet1!A10,Sheet1!B10": {
+      "label": "TP",
+      "reason": "Row 10 of the bay map has 'WBNB Splits' heading two bins (A11=2206, B11=1820) and the SUM of HLOOKUPs over A10:L11 in column O returns only the first, so the second bin is left out of the inventory total."
+    },
+    "f367b87c90dd|DUPLICATE_KEY|Sheet1!C14,Sheet1!I14": {
+      "label": "TP",
+      "reason": "Row 14 has 'Pb Splits' heading two bins (C15=768, I15=1630) and the HLOOKUP over A14:L15 inside the SUM returns only C15, so the 1630 lb bin is missed."
+    },
+    "acb548947286|DUPLICATE_KEY|WK1!F1,WK1!P1": {
+      "label": "FP",
+      "reason": "The only lookup over the WK1 header row is MATCH on Statistics headers (Quantity, Weeks in Storage, Storage Cost, Value); 'Expiry Date' is never looked up, so the repeated header cannot mislead it."
+    },
+    "38117ed54ea2|DUPLICATE_KEY|Grouping!A3,Grouping!A5": {
+      "label": "FP",
+      "reason": "Composite group-plus-material table: the group-only rows come first and are what the group VLOOKUPs (used only when material is blank) want, while material-specific rows are looked up by column B."
+    },
+    "f0d026f067a4|DUPLICATE_KEY|Sheet1!C14,Sheet1!I14": {
+      "label": "TP",
+      "reason": "Row 14 has 'Pb Splits' heading two bins (C15=768, I15=1630) and the HLOOKUP over A14:L15 inside the SUM returns only C15, so the 1630 lb bin is missed."
+    },
+    "f0d026f067a4|DUPLICATE_KEY|Sheet1!B2,Sheet1!G2": {
+      "label": "TP",
+      "reason": "Row 2 has 'GNB Splits' heading two bins (B3=1000, G3=592) and the HLOOKUP over A2:L3 in the GNB Splits total returns only B3, so the G3 bin is missed."
+    },
+    "852b58472b57|DUPLICATE_KEY|Sheet1!B2,Sheet1!G2": {
+      "label": "TP",
+      "reason": "Row 2 has 'GNB Splits' heading two bins (B3=1026, G3=592) and the HLOOKUP over A2:L3 in the GNB Splits total returns only B3, so the G3 bin is missed."
+    },
+    "7dfe4964af12|DUPLICATE_KEY|Sheet1!BG2,Sheet1!BH2": {
+      "label": "FP",
+      "reason": "'Case Replies' is written over its Goal #/Goal % column pair where other categories use a merged cell; MATCH lands on the Goal # column exactly as it does for every merged category, and the lookup value is #REF! anyway."
+    },
+    "3db55cfd98cc|DUPLICATE_KEY|Sheet2!B3,Sheet2!B12": {
+      "label": "FP",
+      "reason": "Expense names repeat per region by design (region in column A), and the only MATCH over column B is a fill-drifted formula whose lookup value is a blank cell, so the duplicates never decide a result."
+    },
+    "ff0beb280ebe|DUPLICATE_KEY|Sheet1!B5,Sheet1!B7,Sheet1!B10,Sheet1!B14,Sheet1!B20": {
+      "label": "TP",
+      "reason": "In the section labelled 'ASCENDING (NOT WORKING)', MATCH over the expanding range $B$4:B(row-1) returns the oldest prior sale of the name, so 'Days Since Sale' measures from the first sale instead of the latest."
+    },
+    "a4becd1e83e9|DUPLICATE_KEY|Sheet1!A8,Sheet1!A20": {
+      "label": "TP",
+      "reason": "Products G to L are listed twice in the Data table with different costs, and Sheet2 has columns for both sets, so VLOOKUP on the second set's headers returns the first set's cost."
     }
   }
 }

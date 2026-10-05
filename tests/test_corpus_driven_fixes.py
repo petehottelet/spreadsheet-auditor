@@ -609,3 +609,127 @@ def test_countif_criteria_literals_are_not_assumptions(tmp_path):
     literals = _audit(path).get("LITERAL_CONSTANT", [])
     assert [f["location"] for f in literals] == ["S!C4"]
     assert "1.3" in literals[0]["evidence"][0]
+
+
+# --- duplicate keys a first-match lookup can actually return wrongly --------------
+
+
+def _duplicate_keys(wb: Workbook, tmp_path: Path) -> list[dict]:
+    path = tmp_path / "keys.xlsx"
+    wb.save(path)
+    return _audit(path).get("DUPLICATE_KEY", [])
+
+
+def test_a_key_repeated_only_across_separately_searched_ranges_is_not_a_duplicate(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    # Two small tables in one column, each searched by its own VLOOKUP.
+    for row, (key, value) in enumerate([("north", 1), ("south", 2), ("east", 3)], start=1):
+        ws.cell(row, 1, key), ws.cell(row, 2, value)
+        ws.cell(row + 5, 1, key), ws.cell(row + 5, 2, value * 10)
+    ws["E1"] = '=VLOOKUP("south",A1:B3,2,FALSE)'
+    ws["E2"] = '=VLOOKUP("south",A6:B8,2,FALSE)'
+    assert _duplicate_keys(wb, tmp_path) == []
+    ws["E3"] = '=VLOOKUP("south",A1:B8,2,FALSE)'  # one lookup over both: every key is ambiguous
+    [finding] = _duplicate_keys(wb, tmp_path)
+    assert finding["members"] == ["S!A1", "S!A6", "S!A2", "S!A7", "S!A3", "S!A8"]
+
+
+def test_hlookup_keys_repeat_along_the_row_it_searches(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Bays"
+    # A bay map: each two-row block has product labels over quantities, and the
+    # same product heads a bin in several blocks.
+    ws.append(["WBNB", "BT", "GNB"])
+    ws.append([5, 6, 7])
+    ws.append(["BT", "WBNB", "GNB"])
+    ws.append([8, 9, 10])
+    ws["F1"] = '=SUM(IFNA(HLOOKUP("GNB",$A$1:$C$2,2,),0),IFNA(HLOOKUP("GNB",$A$3:$C$4,2,),0))'
+    assert _duplicate_keys(wb, tmp_path) == []
+    ws["B3"] = "GNB"  # GNB now heads two bins of the second block: the SUM misses one
+    [finding] = _duplicate_keys(wb, tmp_path)
+    assert finding["members"] == ["Bays!B3", "Bays!C3"]
+    assert finding["evidence"][0].startswith("Normalized key 'gnb' appears 2 times")
+
+
+def test_a_lookup_for_the_next_occurrence_expects_repeats(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sales"
+    names = ["bob", "ann", "bob", "cy", "ann", "bob"]
+    for row, name in enumerate(names, start=2):
+        ws.cell(row, 1, row), ws.cell(row, 2, name)
+        # Days since this person's previous sale, in a log listed newest first.
+        ws.cell(row, 3, f"=IFERROR(A{row}-INDEX($A{row + 1}:$A$20,MATCH(B{row},$B{row + 1}:$B$20,0)),\"\")")
+    assert _duplicate_keys(wb, tmp_path) == []
+    # Anchored at the top and growing, the same lookup returns the earliest
+    # sale; its widest range, B2:B6, holds bob and ann twice each.
+    for row in range(3, 8):
+        ws.cell(row, 4, f"=IFERROR(INDEX($A$2:$A{row - 1},MATCH(B{row},$B$2:$B{row - 1},0)),\"\")")
+    assert [f["members"] for f in _duplicate_keys(wb, tmp_path)] == [["Sales!B2", "Sales!B4", "Sales!B3", "Sales!B6"]]
+
+
+def test_detail_rows_under_one_id_and_identical_returns_are_not_duplicates(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "S"
+    for row, (key, value) in enumerate([("A1", 26.4), ("A1", 26.9), ("A1", 27.1), ("B2", 25.8), ("B2", 26.7), ("B2", 26.2)], start=2):
+        ws.cell(row, 1, key), ws.cell(row, 2, value)
+    ws["D2"] = "=MATCH(\"B2\",A2:A7,0)"
+    assert _duplicate_keys(wb, tmp_path) == []
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Countries"
+    rows = [("Thailand", "THB", 33), ("Hong Kong", "USD", 1), ("India", "INR", 70), ("Turkey", "USD", 1)]
+    for row, values in enumerate(rows, start=2):
+        for col, value in enumerate(values, start=1):
+            ws.cell(row, col, value)
+    ws["F2"] = "=_xlfn.XLOOKUP(\"USD\",B2:B5,C2:C5)"
+    assert _duplicate_keys(wb, tmp_path) == []  # both USD rows give the rate 1
+    ws["C5"] = 1.1
+    [finding] = _duplicate_keys(wb, tmp_path)
+    assert finding["members"] == ["Countries!B3", "Countries!B5"]
+
+
+def test_categories_and_dated_entries_are_not_duplicate_keys(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Attendance"
+    for row, mark in enumerate(["p", "a", "p", "p", "a", "p", "a"], start=1):
+        ws.cell(row, 1, mark)
+    ws["C1"] = "=MATCH(\"a\",A1:A7,0)"
+    assert _duplicate_keys(wb, tmp_path) == []
+
+    import datetime
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Prices"
+    rows = [("ABC1", datetime.date(2024, 1, 1), 10), ("XYZ2", datetime.date(2024, 1, 1), 7), ("ABC1", datetime.date(2025, 1, 1), 12)]
+    for row, values in enumerate(rows, start=2):
+        for col, value in enumerate(values, start=1):
+            ws.cell(row, col, value)
+    ws["E2"] = "=VLOOKUP(\"ABC1\",A2:C4,3,FALSE)"
+    assert _duplicate_keys(wb, tmp_path) == []  # one material, two validity periods
+
+
+def test_a_growing_lookup_range_is_read_once_however_far_it_is_filled():
+    import time
+
+    from spreadsheet_auditor.referenced import ReferenceIndex
+
+    growing = [
+        {"sheet": "S", "row": row, "col": 3, "formula": f"=MATCH(B{row},$B$2:$B{row - 1},0)"} for row in range(3, 3003)
+    ]
+    overlapping = [
+        {"sheet": "S", "row": 1, "col": 6, "formula": "=MATCH(1,D1:D50,0)"},
+        {"sheet": "S", "row": 2, "col": 6, "formula": "=MATCH(1,D20:D80,0)"},
+    ]
+    start = time.perf_counter()
+    ranges = ReferenceIndex.from_formulas(growing + overlapping).searched_ranges("S")
+    # The 3,000 ranges nested in B2:B3001 collapse into it; the two that only overlap both stay.
+    assert sorted(searched.box for searched in ranges) == [(2, 2, 2, 3001), (4, 1, 4, 50), (4, 20, 4, 80)]
+    assert time.perf_counter() - start < 10
