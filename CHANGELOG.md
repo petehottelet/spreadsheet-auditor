@@ -22,7 +22,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   date beside each occurrence tells them apart (a material's validity
   periods, a dated log). A lookup anchored at the top that grows down
   (`MATCH(B5,$B$4:$B4,0)`) still reports repeats, since it returns the
-  earliest occurrence.
+  earliest occurrence. Repeats along a row that a lookup searches are now
+  found too: a product heading two bins in one HLOOKUP row, so a `SUM` of
+  HLOOKUPs misses one. On SpreadsheetBench the rule reports 39 findings
+  instead of 69 and its sampled precision rises from 24% to 68%; overall
+  precision is 84%, from 80%.
 
 ## [0.4.0] - 2026-10-03
 
